@@ -1,0 +1,620 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------
+// 1. ORGANIZATION & USERS (Multi-Tenancy & RBAC)
+// -------------------------------------------------------------
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  ownerName   String
+  mobile      String
+  email       String
+  address     String?
+  city        String?
+  state       String?
+  country     String?  @default("India")
+  gstNumber   String?
+  currency    String   @default("INR")
+  timezone    String   @default("Asia/Kolkata")
+  dateFormat  String   @default("DD/MM/YYYY")
+  logoUrl     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  members          OrganizationUser[]
+  projects         Project[]
+  projectSites     ProjectSite[]
+  workers          Worker[]
+  attendance       Attendance[]
+  workRecords      WorkRecord[]
+  salaryRecords    SalaryRecord[]
+  allowances       Allowance[]
+  payments         Payment[]
+  transactions     Transaction[]
+  expenses         Expense[]
+  materials        Material[]
+  suppliers        Supplier[]
+  materialReceipts MaterialReceipt[]
+  materialUsages   MaterialUsage[]
+  transfersSent    MaterialTransfer[] @relation("SourceProjectOrg")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  subscriptions    Subscription[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  mobile       String?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  memberships   OrganizationUser[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model OrganizationUser {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("OWNER") // OWNER, MANAGER, SITE_SUPERVISOR, ACCOUNTANT
+  status         String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_users")
+}
+
+// -------------------------------------------------------------
+// 2. PROJECTS & SITES
+// -------------------------------------------------------------
+
+model Project {
+  id                     String    @id @default(cuid())
+  organizationId         String
+  projectCode            String
+  name                   String
+  projectType            String?   // Residential, Commercial, Infrastructure, Renovation, Other
+  status                 String    @default("RUNNING") // ENQUIRY, COMING_SOON, RUNNING, COMPLETED, ON_HOLD, CANCELLED
+  location               String?
+  fullAddress            String?
+  clientName             String?
+  clientMobile           String?
+  clientEmail            String?
+  referenceSource        String?
+  engineerName           String?
+  engineerMobile         String?
+  architectName          String?
+  architectMobile        String?
+  startDate              DateTime?
+  expectedCompletionDate DateTime?
+  actualCompletionDate   DateTime?
+  projectValue           Float     @default(0)
+  estimatedTotalCost     Float     @default(0)
+  estimatedLabourCost    Float     @default(0)
+  estimatedMaterialCost  Float     @default(0)
+  estimatedOtherExpense  Float     @default(0)
+  targetUnit             String?   @default("sq.ft.") // sq.ft., sq.m., etc.
+  targetQuantity         Float?    @default(0)
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sites            ProjectSite[]
+  attendance       Attendance[]
+  workRecords      WorkRecord[]
+  salaryRecords    SalaryRecord[]
+  allowances       Allowance[]
+  payments         Payment[]
+  expenses         Expense[]
+  materialReceipts MaterialReceipt[]
+  materialUsages   MaterialUsage[]
+  transfersFrom    MaterialTransfer[] @relation("SourceProject")
+  transfersTo      MaterialTransfer[] @relation("DestProject")
+  budgets          ProjectBudget[]
+
+  @@unique([organizationId, projectCode])
+  @@index([organizationId, status])
+  @@map("projects")
+}
+
+model ProjectSite {
+  id               String   @id @default(cuid())
+  organizationId   String
+  projectId        String
+  name             String   // e.g. "Tower A", "Basement", "Block 1"
+  address          String?
+  location         String?
+  supervisorName   String?
+  supervisorMobile String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attendance       Attendance[]
+  workRecords      WorkRecord[]
+  allowances       Allowance[]
+  payments         Payment[]
+  expenses         Expense[]
+  materialReceipts MaterialReceipt[]
+  materialUsages   MaterialUsage[]
+
+  @@index([organizationId, projectId])
+  @@map("project_sites")
+}
+
+// -------------------------------------------------------------
+// 3. WORKERS, ATTENDANCE, WORK & PRODUCTIVITY
+// -------------------------------------------------------------
+
+model Worker {
+  id                   String    @id @default(cuid())
+  organizationId       String
+  workerCode           String
+  name                 String
+  fatherOrHusbandName  String?
+  mobile               String?
+  address              String?
+  skill                String?
+  category             String    @default("Helper") // Mason, Helper, Carpenter, Electrician, Plumber, Painter, Flooring Worker, Steel Worker, Other
+  dailyWage            Float     @default(0)
+  wageUnit             String    @default("PER_DAY") // PER_DAY, PER_MONTH, PER_UNIT
+  joiningDate          DateTime  @default(now())
+  status               String    @default("ACTIVE") // ACTIVE, INACTIVE
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attendance    Attendance[]
+  workRecords   WorkRecord[]
+  salaryRecords SalaryRecord[]
+  allowances    Allowance[]
+  payments      Payment[]
+  transactions  Transaction[]
+
+  @@unique([organizationId, workerCode])
+  @@index([organizationId, status])
+  @@map("workers")
+}
+
+model Attendance {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  siteId         String?
+  workerId       String
+  date           DateTime // Day of attendance (start of day UTC)
+  status         String   @default("PRESENT") // PRESENT, ABSENT, HALF_DAY, LEAVE
+  shift          String?  @default("DAY") // DAY, NIGHT, OVERTIME
+  overtimeHours  Float    @default(0)
+  wageForDay     Float    @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, projectId, workerId, date])
+  @@index([organizationId, date])
+  @@index([projectId, date])
+  @@index([workerId, date])
+  @@map("attendance")
+}
+
+model WorkRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  siteId         String?
+  workerId       String
+  date           DateTime
+  task           String   // e.g. Flooring, Brickwork, Plastering
+  description    String?
+  quantity       Float    @default(0)
+  unit           String   // sq.ft., sq.m., running ft., meter, piece, kg, ton, etc.
+  rate           Float    @default(0)
+  totalWorkValue Float    @default(0) // quantity * rate
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([projectId, date])
+  @@index([workerId, date])
+  @@map("work_records")
+}
+
+// -------------------------------------------------------------
+// 4. SALARY, ALLOWANCES, PAYMENTS & KHATA LEDGER
+// -------------------------------------------------------------
+
+model SalaryRecord {
+  id               String   @id @default(cuid())
+  organizationId   String
+  workerId         String
+  projectId        String?
+  periodStart      DateTime
+  periodEnd        DateTime
+  wageType         String   @default("DAILY") // DAILY, MONTHLY, PIECE_RATE, MANUAL
+  dailyWage        Float    @default(0)
+  presentDays      Float    @default(0)
+  halfDays         Float    @default(0)
+  overtimeHours    Float    @default(0)
+  totalGrossSalary Float    @default(0)
+  totalAllowances  Float    @default(0)
+  totalAdvances    Float    @default(0)
+  netPayable       Float    @default(0)
+  paidAmount       Float    @default(0)
+  paymentStatus    String   @default("PENDING") // PENDING, PARTIALLY_PAID, PAID
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, workerId])
+  @@index([organizationId, periodStart, periodEnd])
+  @@map("salary_records")
+}
+
+model Allowance {
+  id             String    @id @default(cuid())
+  organizationId String
+  workerId       String
+  projectId      String?
+  siteId         String?
+  date           DateTime
+  amount         Float     @default(0)
+  type           String    @default("FOOD") // FOOD, TRAVEL, STAY, TRANSPORT, OTHER
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, workerId])
+  @@index([organizationId, date])
+  @@map("allowances")
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  organizationId  String
+  workerId        String
+  projectId       String?
+  siteId          String?
+  date            DateTime
+  transactionType String    @default("PAYMENT") // SALARY, ADVANCE, PAYMENT, ADJUSTMENT
+  amount          Float     @default(0)
+  paymentMethod   String    @default("CASH") // CASH, BANK, UPI, OTHER
+  reference       String?
+  receiptUrl      String?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, workerId])
+  @@index([organizationId, date])
+  @@map("payments")
+}
+
+model Transaction {
+  id             String    @id @default(cuid())
+  organizationId String
+  workerId       String
+  date           DateTime
+  description    String
+  sourceType     String    // SALARY, ALLOWANCE, ADVANCE, PAYMENT, ADJUSTMENT
+  sourceId       String?
+  debit          Float     @default(0) // Amount paid/advanced to worker (reduces balance owed)
+  credit         Float     @default(0) // Amount earned by worker (increases balance owed)
+  balanceAfter   Float     @default(0)
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workerId, date])
+  @@map("transactions")
+}
+
+// -------------------------------------------------------------
+// 5. EXPENSES
+// -------------------------------------------------------------
+
+model Expense {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String?
+  siteId         String?
+  date           DateTime
+  category       String    @default("MISCELLANEOUS") // LABOUR, MATERIAL, TRANSPORT, FOOD, FUEL, EQUIPMENT, RENT, ELECTRICITY, MISCELLANEOUS, OTHER
+  description    String
+  amount         Float     @default(0)
+  paidBy         String?
+  paymentMethod  String    @default("CASH") // CASH, BANK, UPI, OTHER
+  vendorName     String?
+  receiptUrl     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, date])
+  @@index([organizationId, projectId])
+  @@index([organizationId, category])
+  @@map("expenses")
+}
+
+// -------------------------------------------------------------
+// 6. MATERIALS & INVENTORY
+// -------------------------------------------------------------
+
+model Material {
+  id             String    @id @default(cuid())
+  organizationId String
+  materialCode   String
+  name           String    // Cement, Sand, TMT Steel 12mm, Red Bricks
+  category       String    @default("Other") // Cement, Sand, Steel, Bricks, Tiles, Paint, Electrical, Plumbing, Hardware, Other
+  unit           String    @default("bags") // bags, sq.ft, kg, ton, brass, piece, meter
+  openingStock   Float     @default(0)
+  minimumStock   Float     @default(0)
+  purchaseRate   Float     @default(0)
+  supplierId     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  receipts     MaterialReceipt[]
+  usages       MaterialUsage[]
+  transfers    MaterialTransfer[]
+
+  @@unique([organizationId, materialCode])
+  @@index([organizationId, category])
+  @@map("materials")
+}
+
+model Supplier {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  contactPerson  String?
+  mobile         String?
+  email          String?
+  address        String?
+  gstNumber      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  materials    Material[]
+  receipts     MaterialReceipt[]
+
+  @@index([organizationId])
+  @@map("suppliers")
+}
+
+model MaterialReceipt {
+  id             String    @id @default(cuid())
+  organizationId String
+  materialId     String
+  projectId      String
+  siteId         String?
+  supplierId     String?
+  date           DateTime
+  quantity       Float     @default(0)
+  purchaseRate   Float     @default(0)
+  totalCost      Float     @default(0) // quantity * purchaseRate
+  invoiceNumber  String?
+  attachmentUrl  String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, date])
+  @@index([projectId, materialId])
+  @@map("material_receipts")
+}
+
+model MaterialUsage {
+  id             String    @id @default(cuid())
+  organizationId String
+  materialId     String
+  projectId      String
+  siteId         String?
+  date           DateTime
+  quantity       Float     @default(0)
+  taskPurpose    String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, date])
+  @@index([projectId, materialId])
+  @@map("material_usage")
+}
+
+model MaterialTransfer {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  materialId           String
+  sourceProjectId      String
+  destinationProjectId String
+  date                 DateTime
+  quantity             Float    @default(0)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization       Organization @relation("SourceProjectOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+  material           Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  sourceProject      Project      @relation("SourceProject", fields: [sourceProjectId], references: [id], onDelete: Cascade)
+  destinationProject Project      @relation("DestProject", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([sourceProjectId])
+  @@index([destinationProjectId])
+  @@map("material_transfers")
+}
+
+// -------------------------------------------------------------
+// 7. BUDGETS, NOTIFICATIONS, AUDIT LOGS & SUBSCRIPTIONS
+// -------------------------------------------------------------
+
+model ProjectBudget {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  category       String   // LABOUR, MATERIAL, OTHER, TOTAL
+  budgetAmount   Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, category])
+  @@map("project_budgets")
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           String   // PAYMENT_PENDING, LOW_STOCK, BUDGET_EXCEEDED, DEADLINE_APPROACHING, ATTENDANCE_MISSING, GENERAL
+  title          String
+  message        String
+  link           String?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  entityType     String   // Project, Worker, Payment, Expense, Material, Attendance
+  entityId       String
+  action         String   // CREATE, UPDATE, DELETE, RESTORE
+  oldValue       String?  // JSON string
+  newValue       String?  // JSON string
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, entityType, entityId])
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String   // FREE, BASIC, PROFESSIONAL, BUSINESS
+  price       Float    @default(0)
+  maxProjects Int      @default(5)
+  maxWorkers  Int      @default(20)
+  maxUsers    Int      @default(2)
+  storageMb   Int      @default(500)
+  features    String?  // JSON string of features
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id             String    @id @default(cuid())
+  organizationId String
+  planId         String
+  status         String    @default("ACTIVE") // ACTIVE, TRIAL, EXPIRED, CANCELLED
+  startDate      DateTime  @default(now())
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("subscriptions")
+}
