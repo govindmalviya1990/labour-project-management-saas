@@ -5,6 +5,8 @@
 
 # Testing
 /coverage
+/scripts/
+
 
 # Next.js build output
 /.next/
@@ -13,11 +15,9 @@
 # Production build artifacts
 /build
 
-# Database
-prisma/dev.db
-prisma/dev.db-journal
-*.db
+# Database journals
 *.db-journal
+
 
 # Environment variables
 .env
