@@ -3,8 +3,19 @@
 @tailwind utilities;
 
 :root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --muted-text: #64748b;
+}
+
+.dark {
   --background: #090d16;
   --foreground: #f8fafc;
+  --card-bg: #0f172a;
+  --card-border: #1e293b;
+  --muted-text: #94a3b8;
 }
 
 body {
@@ -15,6 +26,75 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Light mode overrides for dashboard containers */
+html.light body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+html.light aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+html.light header {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light .bg-slate-950 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html.light .bg-slate-900 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+html.light .border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-700 {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .text-slate-400 {
+  color: #64748b !important;
+}
+
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+
+html.light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+/* Maintain amber and status badges in light mode */
+html.light .text-amber-500,
+html.light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563eb !important;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -22,15 +102,23 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1120;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+
 ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
 
@@ -47,4 +135,52 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Print Styles for Quotations and Reports */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  aside,
+  header,
+  nav,
+  .no-print,
+  button,
+  .floating-action-button {
+    display: none !important;
+  }
+
+  main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .printable-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    color: #000000 !important;
+  }
 }

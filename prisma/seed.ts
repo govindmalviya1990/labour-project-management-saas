@@ -9,6 +9,48 @@ async function main() {
   const existingOrg = await prisma.organization.findFirst();
   if (existingOrg) {
     console.log('Database already initialized with organization:', existingOrg.name);
+    const quoteCount = await prisma.quotation.count({ where: { organizationId: existingOrg.id } });
+    if (quoteCount === 0) {
+      console.log('Seeding initial sample quotation for Modern Way Civil Solution...');
+      const project = await prisma.project.findFirst({ where: { organizationId: existingOrg.id } });
+      await prisma.quotation.create({
+        data: {
+          organizationId: existingOrg.id,
+          quotationNumber: 'MWCS-QT-2026-001',
+          title: 'Turnkey Residential Construction (G+1 Villa)',
+          clientName: 'Shree Sai Developers & Infra',
+          clientPhone: '+91 98234 56789',
+          clientEmail: 'contact@shreesaiinfra.com',
+          clientAddress: 'Plot 45, Golden Heights, Sector 62, Noida, UP',
+          clientGst: '07AAACH7409R1ZZ',
+          projectId: project?.id,
+          status: 'SENT',
+          templateType: 'RESIDENTIAL_CONSTRUCTION',
+          formatLayout: 'MODERN',
+          subtotal: 1884800,
+          discountType: 'PERCENT',
+          discountValue: 5,
+          discountAmount: 94240,
+          taxRate: 18,
+          taxAmount: 322300.8,
+          grandTotal: 2112860.8,
+          paymentTerms: '• 20% Mobilization advance on contract signing\n• 25% Upon casting of plinth beam\n• 25% Upon ground & first floor slab casting\n• 20% Upon completion of internal/external plaster\n• 10% On final snag clearance and key handover',
+          termsAndConditions: '1. Electricity and construction water provided at site by client.\n2. Work execution strictly as per approved structural engineer drawings.\n3. Defect liability period is 12 months from final handover.\n4. Subject to Gautam Buddha Nagar (Noida) jurisdiction.',
+          notes: 'Includes all shuttering materials, high-strength concrete pumps, and safety scaffolding.',
+          items: {
+            create: [
+              { itemNumber: 1, description: 'Earthwork excavation for foundation footings up to 6ft depth', unit: 'cum', quantity: 180, rate: 280, amount: 50400 },
+              { itemNumber: 2, description: 'PCC 1:4:8 base bed (100mm thick) with 40mm metal', unit: 'cum', quantity: 35, rate: 4200, amount: 147000 },
+              { itemNumber: 3, description: 'RCC M25 grade for column footings, plinth beams, and columns with Fe550D steel', unit: 'cum', quantity: 50, rate: 8500, amount: 425000 },
+              { itemNumber: 4, description: 'RCC M25 roof slab casting with boom pump pouring and shuttering', unit: 'sq.ft.', quantity: 1800, rate: 380, amount: 684000 },
+              { itemNumber: 5, description: '9" Red brick masonry in cement mortar 1:6 for external walls', unit: 'sq.ft.', quantity: 2400, rate: 145, amount: 348000 },
+              { itemNumber: 6, description: '12mm smooth internal cement plaster ready for wall putty', unit: 'sq.ft.', quantity: 4800, rate: 48, amount: 230400 },
+            ],
+          },
+        },
+      });
+      console.log('✔ Initial sample quotation created!');
+    }
     return;
   }
 

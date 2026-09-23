@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ThemeProvider } from '@/lib/theme/ThemeContext';
 
 export const metadata: Metadata = {
-  title: 'Labour & Project Management SaaS',
-  description: 'Enterprise construction management, labour tracking, khata ledger, and project financial analytics.',
+  title: 'Modern Way Civil Solution - Labour & Project Management SaaS',
+  description: 'Enterprise construction management, labour tracking, khata ledger, and project financial analytics by Modern Way Civil Solution.',
 };
 
 export default function RootLayout({
@@ -12,9 +13,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-amber-500/30 selection:text-amber-200">
-        {children}
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-amber-500/30 selection:text-amber-200 transition-colors duration-200">
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

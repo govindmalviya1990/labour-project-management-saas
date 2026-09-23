@@ -13,6 +13,7 @@ import {
   PackageMinus,
   UserPlus,
   FolderPlus,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -28,6 +29,7 @@ export function FloatingActionButton() {
     { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
     { label: 'Add Worker', href: '/workers?action=new', icon: <UserPlus className="w-4 h-4 text-indigo-400" /> },
     { label: 'Create Project', href: '/projects?action=new', icon: <FolderPlus className="w-4 h-4 text-amber-400" /> },
+    { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
   ];
 
   return (

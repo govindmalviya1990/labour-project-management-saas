@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Building2,
   HardHat,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -80,6 +81,11 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
       ],
     },
     {
+      title: 'Quotations',
+      href: '/quotations',
+      icon: <FileSpreadsheet className="w-4 h-4" />,
+    },
+    {
       title: 'Materials',
       icon: <Package className="w-4 h-4" />,
       children: [
@@ -133,10 +139,11 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
           <HardHat className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-bold text-white truncate tracking-tight">Labour & Project</h1>
-          <p className="text-[11px] font-medium text-amber-500 truncate flex items-center gap-1">
-            <Building2 className="w-3 h-3 inline" />
-            {organizationName || 'Modern Way Civil'}
+          <h1 className="text-sm font-extrabold text-white tracking-tight leading-snug">
+            Modern Way Civil Solution
+          </h1>
+          <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider">
+            Civil & Project SaaS
           </p>
         </div>
       </div>

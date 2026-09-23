@@ -10,7 +10,10 @@ import {
   Calendar,
   Building2,
   HardHat,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useTheme } from '@/lib/theme/ThemeContext';
 
 interface TopbarProps {
   userName?: string;
@@ -30,6 +33,7 @@ export function Topbar({
   onDateFilterChange,
 }: TopbarProps) {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -57,8 +61,8 @@ export function Topbar({
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950 font-bold">
           <HardHat className="w-4 h-4" />
         </div>
-        <span className="text-xs font-bold text-white tracking-tight truncate max-w-[140px]">
-          {organizationName}
+        <span className="text-xs font-bold text-white tracking-tight truncate max-w-[150px]">
+          Modern Way Civil Solution
         </span>
       </div>
 
@@ -77,7 +81,22 @@ export function Topbar({
       </form>
 
       {/* Right Controls: Filters, Notifications, Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Dark / Light Mode Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-900 hover:text-amber-400 transition-colors border border-slate-800"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          aria-label="Toggle Theme"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-amber-500" />
+          )}
+        </button>
+
         {/* Date Filter Dropdown */}
         <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs text-slate-300">
           <Calendar className="w-3.5 h-3.5 text-amber-400" />

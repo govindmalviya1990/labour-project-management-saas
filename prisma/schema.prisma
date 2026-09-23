@@ -49,6 +49,7 @@ model Organization {
   notifications    Notification[]
   auditLogs        AuditLog[]
   subscriptions    Subscription[]
+  quotations       Quotation[]
 
   @@map("organizations")
 }
@@ -138,6 +139,7 @@ model Project {
   transfersFrom    MaterialTransfer[] @relation("SourceProject")
   transfersTo      MaterialTransfer[] @relation("DestProject")
   budgets          ProjectBudget[]
+  quotations       Quotation[]
 
   @@unique([organizationId, projectCode])
   @@index([organizationId, status])
@@ -618,3 +620,65 @@ model Subscription {
   @@index([organizationId])
   @@map("subscriptions")
 }
+
+// -------------------------------------------------------------
+// 12. QUOTATIONS & BOQ MANAGEMENT
+// -------------------------------------------------------------
+
+model Quotation {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  quotationNumber    String
+  title              String
+  clientName         String
+  clientPhone        String?
+  clientEmail        String?
+  clientAddress      String?
+  clientGst          String?
+  projectId          String?
+  status             String          @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED
+  templateType       String          @default("RESIDENTIAL_CONSTRUCTION")
+  formatLayout       String          @default("MODERN") // MODERN, CLASSIC, MINIMAL, INDUSTRIAL, ELEGANT
+  date               DateTime        @default(now())
+  validUntil         DateTime?
+  subtotal           Float           @default(0)
+  discountType       String          @default("PERCENT") // PERCENT, FIXED
+  discountValue      Float           @default(0)
+  discountAmount     Float           @default(0)
+  taxRate            Float           @default(18)
+  taxAmount          Float           @default(0)
+  grandTotal         Float           @default(0)
+  termsAndConditions String?
+  paymentTerms       String?
+  notes              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project            Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  items              QuotationItem[]
+
+  @@unique([organizationId, quotationNumber])
+  @@index([organizationId, status])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  itemNumber  Int
+  description String
+  unit        String
+  quantity    Float     @default(1)
+  rate        Float     @default(0)
+  amount      Float     @default(0)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
