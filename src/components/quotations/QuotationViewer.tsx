@@ -423,11 +423,11 @@ function OfficialModernWayView({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[#153e75] text-white font-bold uppercase text-[11px]">
-                  <th className="py-2 px-2.5 w-10 text-center border-r border-slate-400/40">#</th>
-                  <th className="py-2 px-3 border-r border-slate-400/40">DESCRIPTION</th>
-                  <th className="py-2 px-2.5 w-20 text-center border-r border-slate-400/40">QTY</th>
-                  <th className="py-2 px-3 w-28 text-right border-r border-slate-400/40">PRICE</th>
-                  <th className="py-2 px-3 w-32 text-right">TOTAL</th>
+                  <th className="py-2 px-2.5 w-10 text-center border-r border-slate-400/40 text-white" style={{ color: '#ffffff' }}>#</th>
+                  <th className="py-2 px-3 border-r border-slate-400/40 text-white" style={{ color: '#ffffff' }}>DESCRIPTION</th>
+                  <th className="py-2 px-2.5 w-20 text-center border-r border-slate-400/40 text-white" style={{ color: '#ffffff' }}>QTY</th>
+                  <th className="py-2 px-3 w-28 text-right border-r border-slate-400/40 text-white" style={{ color: '#ffffff' }}>PRICE</th>
+                  <th className="py-2 px-3 w-32 text-right text-white" style={{ color: '#ffffff' }}>TOTAL</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-300">
@@ -462,10 +462,10 @@ function OfficialModernWayView({
               <tfoot>
                 {/* Grand Total Row */}
                 <tr className="bg-[#153e75] text-white font-bold text-sm">
-                  <td colSpan={4} className="py-2.5 px-3 uppercase text-right tracking-wider">
+                  <td colSpan={4} className="py-2.5 px-3 uppercase text-right tracking-wider text-white" style={{ color: '#ffffff' }}>
                     GRAND TOTAL
                   </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-base font-black">
+                  <td className="py-2.5 px-3 text-right font-mono text-base font-black text-white" style={{ color: '#ffffff' }}>
                     {formatINR(quotation.grandTotal)}
                   </td>
                 </tr>
@@ -890,28 +890,37 @@ function StyledQuotationView({
   return (
     <div className={`print-container max-w-4xl mx-auto rounded-xl p-6 sm:p-10 ${theme.wrapper}`}>
       {/* Letterhead Header Banner */}
-      <div className={`rounded-lg p-6 mb-6 ${theme.headerBg} flex flex-col sm:flex-row justify-between items-start gap-4`}>
-        <div>
-          <div className="flex items-center gap-2">
-            <Droplets className="w-5 h-5 text-amber-400" />
-            <span className="text-xs uppercase font-bold tracking-widest text-amber-300">
-              Modern Way Civil Solutions
-            </span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
-            {theme.title}
-          </h2>
-          <p className="text-xs opacity-90 mt-1 max-w-md">
-            I 04 - S G Business Hub, Opp PNB Bank Sola Road, S G Highway, Gota, Ahmedabad
-          </p>
-        </div>
+      {(() => {
+        const isLightBanner = theme.headerBg.includes('text-slate-900') || theme.headerBg.includes('text-black');
+        const bannerTextColor = isLightBanner ? '#0f172a' : '#ffffff';
+        return (
+          <div
+            className={`rounded-lg p-6 mb-6 ${theme.headerBg} flex flex-col sm:flex-row justify-between items-start gap-4`}
+            style={{ color: bannerTextColor }}
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <Droplets className="w-5 h-5 text-amber-400" />
+                <span className="text-xs uppercase font-bold tracking-widest text-amber-300">
+                  Modern Way Civil Solutions
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1" style={{ color: bannerTextColor }}>
+                {theme.title}
+              </h2>
+              <p className="text-xs opacity-90 mt-1 max-w-md" style={{ color: bannerTextColor }}>
+                I 04 - S G Business Hub, Opp PNB Bank Sola Road, S G Highway, Gota, Ahmedabad
+              </p>
+            </div>
 
-        <div className="text-left sm:text-right shrink-0">
-          <div className="text-xs font-mono font-bold uppercase opacity-80">Quotation No</div>
-          <div className="text-lg font-mono font-black">{quotation.quotationNumber}</div>
-          <div className="text-xs opacity-90 mt-1">Date: {formattedDate}</div>
-        </div>
-      </div>
+            <div className="text-left sm:text-right shrink-0" style={{ color: bannerTextColor }}>
+              <div className="text-xs font-mono font-bold uppercase opacity-80">Quotation No</div>
+              <div className="text-lg font-mono font-black">{quotation.quotationNumber}</div>
+              <div className="text-xs opacity-90 mt-1">Date: {formattedDate}</div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Client & Project Details Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 border-b border-slate-300 text-xs">
@@ -946,14 +955,28 @@ function StyledQuotationView({
       <div className="mt-6 border border-slate-300 rounded-lg overflow-hidden">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
-            <tr className={`font-bold uppercase text-[10px] ${theme.tableHeader}`}>
-              <th className="py-3 px-3 w-10 text-center">#</th>
-              <th className="py-3 px-4">Item Scope & Technical Procedure</th>
-              <th className="py-3 px-3 w-20 text-center">Unit</th>
-              <th className="py-3 px-3 w-24 text-right">Quantity</th>
-              <th className="py-3 px-3 w-28 text-right">Rate</th>
-              <th className="py-3 px-4 w-32 text-right">Total</th>
-            </tr>
+            {(() => {
+              const isLightHeader =
+                theme.tableHeader.includes('text-slate-900') ||
+                theme.tableHeader.includes('text-slate-800');
+              const headerTextColor = isLightHeader
+                ? '#0f172a'
+                : theme.tableHeader.includes('text-amber-')
+                ? '#fbbf24'
+                : theme.tableHeader.includes('text-sky-')
+                ? '#7dd3fc'
+                : '#ffffff';
+              return (
+                <tr className={`font-bold uppercase text-[10px] ${theme.tableHeader}`}>
+                  <th className="py-3 px-3 w-10 text-center" style={{ color: headerTextColor }}>#</th>
+                  <th className="py-3 px-4" style={{ color: headerTextColor }}>Item Scope & Technical Procedure</th>
+                  <th className="py-3 px-3 w-20 text-center" style={{ color: headerTextColor }}>Unit</th>
+                  <th className="py-3 px-3 w-24 text-right" style={{ color: headerTextColor }}>Quantity</th>
+                  <th className="py-3 px-3 w-28 text-right" style={{ color: headerTextColor }}>Rate</th>
+                  <th className="py-3 px-4 w-32 text-right" style={{ color: headerTextColor }}>Total</th>
+                </tr>
+              );
+            })()}
           </thead>
           <tbody className="divide-y divide-slate-200">
             {quotation.items?.map((item: any, idx: number) => (
@@ -987,14 +1010,30 @@ function StyledQuotationView({
             ))}
           </tbody>
           <tfoot>
-            <tr className={`font-bold text-sm ${theme.totalRow}`}>
-              <td colSpan={4} className="py-3 px-4 uppercase text-right tracking-wider">
-                GRAND TOTAL
-              </td>
-              <td colSpan={2} className="py-3 px-4 text-right font-mono text-base font-black">
-                {formatINR(quotation.grandTotal)}
-              </td>
-            </tr>
+            {(() => {
+              const isLightTotal =
+                theme.totalRow.includes('text-slate-950') ||
+                theme.totalRow.includes('text-slate-900');
+              const totalTextColor = isLightTotal ? '#020617' : '#ffffff';
+              return (
+                <tr className={`font-bold text-sm ${theme.totalRow}`}>
+                  <td
+                    colSpan={4}
+                    className="py-3.5 px-4 uppercase text-right tracking-wider"
+                    style={{ color: totalTextColor }}
+                  >
+                    GRAND TOTAL
+                  </td>
+                  <td
+                    colSpan={2}
+                    className="py-3.5 px-4 text-right font-mono text-base font-black"
+                    style={{ color: totalTextColor }}
+                  >
+                    {formatINR(quotation.grandTotal)}
+                  </td>
+                </tr>
+              );
+            })()}
           </tfoot>
         </table>
       </div>
