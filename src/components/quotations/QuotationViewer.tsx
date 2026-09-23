@@ -96,6 +96,7 @@ interface QuotationViewerProps {
   onEdit?: () => void;
   onStatusChange?: (newStatus: string) => void;
   onBack?: () => void;
+  onLayoutChange?: (newLayout: QuotationLayout) => void;
 }
 
 export function QuotationViewer({
@@ -103,10 +104,17 @@ export function QuotationViewer({
   onEdit,
   onStatusChange,
   onBack,
+  onLayoutChange,
 }: QuotationViewerProps) {
   const [selectedLayout, setSelectedLayout] = useState<QuotationLayout>(
     (quotation.formatLayout as QuotationLayout) || 'OFFICIAL_MODERNWAY'
   );
+
+  React.useEffect(() => {
+    if (quotation.formatLayout) {
+      setSelectedLayout(quotation.formatLayout as QuotationLayout);
+    }
+  }, [quotation.formatLayout]);
 
   const org = quotation.organization || DEFAULT_ORGANIZATION;
 
@@ -231,7 +239,11 @@ Email: modernway9394@gmail.com`;
             <span className="text-slate-300 text-[11px] font-medium hidden sm:inline">Theme:</span>
             <select
               value={selectedLayout}
-              onChange={(e) => setSelectedLayout(e.target.value as QuotationLayout)}
+              onChange={(e) => {
+                const val = e.target.value as QuotationLayout;
+                setSelectedLayout(val);
+                onLayoutChange?.(val);
+              }}
               className="bg-transparent text-amber-300 font-semibold text-xs focus:outline-none cursor-pointer max-w-[220px] sm:max-w-none"
             >
               {QUOTATION_LAYOUT_OPTIONS.map((opt) => (
@@ -669,6 +681,196 @@ function StyledQuotationView({
           tableHeader: 'bg-black text-white',
           totalRow: 'bg-black text-white font-bold',
           title: 'Official Contractor Quotation',
+        };
+      case 'ROYAL_INDIGO':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-indigo-600 shadow-2xl',
+          headerBg: 'bg-gradient-to-r from-indigo-950 via-indigo-700 to-purple-800 text-white',
+          accentColor: 'text-indigo-600',
+          badgeBg: 'bg-indigo-50 text-indigo-900 border-indigo-300',
+          tableHeader: 'bg-indigo-900 text-indigo-100',
+          totalRow: 'bg-gradient-to-r from-indigo-900 to-purple-900 text-white font-black',
+          title: 'Royal Indigo Waterproofing & Epoxy Proposal',
+        };
+      case 'SLATE_COMPACT':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-400 font-sans shadow-md',
+          headerBg: 'bg-slate-800 text-white',
+          accentColor: 'text-slate-700',
+          badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
+          tableHeader: 'bg-slate-800 text-white',
+          totalRow: 'bg-slate-900 text-white font-bold',
+          title: 'Compact Engineering Estimate & BOQ',
+        };
+      case 'CRIMSON_BOLD':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-rose-600 shadow-2xl',
+          headerBg: 'bg-gradient-to-r from-rose-950 via-red-700 to-rose-900 text-white',
+          accentColor: 'text-rose-600',
+          badgeBg: 'bg-rose-50 text-rose-800 border-rose-300',
+          tableHeader: 'bg-rose-900 text-white',
+          totalRow: 'bg-rose-950 text-white font-black',
+          title: 'Critical Waterproofing & Structural Repair Estimate',
+        };
+      case 'FOREST_GREEN':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-emerald-700 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-emerald-950 via-emerald-800 to-green-900 text-white',
+          accentColor: 'text-emerald-800',
+          badgeBg: 'bg-emerald-50 text-emerald-900 border-emerald-300',
+          tableHeader: 'bg-emerald-900 text-white',
+          totalRow: 'bg-emerald-950 text-white font-bold',
+          title: 'Structural Preservation & Waterproofing Proposal',
+        };
+      case 'DUAL_TONE_ACCENT':
+        return {
+          wrapper: 'bg-white text-slate-900 border-t-8 border-t-amber-500 border-x border-b border-slate-300 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-slate-950 via-slate-800 to-amber-600 text-white',
+          accentColor: 'text-amber-600',
+          badgeBg: 'bg-amber-50 text-amber-900 border-amber-300',
+          tableHeader: 'bg-slate-900 text-amber-400',
+          totalRow: 'bg-amber-500 text-slate-950 font-black',
+          title: 'Modern Dual-Accent Commercial Quotation',
+        };
+      case 'GRID_MODERN':
+        return {
+          wrapper: 'bg-[#f8fafc] text-slate-900 border border-slate-300 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-slate-900 to-blue-900 text-white',
+          accentColor: 'text-blue-600',
+          badgeBg: 'bg-blue-50 text-blue-800 border-blue-200',
+          tableHeader: 'bg-blue-950 text-white',
+          totalRow: 'bg-blue-900 text-white font-bold',
+          title: 'Modular Construction Scope & Estimation Grid',
+        };
+      case 'BLUEPRINT_TECHNICAL':
+        return {
+          wrapper: 'bg-[#0a192f] text-sky-100 border-2 border-sky-400 font-mono shadow-2xl',
+          headerBg: 'bg-[#050f1e] text-sky-300 border-b-2 border-sky-400',
+          accentColor: 'text-sky-400',
+          badgeBg: 'bg-sky-950 text-sky-200 border-sky-700',
+          tableHeader: 'bg-sky-950 text-sky-300 border-b border-sky-500',
+          totalRow: 'bg-sky-900 text-white font-black',
+          title: 'Technical Blueprint Specifications & BOQ',
+        };
+      case 'PREMIUM_GOLD':
+        return {
+          wrapper: 'bg-[#fffdfa] text-slate-900 border-2 border-amber-400 shadow-2xl',
+          headerBg: 'bg-gradient-to-r from-neutral-950 via-amber-950 to-neutral-950 text-amber-300',
+          accentColor: 'text-amber-700',
+          badgeBg: 'bg-amber-50 text-amber-900 border-amber-300',
+          tableHeader: 'bg-neutral-900 text-amber-300',
+          totalRow: 'bg-amber-400 text-slate-950 font-black',
+          title: 'VIP Premium Villa Protective Coating Contract',
+        };
+      case 'NORDIC_FROST':
+        return {
+          wrapper: 'bg-[#f8fafc] text-slate-800 border border-slate-200 shadow-sm',
+          headerBg: 'bg-slate-100 text-slate-900 border-b border-slate-300',
+          accentColor: 'text-sky-700',
+          badgeBg: 'bg-sky-50 text-sky-800 border-sky-200',
+          tableHeader: 'bg-slate-200 text-slate-800',
+          totalRow: 'bg-slate-300 text-slate-950 font-bold',
+          title: 'Nordic Clean Waterproofing Estimate',
+        };
+      case 'SOFT_PASTEL':
+        return {
+          wrapper: 'bg-[#faf8f5] text-stone-800 border border-stone-300 shadow-md',
+          headerBg: 'bg-stone-800 text-stone-100',
+          accentColor: 'text-amber-800',
+          badgeBg: 'bg-stone-200 text-stone-800 border-stone-300',
+          tableHeader: 'bg-stone-700 text-stone-100',
+          totalRow: 'bg-stone-900 text-stone-100 font-bold',
+          title: 'Boutique Architecture Waterproofing Estimate',
+        };
+      case 'CERTIFICATE_BORDER':
+        return {
+          wrapper: 'bg-white text-slate-900 border-8 border-double border-slate-800 shadow-2xl p-8',
+          headerBg: 'bg-slate-950 text-white font-serif',
+          accentColor: 'text-slate-900',
+          badgeBg: 'bg-slate-100 text-slate-900 border-slate-400',
+          tableHeader: 'bg-slate-900 text-white',
+          totalRow: 'bg-slate-950 text-white font-black',
+          title: 'Official Waterproofing & Civil Solutions Certificate Proposal',
+        };
+      case 'SIDEBAR_SUMMARY':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-indigo-200 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-indigo-950 to-slate-900 text-white',
+          accentColor: 'text-indigo-600',
+          badgeBg: 'bg-indigo-50 text-indigo-900 border-indigo-200',
+          tableHeader: 'bg-indigo-900 text-white',
+          totalRow: 'bg-indigo-950 text-white font-black',
+          title: 'Executive Financial Summary Proposal',
+        };
+      case 'TOP_BANNER_SOLID':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-300 shadow-xl overflow-hidden',
+          headerBg: 'bg-blue-900 text-white',
+          accentColor: 'text-blue-800',
+          badgeBg: 'bg-blue-50 text-blue-900 border-blue-200',
+          tableHeader: 'bg-blue-800 text-white',
+          totalRow: 'bg-blue-950 text-white font-bold',
+          title: 'Solid Enterprise Tender Quotation',
+        };
+      case 'FLOATING_CARDS':
+        return {
+          wrapper: 'bg-slate-50 text-slate-900 border border-slate-200 shadow-lg',
+          headerBg: 'bg-gradient-to-r from-slate-950 via-blue-950 to-slate-950 text-white',
+          accentColor: 'text-blue-600',
+          badgeBg: 'bg-white text-slate-800 border-slate-200 shadow-sm',
+          tableHeader: 'bg-slate-900 text-white',
+          totalRow: 'bg-blue-600 text-white font-black',
+          title: 'Modern Elevated Cards Civil Proposal',
+        };
+      case 'RETRO_STAMP':
+        return {
+          wrapper: 'bg-[#fffef8] text-stone-900 border-2 border-stone-800 shadow-lg font-serif',
+          headerBg: 'bg-stone-900 text-stone-100',
+          accentColor: 'text-red-700',
+          badgeBg: 'bg-red-50 text-red-900 border-red-300',
+          tableHeader: 'bg-stone-800 text-stone-100',
+          totalRow: 'bg-stone-950 text-stone-100 font-bold',
+          title: 'Contractor Work Order & Tender Estimate',
+        };
+      case 'BOLD_METHODOLOGY':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-orange-500 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-slate-950 via-orange-950 to-slate-950 text-orange-400',
+          accentColor: 'text-orange-600',
+          badgeBg: 'bg-orange-50 text-orange-900 border-orange-300',
+          tableHeader: 'bg-orange-950 text-orange-300',
+          totalRow: 'bg-orange-500 text-slate-950 font-black',
+          title: 'Method Statement & Technical Execution BOQ',
+        };
+      case 'COMPACT_SINGLE_PAGE':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-300 shadow-md text-xs',
+          headerBg: 'bg-slate-900 text-white',
+          accentColor: 'text-slate-800',
+          badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
+          tableHeader: 'bg-slate-800 text-white',
+          totalRow: 'bg-slate-950 text-white font-bold',
+          title: 'Single Page Rapid Estimate Sheet',
+        };
+      case 'DETAILED_TWO_PAGE':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-400 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-blue-950 via-indigo-900 to-slate-900 text-white',
+          accentColor: 'text-blue-800',
+          badgeBg: 'bg-blue-50 text-blue-900 border-blue-300',
+          tableHeader: 'bg-slate-900 text-white',
+          totalRow: 'bg-blue-950 text-white font-black',
+          title: 'Comprehensive 2-Page Technical Tender Proposal',
+        };
+      case 'EXECUTIVE_PROPOSAL':
+        return {
+          wrapper: 'bg-[#0f172a] text-slate-100 border-2 border-amber-500 shadow-2xl',
+          headerBg: 'bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950 text-amber-400 border-b border-amber-500/40',
+          accentColor: 'text-amber-400',
+          badgeBg: 'bg-amber-950/60 text-amber-300 border-amber-600',
+          tableHeader: 'bg-slate-900 text-amber-300 border-b border-amber-500/30',
+          totalRow: 'bg-amber-500 text-slate-950 font-black',
+          title: 'Executive Boardroom Civil Solution Proposal',
         };
       default:
         return {

@@ -14,9 +14,14 @@ import {
   Calculator,
   Droplets,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { QUOTATION_TEMPLATES, QuotationTemplate, TemplateItem } from '@/lib/quotations/templates';
-import { QUOTATION_LAYOUT_OPTIONS } from '@/components/quotations/QuotationViewer';
+import {
+  QUOTATION_LAYOUT_OPTIONS,
+  QuotationViewer,
+  QuotationLayout,
+} from '@/components/quotations/QuotationViewer';
 import { formatINR } from '@/lib/calculations';
 
 interface QuotationFormModalProps {
@@ -59,6 +64,7 @@ export function QuotationFormModal({
   const [items, setItems] = useState<TemplateItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Populate data when editing or reset when creating
   useEffect(() => {
@@ -152,6 +158,124 @@ export function QuotationFormModal({
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
   const taxAmount = (discountedSubtotal * (Number(taxRate) || 0)) / 100;
   const grandTotal = Math.round(discountedSubtotal + taxAmount);
+
+  const getThemePreviewBadge = (layoutId: string) => {
+    switch (layoutId) {
+      case 'OFFICIAL_MODERNWAY':
+        return {
+          pill: 'bg-blue-600 text-white',
+          desc: 'Ahmedabad Official Letterhead with Blue & Red MWCS logo, stamp block & Gujarat terms.',
+          border: 'border-blue-500/50',
+          gradient: 'from-blue-900 to-slate-900',
+        };
+      case 'ROYAL_INDIGO':
+        return {
+          pill: 'bg-indigo-600 text-white',
+          desc: 'Modern Royal Indigo & Violet gradient banner with high-contrast executive table and sleek borders.',
+          border: 'border-indigo-500/50',
+          gradient: 'from-indigo-950 via-indigo-700 to-purple-900',
+        };
+      case 'WATERPROOF_AQUA':
+        return {
+          pill: 'bg-cyan-600 text-white',
+          desc: 'Cyan barrier theme designed specifically for terrace & basement waterproofing membranes.',
+          border: 'border-cyan-500/50',
+          gradient: 'from-cyan-950 to-blue-900',
+        };
+      case 'EPOXY_AMBER':
+        return {
+          pill: 'bg-amber-500 text-slate-950 font-bold',
+          desc: 'Industrial high-gloss amber & yellow theme designed for industrial epoxy & PU flooring.',
+          border: 'border-amber-500/50',
+          gradient: 'from-amber-600 to-yellow-600',
+        };
+      case 'DARK_STEEL':
+        return {
+          pill: 'bg-slate-700 text-amber-400 font-bold',
+          desc: 'Dark high-tech digital presentation format tailored for mobile & tablet presentations.',
+          border: 'border-slate-500/50',
+          gradient: 'from-slate-950 to-slate-800',
+        };
+      case 'CLASSIC_ARCHITECTURAL':
+        return {
+          pill: 'bg-slate-800 text-white',
+          desc: 'Formal architectural double-border serif style for institutional & corporate contracts.',
+          border: 'border-slate-400/50',
+          gradient: 'from-slate-900 to-stone-900',
+        };
+      case 'ELEGANT_LUXURY':
+        return {
+          pill: 'bg-emerald-700 text-white',
+          desc: 'Emerald & gold luxury villa style for residential waterproofing and decorative coatings.',
+          border: 'border-emerald-500/50',
+          gradient: 'from-emerald-950 to-teal-900',
+        };
+      case 'BLUEPRINT_TECHNICAL':
+        return {
+          pill: 'bg-sky-600 text-white',
+          desc: 'Engineering blueprint aesthetic with monospace technical notation and CAD styling.',
+          border: 'border-sky-500/50',
+          gradient: 'from-sky-950 to-blue-950',
+        };
+      default:
+        return {
+          pill: 'bg-blue-600 text-white',
+          desc: 'Professional modern format with company letterhead header, structured BOQ, and seal box.',
+          border: 'border-blue-500/40',
+          gradient: 'from-slate-900 to-blue-950',
+        };
+    }
+  };
+
+  const currentLiveQuotation = {
+    id: quotationToEdit?.id || 'preview',
+    quotationNumber: quotationNumber || 'MWCS-QT-PREVIEW',
+    title: title || 'Waterproofing & Epoxy Proposal',
+    clientName: clientName || 'Client / Company Name',
+    clientPhone: clientPhone || '',
+    clientEmail: clientEmail || '',
+    clientAddress: clientAddress || 'Ahmedabad, Gujarat',
+    clientGst: clientGst || '',
+    status: status || 'DRAFT',
+    templateType: selectedTemplate,
+    formatLayout: (formatLayout as QuotationLayout) || 'OFFICIAL_MODERNWAY',
+    date: date ? new Date(date).toISOString() : new Date().toISOString(),
+    validUntil: validUntil ? new Date(validUntil).toISOString() : null,
+    subtotal,
+    discountType,
+    discountValue,
+    discountAmount,
+    taxRate,
+    taxAmount,
+    grandTotal,
+    paymentTerms: paymentTerms || '50% Advance & 50% with Live work',
+    termsAndConditions: termsAndConditions || 'Standard Ahmedabad site specifications',
+    notes: notes || '',
+    items:
+      items.length > 0
+        ? items.map((it, idx) => ({
+            id: `item-${idx}`,
+            itemNumber: idx + 1,
+            description: it.description,
+            unit: it.unit,
+            quantity: Number(it.quantity) || 0,
+            rate: Number(it.rate) || 0,
+            amount: (Number(it.quantity) || 0) * (Number(it.rate) || 0),
+            notes: it.notes || '',
+          }))
+        : [
+            {
+              id: 'preview-item',
+              itemNumber: 1,
+              description: 'Surface Preparation, Primer Application & Protective Coating',
+              unit: 'sq.ft.',
+              quantity: 1000,
+              rate: 85,
+              amount: 85000,
+              notes: 'Specification scope item',
+            },
+          ],
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,27 +417,66 @@ export function QuotationFormModal({
           </div>
 
           {/* 2. Visual Format Layout (30 Styles Selector) */}
-          <div className="rounded-xl border border-blue-500/40 bg-blue-500/10 p-4 space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="rounded-xl border border-blue-500/40 bg-blue-500/10 p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <label className="text-xs font-bold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-blue-400" />
                 Select Presentation Format (30 Visual Design Styles)
               </label>
               <span className="text-[11px] text-blue-200">
-                You can switch styles anytime in preview
+                Choose the visual look & color theme for this quotation
               </span>
             </div>
-            <select
-              value={formatLayout}
-              onChange={(e) => setFormatLayout(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2 text-xs text-slate-100 font-semibold focus:outline-none focus:border-blue-400 cursor-pointer"
-            >
-              {QUOTATION_LAYOUT_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-100">
-                  {opt.name} — [{opt.tag}]
-                </option>
-              ))}
-            </select>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                value={formatLayout}
+                onChange={(e) => setFormatLayout(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-blue-400 cursor-pointer"
+              >
+                {QUOTATION_LAYOUT_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-100">
+                    {opt.name} — [{opt.tag}]
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(true)}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Live Preview Style
+              </button>
+            </div>
+
+            {/* Instant Active Style Banner */}
+            {(() => {
+              const preview = getThemePreviewBadge(formatLayout);
+              const opt = QUOTATION_LAYOUT_OPTIONS.find((o) => o.id === formatLayout);
+              return (
+                <div
+                  className={`p-3 rounded-lg border ${preview.border} bg-gradient-to-r ${preview.gradient} text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-lg`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                        Active Visual Theme:
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black ${preview.pill}`}>
+                        {opt?.name || formatLayout}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-200">{preview.desc}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-300 bg-black/40 px-2 py-1 rounded shrink-0 border border-white/10 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    Applied to Letterhead & Print
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* 3. Client & Project Details */}
@@ -697,24 +860,89 @@ export function QuotationFormModal({
           </div>
 
           {/* Form Actions Footer */}
-          <div className="pt-4 border-t border-slate-700 flex justify-end gap-3">
+          <div className="pt-4 border-t border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-3">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+              onClick={() => setIsPreviewOpen(true)}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
             >
-              Cancel
+              <Eye className="w-4 h-4" />
+              Live Preview Quotation
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {loading ? 'Saving Quotation...' : quotationToEdit ? 'Update Quotation' : 'Generate Quotation'}
-            </button>
+
+            <div className="w-full sm:w-auto flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Saving Quotation...' : quotationToEdit ? 'Update Quotation' : 'Generate Quotation'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
+
+      {/* Real-time Fullscreen / Overlay Live Quotation Preview Modal */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex flex-col p-2 sm:p-6 overflow-y-auto animate-fade-in">
+          <div className="relative w-full max-w-5xl mx-auto my-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Preview Modal Header */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-800 bg-slate-950">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-tight">
+                    Live Quotation Preview — {QUOTATION_LAYOUT_OPTIONS.find((o) => o.id === formatLayout)?.name || formatLayout}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Rendered with your live form inputs • You can test all 30 styles here
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Close Preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Preview Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-950/60">
+              <QuotationViewer
+                quotation={currentLiveQuotation}
+                onLayoutChange={(newLayout) => setFormatLayout(newLayout)}
+              />
+            </div>
+
+            {/* Preview Footer */}
+            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex flex-col sm:flex-row justify-between items-center gap-2">
+              <p className="text-xs text-slate-400">
+                💡 Changing the theme dropdown above immediately updates the look of your quotation.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(false)}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md cursor-pointer transition-all"
+              >
+                Done & Return to Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
