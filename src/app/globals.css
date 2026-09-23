@@ -15,7 +15,7 @@
   --foreground: #f8fafc;
   --card-bg: #0f172a;
   --card-border: #1e293b;
-  --muted-text: #94a3b8;
+  --muted-text: #cbd5e1;
 }
 
 body {
@@ -39,7 +39,7 @@ html.light aside {
 }
 
 html.light header {
-  background-color: rgba(255, 255, 255, 0.9) !important;
+  background-color: rgba(255, 255, 255, 0.95) !important;
   border-color: #e2e8f0 !important;
 }
 
@@ -62,15 +62,19 @@ html.light .border-slate-700 {
 }
 
 html.light .text-slate-400 {
-  color: #64748b !important;
+  color: #475569 !important;
 }
 
-html.light .text-slate-300 {
+html.light .text-slate-500 {
   color: #334155 !important;
 }
 
-html.light .text-slate-200 {
+html.light .text-slate-300 {
   color: #1e293b !important;
+}
+
+html.light .text-slate-200 {
+  color: #0f172a !important;
 }
 
 html.light .text-white {
@@ -95,6 +99,84 @@ html.light .text-blue-400 {
   color: #2563eb !important;
 }
 
+/* High-Contrast Visibility Enhancements for Dark Mode */
+html.dark body {
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
+/* Elevate low-contrast text in dark mode so all words are clearly visible */
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+html.dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-200 {
+  color: #f1f5f9 !important;
+}
+
+/* Ensure inputs, textareas, and selects in dark mode are prominent & clear */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #0b1120;
+  border-color: #334155;
+  color: #f8fafc !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark select option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Form labels visibility in dark mode */
+html.dark label {
+  color: #cbd5e1 !important;
+}
+
+/* Ensure secondary, ghost, and outline buttons have high visibility in dark mode */
+html.dark button.bg-slate-800,
+html.dark .bg-slate-800 {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+
+html.dark button.bg-slate-800:hover,
+html.dark .bg-slate-800:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+html.dark button.border-slate-700,
+html.dark button.border-slate-800 {
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark button.border-slate-700:hover,
+html.dark button.border-slate-800:hover {
+  background-color: #1e293b !important;
+  border-color: #94a3b8 !important;
+  color: #ffffff !important;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
@@ -111,7 +193,7 @@ html.light .text-blue-400 {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #334155;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -119,7 +201,7 @@ html.light .text-blue-400 {
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #475569;
 }
 
 @keyframes fadeIn {
@@ -141,13 +223,13 @@ html.light .text-blue-400 {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 8mm;
   }
 
   body {
     background: #ffffff !important;
     color: #000000 !important;
-    font-size: 11pt;
+    font-size: 10pt;
   }
 
   aside,
@@ -159,28 +241,17 @@ html.light .text-blue-400 {
     display: none !important;
   }
 
-  main {
+  .print-container {
+    width: 100% !important;
     max-width: 100% !important;
-    padding: 0 !important;
     margin: 0 !important;
-    width: 100% !important;
-  }
-
-  .printable-card {
-    border: none !important;
-    box-shadow: none !important;
-    background: #ffffff !important;
-    color: #000000 !important;
     padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
   }
 
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  th, td {
-    border: 1px solid #cbd5e1 !important;
-    color: #000000 !important;
+  .page-break {
+    page-break-before: always !important;
+    break-before: page !important;
   }
 }

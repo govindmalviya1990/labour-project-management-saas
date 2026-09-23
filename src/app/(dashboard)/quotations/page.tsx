@@ -208,16 +208,16 @@ For inquiries contact: Modern Way Civil Solution (+91 98765 43210)`;
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">
-              Modern Way Civil Solution
+              Modern Way Civil Solutions
             </span>
             <span className="text-slate-600">•</span>
-            <span className="text-xs text-slate-400">BOQ & Estimations</span>
+            <span className="text-xs text-slate-300">Waterproofing & Epoxy Coatings</span>
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight mt-1">
             Quotations & Estimates
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Create, manage, print, and share professional civil construction quotations with 14 pre-filled templates.
+          <p className="text-xs text-slate-300 mt-0.5">
+            Create, manage, print, and share professional Waterproofing & Epoxy quotations with 30 visual design templates and 14 technical specifications.
           </p>
         </div>
 
@@ -353,8 +353,8 @@ For inquiries contact: Modern Way Civil Solution (+91 98765 43210)`;
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <FileSpreadsheet className="w-8 h-8 mx-auto text-slate-600 mb-2" />
                     <p className="font-semibold text-slate-300">No quotations found</p>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Click "Create New Quotation" to generate your first estimate with 14 construction templates.
+                    <p className="text-[11px] text-slate-300 mt-1">
+                      Click &quot;Create New Quotation&quot; to generate your first estimate with 14 Waterproofing &amp; Epoxy specifications and 30 visual design templates.
                     </p>
                   </td>
                 </tr>

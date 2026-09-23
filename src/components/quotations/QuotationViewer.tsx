@@ -18,8 +18,78 @@ import {
   ShieldCheck,
   HardHat,
   Sparkles,
+  Droplets,
+  Layers,
+  MapPin,
+  Check,
 } from 'lucide-react';
 import { formatINR } from '@/lib/calculations';
+import { DEFAULT_ORGANIZATION } from '@/lib/quotations/templates';
+
+export type QuotationLayout =
+  | 'OFFICIAL_MODERNWAY'
+  | 'MODERN_BLUE'
+  | 'CLASSIC_ARCHITECTURAL'
+  | 'MINIMAL_CLEAN'
+  | 'INDUSTRIAL_TECH'
+  | 'ELEGANT_LUXURY'
+  | 'WATERPROOF_AQUA'
+  | 'EPOXY_AMBER'
+  | 'CORPORATE_NAVY'
+  | 'SLATE_COMPACT'
+  | 'CRIMSON_BOLD'
+  | 'ROYAL_INDIGO'
+  | 'FOREST_GREEN'
+  | 'MONOCHROME_PRINT'
+  | 'DUAL_TONE_ACCENT'
+  | 'GRID_MODERN'
+  | 'BLUEPRINT_TECHNICAL'
+  | 'PREMIUM_GOLD'
+  | 'NORDIC_FROST'
+  | 'SOFT_PASTEL'
+  | 'DARK_STEEL'
+  | 'CERTIFICATE_BORDER'
+  | 'SIDEBAR_SUMMARY'
+  | 'TOP_BANNER_SOLID'
+  | 'FLOATING_CARDS'
+  | 'RETRO_STAMP'
+  | 'BOLD_METHODOLOGY'
+  | 'COMPACT_SINGLE_PAGE'
+  | 'DETAILED_TWO_PAGE'
+  | 'EXECUTIVE_PROPOSAL';
+
+export const QUOTATION_LAYOUT_OPTIONS: { id: QuotationLayout; name: string; tag: string }[] = [
+  { id: 'OFFICIAL_MODERNWAY', name: '1. Modern Way Official (Ahmedabad PDF Replica)', tag: 'Recommended' },
+  { id: 'WATERPROOF_AQUA', name: '2. Waterproofing Aqua (Cyan Barrier Theme)', tag: 'Specialized' },
+  { id: 'EPOXY_AMBER', name: '3. Epoxy Flooring Amber (Industrial Gloss)', tag: 'Specialized' },
+  { id: 'MODERN_BLUE', name: '4. Modern Executive Royal Blue', tag: 'Executive' },
+  { id: 'CLASSIC_ARCHITECTURAL', name: '5. Classic Architectural (Double Border Serif)', tag: 'Formal' },
+  { id: 'MINIMAL_CLEAN', name: '6. Swiss Minimalist Clean', tag: 'Modern' },
+  { id: 'INDUSTRIAL_TECH', name: '7. Industrial Tech (Graphite & High-Vis Amber)', tag: 'Technical' },
+  { id: 'ELEGANT_LUXURY', name: '8. Elegant Luxury (Emerald & Gold Villa)', tag: 'Premium' },
+  { id: 'CORPORATE_NAVY', name: '9. Corporate Navy Blue (Enterprise)', tag: 'Corporate' },
+  { id: 'SLATE_COMPACT', name: '10. Dense Slate Engineering', tag: 'Compact' },
+  { id: 'CRIMSON_BOLD', name: '11. Crimson Bold (Emergency Repairs)', tag: 'High-Impact' },
+  { id: 'ROYAL_INDIGO', name: '12. Royal Indigo Gradient', tag: 'Modern' },
+  { id: 'FOREST_GREEN', name: '13. Deep Forest Green (Structural Preservation)', tag: 'Durability' },
+  { id: 'MONOCHROME_PRINT', name: '14. Monochrome Zero-Ink (Laser B&W)', tag: 'Eco-Print' },
+  { id: 'DUAL_TONE_ACCENT', name: '15. Dual Tone Accent Stripe', tag: 'Modern' },
+  { id: 'GRID_MODERN', name: '16. Modular Card Grid', tag: 'Structured' },
+  { id: 'BLUEPRINT_TECHNICAL', name: '17. Blueprint Technical Drawing', tag: 'Engineering' },
+  { id: 'PREMIUM_GOLD', name: '18. Champagne Gold VIP Contractor', tag: 'VIP' },
+  { id: 'NORDIC_FROST', name: '19. Nordic Ice Blue Minimalist', tag: 'Clean' },
+  { id: 'SOFT_PASTEL', name: '20. Warm Sand Architectural', tag: 'Boutique' },
+  { id: 'DARK_STEEL', name: '21. Dark Steel Digital Tablet Presentation', tag: 'Digital' },
+  { id: 'CERTIFICATE_BORDER', name: '22. Formal Certificate Frame & Seal', tag: 'Contract' },
+  { id: 'SIDEBAR_SUMMARY', name: '23. Sidebar Financial Summary', tag: 'Modern' },
+  { id: 'TOP_BANNER_SOLID', name: '24. Heavy Solid Top Banner', tag: 'Bold' },
+  { id: 'FLOATING_CARDS', name: '25. Floating Elevated Cards', tag: 'SaaS Style' },
+  { id: 'RETRO_STAMP', name: '26. Vintage Voucher & Official Stamp', tag: 'Traditional' },
+  { id: 'BOLD_METHODOLOGY', name: '27. Method-Statement (Procedure Highlighted)', tag: 'Detailed' },
+  { id: 'COMPACT_SINGLE_PAGE', name: '28. Single-Page Fast Quotation Sheet', tag: 'A4 1-Page' },
+  { id: 'DETAILED_TWO_PAGE', name: '29. 2-Page Technical Proposal Format', tag: 'A4 2-Page' },
+  { id: 'EXECUTIVE_PROPOSAL', name: '30. Executive Contractor Proposal with Signoff', tag: 'Comprehensive' },
+];
 
 interface QuotationViewerProps {
   quotation: any;
@@ -34,46 +104,43 @@ export function QuotationViewer({
   onStatusChange,
   onBack,
 }: QuotationViewerProps) {
-  const [selectedLayout, setSelectedLayout] = useState<'MODERN' | 'CLASSIC' | 'MINIMAL' | 'INDUSTRIAL' | 'ELEGANT'>(
-    (quotation.formatLayout as any) || 'MODERN'
+  const [selectedLayout, setSelectedLayout] = useState<QuotationLayout>(
+    (quotation.formatLayout as QuotationLayout) || 'OFFICIAL_MODERNWAY'
   );
 
-  const org = quotation.organization || {
-    name: 'Modern Way Civil Solution',
-    ownerName: 'Er. Ramesh Chandra',
-    mobile: '+91 98765 43210',
-    email: 'contact@modernwaycivil.com',
-    address: 'Industrial Zone, Sector 63',
-    city: 'Noida',
-    state: 'Uttar Pradesh',
-    gstNumber: '07AAACM1234F1Z9',
-  };
+  const org = quotation.organization || DEFAULT_ORGANIZATION;
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleWhatsAppShare = () => {
-    const text = `*QUOTATION FROM MODERN WAY CIVIL SOLUTION*
+    const text = `*QUOTATION FROM MODERN WAY CIVIL SOLUTIONS*
+*(Waterproofing Services & Epoxy Coatings)*
 ---------------------------------------
 *Quotation No:* ${quotation.quotationNumber}
-*Subject:* ${quotation.title}
+*Scope of Work:* ${quotation.title}
 *Client:* ${quotation.clientName}
 *Date:* ${new Date(quotation.date).toLocaleDateString('en-IN')}
 *Valid Until:* ${quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString('en-IN') : '30 Days'}
 ---------------------------------------
-*Total BOQ Items:* ${quotation.items?.length || 0}
+*Total Scope Items:* ${quotation.items?.length || 0}
 *Subtotal:* ${formatINR(quotation.subtotal)}
 *Discount:* -${formatINR(quotation.discountAmount || 0)}
-*GST (${quotation.taxRate}%):* +${formatINR(quotation.taxAmount || 0)}
-*GRAND TOTAL:* ${formatINR(quotation.grandTotal)}
+*GST:* ${quotation.taxAmount > 0 ? `+${formatINR(quotation.taxAmount)} (${quotation.taxRate}%)` : 'Extra as applicable'}
+*NET GRAND TOTAL:* ${formatINR(quotation.grandTotal)}
 ---------------------------------------
-For inquiries and project kick-off, please contact:
-Modern Way Civil Solution
-Phone: ${org.mobile || '+91 98765 43210'}
-Email: ${org.email || 'contact@modernwaycivil.com'}
+*Key Payment Terms:*
+50% Advance & 50% with Live work going.
 
-View Online: ${window.location.href}`;
+*Head Office:*
+I 04 - S G Business Hub, Opp PNB Bank Sola Road,
+S G Highway, Gota - Ahmedabad, Gujarat
+Phone: 9898035669, 9898035110
+Email: modernway9394@gmail.com
+Instagram: @modernwaycs_2023
+
+View Quotation Online: ${typeof window !== 'undefined' ? window.location.href : ''}`;
 
     const phone = quotation.clientPhone ? quotation.clientPhone.replace(/\D/g, '') : '';
     const url = phone
@@ -84,29 +151,32 @@ View Online: ${window.location.href}`;
   };
 
   const handleEmailShare = () => {
-    const subject = `Quotation ${quotation.quotationNumber}: ${quotation.title} - Modern Way Civil Solution`;
-    const body = `Dear ${quotation.clientName},
+    const subject = `Quotation ${quotation.quotationNumber}: ${quotation.title} - Modern Way Civil Solutions`;
+    const body = `Respected Sir/Madam,
 
-Thank you for giving us the opportunity to quote for your project. Please find below the quotation details:
+Thank you for giving Modern Way Civil Solutions the opportunity to submit our proposal for Waterproofing & Epoxy Coating services.
 
+Quotation Details:
 Quotation No: ${quotation.quotationNumber}
-Project Scope: ${quotation.title}
+Project: ${quotation.title}
 Date: ${new Date(quotation.date).toLocaleDateString('en-IN')}
-Grand Total: ${formatINR(quotation.grandTotal)} (Including GST)
+Net Amount: ${formatINR(quotation.grandTotal)}
 
 Payment Terms:
-${quotation.paymentTerms || 'Standard progress-based billing'}
+${quotation.paymentTerms || '50% Advance & 50% with Live work going'}
 
 Terms & Conditions:
-${quotation.termsAndConditions || 'As per approved civil engineering specifications'}
+${quotation.termsAndConditions || 'Standard Ahmedabad site specifications'}
 
-You can also view the full itemized BOQ at:
-${window.location.href}
+You can inspect the complete technical proposal online at:
+${typeof window !== 'undefined' ? window.location.href : ''}
 
 Best regards,
-Modern Way Civil Solution
-${org.mobile || ''}
-${org.email || ''}`;
+Govind Malviya
+Modern Way Civil Solutions
+I 04 - S G Business Hub, Gota, S G Highway, Ahmedabad
+Phone: 9898035669, 9898035110
+Email: modernway9394@gmail.com`;
 
     const mailto = `mailto:${quotation.clientEmail || ''}?subject=${encodeURIComponent(
       subject
@@ -114,68 +184,62 @@ ${org.email || ''}`;
     window.location.href = mailto;
   };
 
-  // Layout-specific CSS classes
-  const getLayoutClasses = () => {
-    switch (selectedLayout) {
-      case 'CLASSIC':
-        return 'font-serif border-4 border-double border-slate-700 bg-white text-slate-900';
-      case 'MINIMAL':
-        return 'font-sans border border-slate-300 bg-white text-slate-800';
-      case 'INDUSTRIAL':
-        return 'font-mono border-2 border-slate-800 bg-slate-950 text-slate-100';
-      case 'ELEGANT':
-        return 'font-sans border border-emerald-500/40 bg-white text-slate-900 shadow-xl';
-      case 'MODERN':
-      default:
-        return 'font-sans border border-slate-800 bg-slate-900 text-slate-100';
-    }
-  };
+  // Determine light vs dark layout paper background
+  const isDarkCanvas = selectedLayout === 'DARK_STEEL';
 
-  const isLightLayout = selectedLayout === 'CLASSIC' || selectedLayout === 'MINIMAL' || selectedLayout === 'ELEGANT';
+  // Format date helper
+  const formattedDate = new Date(quotation.date).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).replace(/\//g, '-');
 
   return (
     <div className="space-y-6">
-      {/* Action Header (Hidden during Print) */}
-      <div className="no-print flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800">
+      {/* Top Action Toolbar (Hidden during Print) */}
+      <div className="no-print flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
               type="button"
               onClick={onBack}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors border border-slate-750"
+              title="Back to Quotations"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+              <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/30">
                 {quotation.quotationNumber}
               </span>
-              <h1 className="text-lg font-bold text-white">{quotation.title}</h1>
+              <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                {quotation.title}
+              </h1>
             </div>
-            <p className="text-xs text-slate-400">
-              Client: <span className="text-slate-200 font-semibold">{quotation.clientName}</span> | Date: {new Date(quotation.date).toLocaleDateString('en-IN')}
+            <p className="text-xs text-slate-300 mt-0.5">
+              Client: <span className="text-white font-semibold">{quotation.clientName}</span> | Date: {formattedDate}
             </p>
           </div>
         </div>
 
-        {/* Format Selector & Actions */}
+        {/* 30 Visual Format Selector & Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Layout Theme Selector */}
-          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-2.5 py-1.5 rounded-xl text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-slate-400 text-[11px]">Format:</span>
+          {/* Format Selector Dropdown */}
+          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 px-3 py-1.5 rounded-xl text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-slate-300 text-[11px] font-medium hidden sm:inline">Theme:</span>
             <select
               value={selectedLayout}
-              onChange={(e) => setSelectedLayout(e.target.value as any)}
-              className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer"
+              onChange={(e) => setSelectedLayout(e.target.value as QuotationLayout)}
+              className="bg-transparent text-amber-300 font-semibold text-xs focus:outline-none cursor-pointer max-w-[220px] sm:max-w-none"
             >
-              <option value="MODERN" className="bg-slate-900">Modern Corporate</option>
-              <option value="CLASSIC" className="bg-slate-900">Classic Architectural</option>
-              <option value="MINIMAL" className="bg-slate-900">Minimalist Clean</option>
-              <option value="INDUSTRIAL" className="bg-slate-900">Industrial Heavy</option>
-              <option value="ELEGANT" className="bg-slate-900">Elegant Premium</option>
+              {QUOTATION_LAYOUT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-100 py-1">
+                  {opt.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -184,7 +248,7 @@ ${org.email || ''}`;
             <button
               type="button"
               onClick={onEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold border border-slate-700 transition-colors"
             >
               <Edit className="w-3.5 h-3.5" />
               Edit
@@ -195,7 +259,7 @@ ${org.email || ''}`;
           <button
             type="button"
             onClick={handleWhatsAppShare}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all"
             title="Share via WhatsApp"
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -206,18 +270,18 @@ ${org.email || ''}`;
           <button
             type="button"
             onClick={handleEmailShare}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/20 transition-all"
             title="Share via Email"
           >
             <Mail className="w-3.5 h-3.5" />
             Email
           </button>
 
-          {/* Print to PDF */}
+          {/* Print / Save PDF */}
           <button
             type="button"
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-lg shadow-amber-500/20 transition-all"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/20 transition-all"
           >
             <Printer className="w-3.5 h-3.5" />
             Print / PDF
@@ -225,230 +289,575 @@ ${org.email || ''}`;
         </div>
       </div>
 
-      {/* Printable Quotation Document Card */}
-      <div
-        id="quotation-print-card"
-        className={`printable-card rounded-2xl p-6 sm:p-10 shadow-2xl transition-all duration-200 ${getLayoutClasses()} ${
-          isLightLayout ? 'text-slate-900 bg-white' : ''
-        }`}
-      >
-        {/* Document Letterhead */}
-        <div className={`pb-6 border-b ${isLightLayout ? 'border-slate-300' : 'border-slate-800'} flex flex-col sm:flex-row justify-between items-start gap-6`}>
-          <div className="space-y-1.5">
+      {/* RENDER THE SELECTED QUOTATION FORMAT */}
+      {selectedLayout === 'OFFICIAL_MODERNWAY' ? (
+        <OfficialModernWayView
+          quotation={quotation}
+          org={org}
+          formattedDate={formattedDate}
+        />
+      ) : (
+        <StyledQuotationView
+          layout={selectedLayout}
+          quotation={quotation}
+          org={org}
+          formattedDate={formattedDate}
+        />
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------------------------------------
+// 1. OFFICIAL MODERN WAY LETTERHEAD VIEW (Exact 1:1 replica of user's Ahmedabad quotation PDF)
+// -------------------------------------------------------------------------------------------------
+function OfficialModernWayView({
+  quotation,
+  org,
+  formattedDate,
+}: {
+  quotation: any;
+  org: any;
+  formattedDate: string;
+}) {
+  return (
+    <div className="print-container max-w-4xl mx-auto space-y-6">
+      {/* PAGE 1: Scope of Work, Technical Procedure & Grand Total */}
+      <div className="bg-white text-slate-900 border border-slate-300 rounded-lg p-6 sm:p-10 shadow-xl min-h-[1050px] flex flex-col justify-between">
+        <div>
+          {/* Header section with Logo, Address, and Quotation Title */}
+          <div className="flex flex-row items-center justify-between pb-4 border-b border-slate-900/80 gap-3">
+            {/* Logo matching PDF */}
             <div className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-slate-950 font-black shadow-md">
-                <HardHat className="w-6 h-6" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#102a5c] rounded-md p-1.5 flex flex-col items-center justify-center text-center shadow-sm shrink-0 border border-slate-300">
+                {/* Chevron icon representation */}
+                <div className="flex items-center justify-center">
+                  <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[14px] border-b-[#f59e0b] -mr-1.5"></div>
+                  <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[14px] border-b-[#2563eb]"></div>
+                </div>
+                <span className="text-[7px] font-black text-white leading-tight tracking-wider uppercase mt-1">
+                  MODERN WAY
+                </span>
+                <span className="text-[6px] font-bold text-[#38bdf8] uppercase tracking-tighter">
+                  CIVIL SOLUTIONS
+                </span>
+                <span className="text-[5.5px] font-medium text-amber-300 leading-none mt-0.5">
+                  &quot;સમસ્યા અમારી નિવારણ&quot;
+                </span>
               </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-amber-500">
-                  Modern Way Civil Solution
-                </h1>
-                <p className={`text-xs ${isLightLayout ? 'text-slate-500' : 'text-slate-400'} font-medium`}>
-                  Civil Engineers, Contractors & Project Management Consultants
-                </p>
+            </div>
+
+            {/* Centered Company Name & Address */}
+            <div className="text-center flex-1 px-2">
+              <h2 className="text-xl sm:text-2xl font-black text-[#1a365d] tracking-tight uppercase">
+                Modern Way Civil Solutions
+              </h2>
+              <div className="text-[11px] sm:text-xs font-semibold text-slate-800 leading-tight space-y-0.5 mt-0.5">
+                <p>I 04 - S G BUSSINESS HUB</p>
+                <p>OPP PNB BANK SOLA ROAD</p>
+                <p>S G HIGHWAY GOTA - AHMEDABAD</p>
+                <p className="text-[#1a365d]">Instagram Id - modernwaycs_2023</p>
+              </div>
+              <div className="text-[11px] sm:text-xs font-bold text-slate-900 mt-1 flex flex-wrap items-center justify-center gap-x-3">
+                <span>📞 9898035669, 9898035110</span>
+                <span>✉️ modernway9394@gmail.com</span>
               </div>
             </div>
-            <div className={`text-xs ${isLightLayout ? 'text-slate-600' : 'text-slate-400'} pt-1 space-y-0.5`}>
-              <p>{org.address ? `${org.address}, ${org.city || ''}, ${org.state || ''}` : 'Industrial Zone, Sector 63, Noida, UP'}</p>
-              <p>Phone: <span className="font-semibold">{org.mobile || '+91 98765 43210'}</span> | Email: {org.email || 'contact@modernwaycivil.com'}</p>
-              {org.gstNumber && <p>GSTIN: <span className="font-mono font-semibold">{org.gstNumber}</span></p>}
+
+            {/* Quotation Title */}
+            <div className="text-right shrink-0">
+              <h1 className="text-2xl sm:text-3xl font-black text-[#1a365d] tracking-tight">
+                Quotation
+              </h1>
             </div>
           </div>
 
-          <div className="text-left sm:text-right space-y-1 sm:min-w-[200px]">
-            <div className="inline-block px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-sm uppercase tracking-wider">
-              QUOTATION
+          {/* Client Details & Quotation Number Meta Grid */}
+          <div className="grid grid-cols-2 gap-4 mt-3 text-xs sm:text-sm">
+            {/* Left: To box */}
+            <div className="border border-slate-900/70 p-3 rounded-none">
+              <p className="font-bold text-slate-900">To,</p>
+              <p className="font-bold text-slate-900 text-sm">{quotation.clientName}</p>
+              <p className="text-slate-700">{quotation.clientAddress || 'Ahmedabad, Gujarat'}</p>
+              {quotation.clientPhone && <p className="text-slate-700">Phone: {quotation.clientPhone}</p>}
+              {quotation.clientGst && <p className="text-slate-700">GST: {quotation.clientGst}</p>}
             </div>
-            <p className="text-xs font-mono font-bold pt-1">
-              Ref: <span className="text-amber-500">{quotation.quotationNumber}</span>
+
+            {/* Right: Quotation # & Date */}
+            <div className="border border-slate-900/70 p-3 rounded-none flex flex-col justify-center space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-800">Quotation#</span>
+                <span className="font-bold text-slate-950 font-mono">{quotation.quotationNumber}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-800">Date:</span>
+                <span className="font-bold text-slate-950 font-mono">{formattedDate}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Formal Greeting Message */}
+          <div className="mt-4 text-xs sm:text-sm text-slate-800 space-y-1 leading-relaxed">
+            <p className="font-semibold text-slate-900">Respected Sir/medam,</p>
+            <p>
+              I am always looking for long time relationship with customers and we always tried to find the proper solution
             </p>
-            <p className={`text-xs ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-              Date: <span className="font-medium">{new Date(quotation.date).toLocaleDateString('en-IN')}</span>
+            <p>
+              We work diligently and honestly, and I have skilled and capable workers for the job
             </p>
-            {quotation.validUntil && (
-              <p className={`text-xs ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-                Valid Until: <span className="font-medium">{new Date(quotation.validUntil).toLocaleDateString('en-IN')}</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Bill To & Project Scope Banner */}
-        <div className={`py-6 border-b ${isLightLayout ? 'border-slate-300' : 'border-slate-800'} grid grid-cols-1 sm:grid-cols-2 gap-6`}>
-          <div className={`p-4 rounded-xl ${isLightLayout ? 'bg-slate-50 border border-slate-200' : 'bg-slate-950 border border-slate-850'}`}>
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${isLightLayout ? 'text-slate-500' : 'text-slate-400'}`}>
-              QUOTATION FOR (CLIENT):
-            </span>
-            <h3 className={`text-base font-bold mt-1 ${isLightLayout ? 'text-slate-900' : 'text-white'}`}>
-              {quotation.clientName}
-            </h3>
-            {quotation.clientAddress && (
-              <p className={`text-xs mt-1 ${isLightLayout ? 'text-slate-600' : 'text-slate-300'}`}>
-                {quotation.clientAddress}
-              </p>
-            )}
-            <div className={`text-xs mt-2 space-y-0.5 ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-              {quotation.clientPhone && <p>Mobile: <span className="font-medium">{quotation.clientPhone}</span></p>}
-              {quotation.clientEmail && <p>Email: <span className="font-medium">{quotation.clientEmail}</span></p>}
-              {quotation.clientGst && <p>GSTIN: <span className="font-mono font-medium">{quotation.clientGst}</span></p>}
-            </div>
           </div>
 
-          <div className={`p-4 rounded-xl ${isLightLayout ? 'bg-slate-50 border border-slate-200' : 'bg-slate-950 border border-slate-850'} flex flex-col justify-between`}>
-            <div>
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${isLightLayout ? 'text-slate-500' : 'text-slate-400'}`}>
-                PROJECT WORK SCOPE:
-              </span>
-              <h3 className={`text-base font-bold mt-1 ${isLightLayout ? 'text-slate-900' : 'text-white'}`}>
-                {quotation.title}
-              </h3>
-              {quotation.project && (
-                <p className="text-xs text-amber-500 font-semibold mt-1">
-                  Project Code: {quotation.project.projectCode} ({quotation.project.name})
-                </p>
-              )}
-            </div>
-            <div className="pt-2">
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 uppercase">
-                STATUS: {quotation.status}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* BOQ Table */}
-        <div className="py-6 space-y-2">
-          <h4 className={`text-xs font-bold uppercase tracking-wider ${isLightLayout ? 'text-slate-700' : 'text-slate-300'}`}>
-            Itemized Bill of Quantities (BOQ)
-          </h4>
-          <div className={`overflow-x-auto rounded-xl border ${isLightLayout ? 'border-slate-300' : 'border-slate-800'}`}>
-            <table className="w-full text-left text-xs">
-              <thead className={`${isLightLayout ? 'bg-slate-100 text-slate-700' : 'bg-slate-950 text-slate-400'} uppercase text-[10px] border-b ${isLightLayout ? 'border-slate-300' : 'border-slate-800'}`}>
-                <tr>
-                  <th className="py-3 px-3 w-10 text-center">#</th>
-                  <th className="py-3 px-3">Description of Work / Item Specifications</th>
-                  <th className="py-3 px-3 w-20 text-center">Unit</th>
-                  <th className="py-3 px-3 w-24 text-right">Quantity</th>
-                  <th className="py-3 px-3 w-28 text-right">Rate (₹)</th>
-                  <th className="py-3 px-3 w-32 text-right">Amount (₹)</th>
+          {/* Scope & BOQ Table */}
+          <div className="mt-4 border border-slate-900/80">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#153e75] text-white font-bold uppercase text-[11px]">
+                  <th className="py-2 px-2.5 w-10 text-center border-r border-slate-400/40">#</th>
+                  <th className="py-2 px-3 border-r border-slate-400/40">DESCRIPTION</th>
+                  <th className="py-2 px-2.5 w-20 text-center border-r border-slate-400/40">QTY</th>
+                  <th className="py-2 px-3 w-28 text-right border-r border-slate-400/40">PRICE</th>
+                  <th className="py-2 px-3 w-32 text-right">TOTAL</th>
                 </tr>
               </thead>
-              <tbody className={`divide-y ${isLightLayout ? 'divide-slate-200' : 'divide-slate-850'}`}>
-                {quotation.items?.map((item: any, index: number) => (
-                  <tr key={item.id || index} className={isLightLayout ? 'hover:bg-slate-50' : 'hover:bg-slate-850/40'}>
-                    <td className={`py-3 px-3 text-center font-mono text-[11px] ${isLightLayout ? 'text-slate-500' : 'text-slate-500'}`}>
-                      {item.itemNumber || index + 1}
+              <tbody className="divide-y divide-slate-300">
+                {quotation.items?.map((item: any, idx: number) => (
+                  <tr key={idx} className="align-top">
+                    <td className="py-3 px-2 text-center font-bold text-slate-900 border-r border-slate-300">
+                      {item.itemNumber || idx + 1}
                     </td>
-                    <td className="py-3 px-3">
-                      <p className={`font-semibold ${isLightLayout ? 'text-slate-900' : 'text-slate-200'}`}>
+                    <td className="py-3 px-3 text-slate-900 border-r border-slate-300">
+                      <div className="whitespace-pre-wrap font-sans text-xs leading-relaxed space-y-1">
                         {item.description}
-                      </p>
+                      </div>
                       {item.notes && (
-                        <p className={`text-[10px] mt-0.5 ${isLightLayout ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {item.notes}
+                        <p className="mt-2 text-[11px] font-semibold text-slate-700 bg-slate-100 p-1.5 rounded">
+                          Specification: {item.notes}
                         </p>
                       )}
                     </td>
-                    <td className={`py-3 px-3 text-center font-medium ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-                      {item.unit}
+                    <td className="py-3 px-2.5 text-center font-bold text-slate-900 border-r border-slate-300">
+                      <div>{item.quantity}</div>
+                      <div className="text-[11px] text-slate-600 font-normal">{item.unit}</div>
                     </td>
-                    <td className={`py-3 px-3 text-right font-mono font-medium ${isLightLayout ? 'text-slate-800' : 'text-slate-300'}`}>
-                      {item.quantity}
-                    </td>
-                    <td className={`py-3 px-3 text-right font-mono ${isLightLayout ? 'text-slate-800' : 'text-slate-300'}`}>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 border-r border-slate-300">
                       {formatINR(item.rate)}
                     </td>
-                    <td className={`py-3 px-3 text-right font-mono font-bold ${isLightLayout ? 'text-slate-900' : 'text-amber-400'}`}>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-950">
                       {formatINR(item.amount)}
                     </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                {/* Grand Total Row */}
+                <tr className="bg-[#153e75] text-white font-bold text-sm">
+                  <td colSpan={4} className="py-2.5 px-3 uppercase text-right tracking-wider">
+                    GRAND TOTAL
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-base font-black">
+                    {formatINR(quotation.grandTotal)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
+
+          {/* Courtesy Ending Note */}
+          <div className="mt-4 text-xs sm:text-sm font-medium text-slate-900">
+            We hope you find our offer to be in line with your requirement.
+          </div>
         </div>
 
-        {/* Financial Summary & Tax Breakdown */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 pb-6 border-b border-slate-800">
-          {/* Payment Terms & Notes */}
-          <div className="space-y-4 text-xs">
-            {quotation.paymentTerms && (
-              <div className={`p-4 rounded-xl ${isLightLayout ? 'bg-slate-50 border border-slate-200' : 'bg-slate-950 border border-slate-850'}`}>
-                <h5 className="font-bold text-amber-500 uppercase text-[10px] tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" />
-                  Payment Milestones
-                </h5>
-                <pre className={`whitespace-pre-wrap font-sans text-xs ${isLightLayout ? 'text-slate-700' : 'text-slate-300'} leading-relaxed`}>
-                  {quotation.paymentTerms}
-                </pre>
-              </div>
-            )}
+        {/* Page 1 Footer */}
+        <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[11px] text-slate-500">
+          <span>Modern Way Civil Solutions - Quotation {quotation.quotationNumber}</span>
+          <span>Page 1 of 2</span>
+        </div>
+      </div>
 
-            {quotation.termsAndConditions && (
-              <div className={`p-4 rounded-xl ${isLightLayout ? 'bg-slate-50 border border-slate-200' : 'bg-slate-950 border border-slate-850'}`}>
-                <h5 className="font-bold text-amber-500 uppercase text-[10px] tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Terms & Conditions
-                </h5>
-                <pre className={`whitespace-pre-wrap font-sans text-xs ${isLightLayout ? 'text-slate-700' : 'text-slate-300'} leading-relaxed`}>
-                  {quotation.termsAndConditions}
-                </pre>
-              </div>
-            )}
+      {/* PAGE 2: TERMS & CONDITIONS + AUTHORIZED SIGNATURE */}
+      <div className="bg-white text-slate-900 border border-slate-300 rounded-lg p-6 sm:p-10 shadow-xl min-h-[900px] flex flex-col justify-between page-break">
+        <div>
+          {/* Header on Page 2 */}
+          <div className="pb-3 border-b border-slate-400 flex justify-between items-center">
+            <span className="text-xs font-bold text-[#1a365d] uppercase tracking-wider">
+              Modern Way Civil Solutions • Official Quotation
+            </span>
+            <span className="text-xs font-mono font-bold text-slate-700">
+              Ref: {quotation.quotationNumber}
+            </span>
           </div>
 
-          {/* Amount Calculation Box */}
-          <div className="flex flex-col justify-end">
-            <div className={`rounded-xl p-5 ${isLightLayout ? 'bg-slate-50 border border-slate-300' : 'bg-slate-950 border border-slate-800'} space-y-3 text-xs`}>
-              <div className={`flex justify-between ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-                <span>Total BOQ Subtotal:</span>
-                <span className="font-mono font-semibold">{formatINR(quotation.subtotal)}</span>
-              </div>
+          {/* Terms & Conditions Section */}
+          <div className="mt-6 border border-slate-900 p-5 rounded-none space-y-3">
+            <h3 className="text-xs font-black uppercase text-slate-950 tracking-wider">
+              TERMS & CONDITIONS:
+            </h3>
+            <div className="text-xs sm:text-sm text-slate-800 space-y-2 leading-relaxed">
+              <pre className="whitespace-pre-wrap font-sans text-xs sm:text-sm text-slate-800 leading-relaxed">
+                {quotation.termsAndConditions || `• 1. Payment Term 50% Advance & 50% with Live work going
+2. Electricity water, Cement , any ladder is completely from your side
+3. Labour room should be managed at your side in labour colony
+4. GST is not including in this rate. If you want GST bill GST will be fine extra
+5. Labour will be working day and night shift by shift. You have to allow night working with halogen lights
+6. Final Measurement consider after completing the work with your engineer
+7. We will submit you daily work report to engineer or supervisor who is supervise us`}
+              </pre>
+            </div>
+          </div>
 
-              {quotation.discountAmount > 0 && (
-                <div className="flex justify-between text-rose-500 font-semibold">
-                  <span>Discount ({quotation.discountType === 'PERCENT' ? `${quotation.discountValue}%` : 'Fixed'}):</span>
-                  <span className="font-mono">- {formatINR(quotation.discountAmount)}</span>
+          {/* Payment Terms Section if specified separately */}
+          {quotation.paymentTerms && quotation.paymentTerms !== 'Standard progress-based billing' && (
+            <div className="mt-4 border border-slate-300 p-4 rounded-none bg-slate-50 text-xs sm:text-sm">
+              <h4 className="font-bold text-[#1a365d] uppercase text-[11px] mb-1">
+                Payment Schedule:
+              </h4>
+              <pre className="whitespace-pre-wrap font-sans text-slate-800">
+                {quotation.paymentTerms}
+              </pre>
+            </div>
+          )}
+
+          {/* Authorized Signature Box */}
+          <div className="mt-16 flex flex-col items-end">
+            <div className="text-right space-y-3">
+              <p className="text-sm font-black text-slate-950 uppercase tracking-tight">
+                For, MODERN WAY CIVIL SOLUTIONS
+              </p>
+
+              {/* Signature Graphic / Stamp Container */}
+              <div className="w-56 h-24 border border-slate-400 bg-slate-50/50 flex flex-col items-center justify-center relative p-2">
+                <div className="font-serif italic text-sm text-blue-900 select-none">
+                  Govind Malviya
                 </div>
-              )}
-
-              <div className={`flex justify-between ${isLightLayout ? 'text-slate-600' : 'text-slate-400'}`}>
-                <span>GST Tax ({quotation.taxRate}%):</span>
-                <span className="font-mono font-semibold">+ {formatINR(quotation.taxAmount)}</span>
+                <div className="text-[10px] text-slate-400 font-mono tracking-widest mt-1">
+                  [ SEAL & SIGNATURE ]
+                </div>
               </div>
 
-              <div className={`pt-3 border-t ${isLightLayout ? 'border-slate-300' : 'border-slate-800'} flex justify-between items-center text-sm font-bold`}>
-                <span className={isLightLayout ? 'text-slate-900' : 'text-white'}>
-                  Net Grand Total:
-                </span>
-                <span className="text-amber-500 font-mono text-lg font-black">
-                  {formatINR(quotation.grandTotal)}
-                </span>
+              <div className="border-t-2 border-slate-900 pt-1 text-center">
+                <p className="text-xs font-black uppercase text-slate-950 tracking-wider">
+                  AUTHORIZED SIGNATURE
+                </p>
+                <p className="text-[10px] text-slate-600">
+                  Proprietor / Managing Partner
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Signature & Authorized Footer */}
-        <div className="pt-8 flex flex-col sm:flex-row justify-between items-end gap-8">
-          <div className={`text-xs ${isLightLayout ? 'text-slate-500' : 'text-slate-400'} space-y-1`}>
-            <p>1. This is a computer generated quotation by Modern Way Civil Solution.</p>
-            <p>2. Subject to Noida/Delhi jurisdiction.</p>
-          </div>
+        {/* Page 2 Footer */}
+        <div className="pt-6 border-t border-slate-200 flex justify-between items-center text-[11px] text-slate-500">
+          <span>Modern Way Civil Solutions • Ahmedabad, Gujarat</span>
+          <span>Page 2 of 2</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          <div className="text-center sm:text-right space-y-3 min-w-[200px]">
-            <p className={`text-xs font-bold ${isLightLayout ? 'text-slate-800' : 'text-slate-200'}`}>
-              For Modern Way Civil Solution
-            </p>
-            <div className="h-12 flex items-center justify-end">
-              <span className="font-serif italic text-xs text-amber-500 border-b border-amber-500/50 pb-0.5">
-                Authorized Signatory
+// -------------------------------------------------------------------------------------------------
+// 2. UNIVERSAL STYLED VIEW (Renders remaining 29 themes with distinct typography, borders & colors)
+// -------------------------------------------------------------------------------------------------
+function StyledQuotationView({
+  layout,
+  quotation,
+  org,
+  formattedDate,
+}: {
+  layout: QuotationLayout;
+  quotation: any;
+  org: any;
+  formattedDate: string;
+}) {
+  // Theme configuration for remaining styles
+  const getThemeConfig = () => {
+    switch (layout) {
+      case 'WATERPROOF_AQUA':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-cyan-500 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-cyan-900 to-sky-800 text-white',
+          accentColor: 'text-cyan-700',
+          badgeBg: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+          tableHeader: 'bg-cyan-800 text-white',
+          totalRow: 'bg-cyan-900 text-white',
+          title: 'Waterproofing Barrier Specification Quotation',
+        };
+      case 'EPOXY_AMBER':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-amber-500 shadow-xl',
+          headerBg: 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-700 text-slate-950',
+          accentColor: 'text-amber-600',
+          badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
+          tableHeader: 'bg-slate-900 text-amber-400',
+          totalRow: 'bg-amber-500 text-slate-950 font-black',
+          title: 'High-Gloss Industrial Epoxy Flooring Quotation',
+        };
+      case 'MODERN_BLUE':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-blue-600 shadow-2xl',
+          headerBg: 'bg-blue-800 text-white',
+          accentColor: 'text-blue-700',
+          badgeBg: 'bg-blue-100 text-blue-800 border-blue-300',
+          tableHeader: 'bg-blue-700 text-white',
+          totalRow: 'bg-blue-900 text-white',
+          title: 'Executive Waterproofing & Coating Proposal',
+        };
+      case 'CLASSIC_ARCHITECTURAL':
+        return {
+          wrapper: 'bg-[#fafafa] text-slate-900 border-4 border-double border-slate-700 font-serif',
+          headerBg: 'bg-slate-900 text-white font-serif',
+          accentColor: 'text-slate-800',
+          badgeBg: 'bg-slate-200 text-slate-800 border-slate-400',
+          tableHeader: 'bg-slate-800 text-white',
+          totalRow: 'bg-slate-950 text-white',
+          title: 'Architectural Waterproofing Contract Proposal',
+        };
+      case 'MINIMAL_CLEAN':
+        return {
+          wrapper: 'bg-white text-slate-800 border border-slate-200 shadow-sm font-sans',
+          headerBg: 'bg-white text-slate-900 border-b-2 border-slate-900',
+          accentColor: 'text-slate-900',
+          badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
+          tableHeader: 'bg-slate-100 text-slate-900 border-b border-slate-300',
+          totalRow: 'bg-slate-100 text-slate-950 border-t-2 border-slate-900',
+          title: 'Civil Solution Scope & Estimate',
+        };
+      case 'INDUSTRIAL_TECH':
+        return {
+          wrapper: 'bg-[#0f172a] text-slate-100 border-2 border-amber-500 font-mono',
+          headerBg: 'bg-[#090d16] text-amber-400 border-b-2 border-amber-500',
+          accentColor: 'text-amber-400',
+          badgeBg: 'bg-amber-950 text-amber-300 border-amber-700',
+          tableHeader: 'bg-slate-900 text-amber-400',
+          totalRow: 'bg-amber-500 text-slate-950',
+          title: 'Heavy Chemical & Waterproofing BOQ',
+        };
+      case 'ELEGANT_LUXURY':
+        return {
+          wrapper: 'bg-white text-slate-900 border-2 border-emerald-600 shadow-2xl',
+          headerBg: 'bg-gradient-to-r from-emerald-900 to-teal-800 text-white',
+          accentColor: 'text-emerald-700',
+          badgeBg: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+          tableHeader: 'bg-emerald-800 text-white',
+          totalRow: 'bg-emerald-950 text-white',
+          title: 'Luxury Villa Waterproofing & Protective Coating',
+        };
+      case 'CORPORATE_NAVY':
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-300 shadow-lg',
+          headerBg: 'bg-[#0b1e3b] text-white',
+          accentColor: 'text-[#0b1e3b]',
+          badgeBg: 'bg-slate-100 text-slate-800 border-slate-300',
+          tableHeader: 'bg-[#0b1e3b] text-white',
+          totalRow: 'bg-[#0b1e3b] text-white',
+          title: 'Corporate Civil Solutions Tender',
+        };
+      case 'DARK_STEEL':
+        return {
+          wrapper: 'bg-[#0f172a] text-slate-100 border border-slate-700 shadow-2xl',
+          headerBg: 'bg-[#1e293b] text-white border-b border-slate-700',
+          accentColor: 'text-amber-400',
+          badgeBg: 'bg-slate-800 text-amber-300 border-slate-700',
+          tableHeader: 'bg-slate-800 text-slate-200',
+          totalRow: 'bg-slate-850 text-amber-400 border-t border-slate-700',
+          title: 'Digital Engineering Estimate',
+        };
+      case 'MONOCHROME_PRINT':
+        return {
+          wrapper: 'bg-white text-black border-2 border-black font-sans',
+          headerBg: 'bg-white text-black border-b-2 border-black',
+          accentColor: 'text-black',
+          badgeBg: 'bg-white text-black border-black',
+          tableHeader: 'bg-black text-white',
+          totalRow: 'bg-black text-white font-bold',
+          title: 'Official Contractor Quotation',
+        };
+      default:
+        return {
+          wrapper: 'bg-white text-slate-900 border border-slate-300 shadow-xl',
+          headerBg: 'bg-slate-900 text-white',
+          accentColor: 'text-amber-600',
+          badgeBg: 'bg-amber-50 text-amber-900 border-amber-300',
+          tableHeader: 'bg-slate-800 text-white',
+          totalRow: 'bg-slate-950 text-white',
+          title: 'Waterproofing & Epoxy Coating Quotation',
+        };
+    }
+  };
+
+  const theme = getThemeConfig();
+
+  return (
+    <div className={`print-container max-w-4xl mx-auto rounded-xl p-6 sm:p-10 ${theme.wrapper}`}>
+      {/* Letterhead Header Banner */}
+      <div className={`rounded-lg p-6 mb-6 ${theme.headerBg} flex flex-col sm:flex-row justify-between items-start gap-4`}>
+        <div>
+          <div className="flex items-center gap-2">
+            <Droplets className="w-5 h-5 text-amber-400" />
+            <span className="text-xs uppercase font-bold tracking-widest text-amber-300">
+              Modern Way Civil Solutions
+            </span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight mt-1">
+            {theme.title}
+          </h2>
+          <p className="text-xs opacity-90 mt-1 max-w-md">
+            I 04 - S G Business Hub, Opp PNB Bank Sola Road, S G Highway, Gota, Ahmedabad
+          </p>
+        </div>
+
+        <div className="text-left sm:text-right shrink-0">
+          <div className="text-xs font-mono font-bold uppercase opacity-80">Quotation No</div>
+          <div className="text-lg font-mono font-black">{quotation.quotationNumber}</div>
+          <div className="text-xs opacity-90 mt-1">Date: {formattedDate}</div>
+        </div>
+      </div>
+
+      {/* Client & Project Details Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 border-b border-slate-300 text-xs">
+        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+          <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block mb-1">
+            Billed To Client:
+          </span>
+          <p className="text-sm font-bold text-slate-900">{quotation.clientName}</p>
+          <p className="text-slate-700">{quotation.clientAddress || 'Ahmedabad, Gujarat'}</p>
+          {quotation.clientPhone && <p className="text-slate-700">Phone: {quotation.clientPhone}</p>}
+          {quotation.clientGst && <p className="text-slate-700">GST: {quotation.clientGst}</p>}
+        </div>
+
+        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+          <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block mb-1">
+            Project Scope:
+          </span>
+          <p className="text-sm font-bold text-slate-900">{quotation.title}</p>
+          <p className="text-slate-700 mt-1">Domain: Waterproofing Services & Epoxy Coating</p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 uppercase">
+              Status: {quotation.status}
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Valid: {quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString('en-IN') : '30 Days'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* BOQ Table */}
+      <div className="mt-6 border border-slate-300 rounded-lg overflow-hidden">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className={`font-bold uppercase text-[10px] ${theme.tableHeader}`}>
+              <th className="py-3 px-3 w-10 text-center">#</th>
+              <th className="py-3 px-4">Item Scope & Technical Procedure</th>
+              <th className="py-3 px-3 w-20 text-center">Unit</th>
+              <th className="py-3 px-3 w-24 text-right">Quantity</th>
+              <th className="py-3 px-3 w-28 text-right">Rate</th>
+              <th className="py-3 px-4 w-32 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {quotation.items?.map((item: any, idx: number) => (
+              <tr key={idx} className="align-top hover:bg-slate-50/50">
+                <td className="py-3 px-3 text-center font-bold text-slate-500 font-mono">
+                  {item.itemNumber || idx + 1}
+                </td>
+                <td className="py-3 px-4">
+                  <div className="whitespace-pre-wrap font-sans text-xs leading-relaxed">
+                    {item.description}
+                  </div>
+                  {item.notes && (
+                    <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                      Note: {item.notes}
+                    </p>
+                  )}
+                </td>
+                <td className="py-3 px-3 text-center font-medium text-slate-600">
+                  {item.unit}
+                </td>
+                <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
+                  {item.quantity}
+                </td>
+                <td className="py-3 px-3 text-right font-mono text-slate-800">
+                  {formatINR(item.rate)}
+                </td>
+                <td className="py-3 px-4 text-right font-mono font-bold text-slate-950">
+                  {formatINR(item.amount)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className={`font-bold text-sm ${theme.totalRow}`}>
+              <td colSpan={4} className="py-3 px-4 uppercase text-right tracking-wider">
+                GRAND TOTAL
+              </td>
+              <td colSpan={2} className="py-3 px-4 text-right font-mono text-base font-black">
+                {formatINR(quotation.grandTotal)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Terms and Financials Split */}
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 pb-6 border-b border-slate-300 text-xs">
+        <div className="space-y-3">
+          <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wider">
+            Terms & Conditions:
+          </h4>
+          <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-200">
+            {quotation.termsAndConditions || `1. 50% Advance & 50% with Live work going.
+2. Electricity, water, Cement, any ladder is completely from your side.
+3. Labour room should be managed at your side in labour colony.
+4. Final Measurement consider after completing the work with your engineer.`}
+          </pre>
+        </div>
+
+        <div className="flex flex-col justify-end space-y-3">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal:</span>
+              <span className="font-mono font-semibold">{formatINR(quotation.subtotal)}</span>
+            </div>
+            {quotation.discountAmount > 0 && (
+              <div className="flex justify-between text-rose-600">
+                <span>Discount:</span>
+                <span className="font-mono font-semibold">- {formatINR(quotation.discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-slate-600">
+              <span>GST ({quotation.taxRate}%):</span>
+              <span className="font-mono font-semibold">
+                {quotation.taxAmount > 0 ? `+ ${formatINR(quotation.taxAmount)}` : 'As applicable'}
               </span>
             </div>
-            <p className={`text-[11px] ${isLightLayout ? 'text-slate-500' : 'text-slate-400'}`}>
-              Managing Director / Chief Project Engineer
-            </p>
+            <div className="pt-2 border-t border-slate-300 flex justify-between font-bold text-base text-slate-950">
+              <span>Net Payable:</span>
+              <span className="font-mono text-amber-600 font-black">{formatINR(quotation.grandTotal)}</span>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Signature Footer */}
+      <div className="pt-8 flex flex-col sm:flex-row justify-between items-end gap-6 text-xs">
+        <div className="text-slate-500 space-y-1">
+          <p>Modern Way Civil Solutions • Ahmedabad, Gujarat</p>
+          <p>📞 9898035669, 9898035110 • ✉️ modernway9394@gmail.com</p>
+        </div>
+
+        <div className="text-right space-y-2">
+          <p className="font-bold text-slate-900">For, MODERN WAY CIVIL SOLUTIONS</p>
+          <div className="h-12 flex items-end justify-end">
+            <span className="font-serif italic text-sm text-slate-800 border-b border-slate-900 pb-0.5">
+              Govind Malviya
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+            Authorized Signatory
+          </p>
         </div>
       </div>
     </div>
