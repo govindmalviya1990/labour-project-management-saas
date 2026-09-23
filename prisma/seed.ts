@@ -4,6 +4,14 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('--- CHECKING DATABASE INITIALIZATION ---');
+
+  const existingOrg = await prisma.organization.findFirst();
+  if (existingOrg) {
+    console.log('Database already initialized with organization:', existingOrg.name);
+    return;
+  }
+
   console.log('--- SEEDING REAL MULTI-TENANT TEST DATA ---');
 
   // Clean previous seed
