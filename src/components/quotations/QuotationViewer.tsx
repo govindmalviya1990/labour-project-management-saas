@@ -172,7 +172,6 @@ You can inspect the complete technical proposal online at:
 ${typeof window !== 'undefined' ? window.location.href : ''}
 
 Best regards,
-Govind Malviya
 Modern Way Civil Solutions
 I 04 - S G Business Hub, Gota, S G Highway, Ahmedabad
 Phone: 9898035669, 9898035110
@@ -526,21 +525,18 @@ function OfficialModernWayView({
               </p>
 
               {/* Signature Graphic / Stamp Container */}
-              <div className="w-56 h-24 border border-slate-400 bg-slate-50/50 flex flex-col items-center justify-center relative p-2">
-                <div className="font-serif italic text-sm text-blue-900 select-none">
-                  Govind Malviya
-                </div>
-                <div className="text-[10px] text-slate-400 font-mono tracking-widest mt-1">
+              <div className="w-56 h-20 border border-dashed border-slate-300 bg-slate-50/40 flex flex-col items-center justify-center relative p-2">
+                <div className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
                   [ SEAL & SIGNATURE ]
                 </div>
               </div>
 
-              <div className="border-t-2 border-slate-900 pt-1 text-center">
+              <div className="border-t-2 border-slate-900 pt-1.5 text-center">
                 <p className="text-xs font-black uppercase text-slate-950 tracking-wider">
                   AUTHORIZED SIGNATURE
                 </p>
-                <p className="text-[10px] text-slate-600">
-                  Proprietor / Managing Partner
+                <p className="text-[10px] text-slate-500">
+                  Modern Way Civil Solutions
                 </p>
               </div>
             </div>
@@ -850,10 +846,8 @@ function StyledQuotationView({
 
         <div className="text-right space-y-2">
           <p className="font-bold text-slate-900">For, MODERN WAY CIVIL SOLUTIONS</p>
-          <div className="h-12 flex items-end justify-end">
-            <span className="font-serif italic text-sm text-slate-800 border-b border-slate-900 pb-0.5">
-              Govind Malviya
-            </span>
+          <div className="h-10 flex items-end justify-end">
+            <span className="w-36 border-b border-slate-400 block"></span>
           </div>
           <p className="text-[10px] text-slate-500 uppercase tracking-wider">
             Authorized Signatory

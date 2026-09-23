@@ -21,7 +21,7 @@ export interface QuotationTemplate {
 export const DEFAULT_ORGANIZATION = {
   name: 'Modern Way Civil Solutions',
   tagline: 'સમસ્યા અમારી નિવારણ',
-  ownerName: 'Govind Malviya',
+  ownerName: '',
   mobile: '9898035669, 9898035110',
   email: 'modernway9394@gmail.com',
   instagram: 'modernwaycs_2023',
