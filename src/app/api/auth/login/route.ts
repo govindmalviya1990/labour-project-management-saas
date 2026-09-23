@@ -84,10 +84,10 @@ export async function POST(req: Request) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again.' },
+      { error: error?.message || 'An unexpected error occurred. Please try again.' },
       { status: 500 }
     );
   }
