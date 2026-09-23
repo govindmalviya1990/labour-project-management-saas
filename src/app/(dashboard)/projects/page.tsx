@@ -252,28 +252,28 @@ export default function ProjectsPage() {
 
       {/* Metric Counters Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Total Projects
           </p>
-          <p className="mt-1 text-2xl font-bold text-white">{statusCounts.ALL || 0}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{statusCounts.ALL || 0}</p>
         </div>
-        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
             Running Projects
           </p>
-          <p className="mt-1 text-2xl font-bold text-emerald-400">{statusCounts.RUNNING || 0}</p>
+          <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{statusCounts.RUNNING || 0}</p>
         </div>
-        <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl col-span-2 sm:col-span-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl col-span-2 sm:col-span-1 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
             Portfolio Contract Value
           </p>
-          <p className="mt-1 text-2xl font-bold text-amber-400">{formatINR(totalPortfolioValue)}</p>
+          <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{formatINR(totalPortfolioValue)}</p>
         </div>
       </div>
 
       {/* Status Filter Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-800/80 scrollbar-none">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800/80 scrollbar-none">
         {statusTabs.map((tab) => {
           const count = statusCounts[tab.key] || 0;
           const isActive = activeStatus === tab.key;
@@ -283,17 +283,19 @@ export default function ProjectsPage() {
               type="button"
               onClick={() => handleTabChange(tab.key)}
               className={clsx(
-                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors',
+                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer',
                 isActive
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800'
               )}
             >
               <span>{tab.label}</span>
               <span
                 className={clsx(
                   'px-1.5 py-0.2 rounded-full text-[10px] font-bold',
-                  isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-slate-400'
+                  isActive
+                    ? 'bg-slate-950/20 text-slate-950'
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 )}
               >
                 {count}

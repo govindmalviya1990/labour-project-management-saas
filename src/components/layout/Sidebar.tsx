@@ -132,18 +132,18 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
   ];
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 border-r border-slate-800 bg-slate-950 text-slate-300 h-screen sticky top-0 overflow-y-auto select-none">
+    <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 h-screen sticky top-0 overflow-y-auto select-none transition-colors">
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800/80 bg-slate-950/40">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20">
           <HardHat className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-extrabold text-white tracking-tight leading-snug">
-            Modern Way Civil Solution
+          <h1 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug">
+            Modern Way Civil Solutions
           </h1>
-          <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider">
-            Civil & Project SaaS
+          <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wider">
+            Waterproofing &amp; Epoxy SaaS
           </p>
         </div>
       </div>
@@ -160,8 +160,8 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
                 className={clsx(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold tracking-wide transition-colors',
                   isActive
-                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
                 )}
               >
                 {item.icon}
@@ -180,7 +180,9 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
                 onClick={() => toggleSection(item.title)}
                 className={clsx(
                   'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold tracking-wide transition-colors',
-                  hasActiveChild ? 'text-amber-400' : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                  hasActiveChild
+                    ? 'text-amber-600 dark:text-amber-400 font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -193,7 +195,7 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
               </button>
 
               {isOpen && (
-                <div className="pl-9 pr-2 space-y-1 border-l border-slate-800 ml-5">
+                <div className="pl-9 pr-2 space-y-1 border-l border-slate-200 dark:border-slate-800 ml-5">
                   {item.children.map((child) => {
                     const isChildActive = pathname === child.href;
                     return (
@@ -203,8 +205,8 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
                         className={clsx(
                           'block px-2 py-1.5 rounded-md text-xs transition-colors',
                           isChildActive
-                            ? 'font-semibold text-amber-400 bg-amber-500/10'
-                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                            ? 'font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900/60'
                         )}
                       >
                         {child.title}
@@ -219,10 +221,10 @@ export function Sidebar({ organizationName, userRole }: { organizationName?: str
       </nav>
 
       {/* Role Badge Footer */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/80">
-        <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-          <span className="text-slate-400 font-medium">Role:</span>
-          <span className="font-bold text-amber-400 tracking-wider uppercase">{userRole || 'OWNER'}</span>
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80">
+        <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+          <span className="text-slate-500 dark:text-slate-400 font-medium">Role:</span>
+          <span className="font-bold text-amber-600 dark:text-amber-400 tracking-wider uppercase">{userRole || 'OWNER'}</span>
         </div>
       </div>
     </aside>

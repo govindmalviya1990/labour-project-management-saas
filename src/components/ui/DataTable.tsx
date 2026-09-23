@@ -77,7 +77,7 @@ export function DataTable<T extends Record<string, any>>({
             leftIcon={<Search className="w-4 h-4" />}
           />
         </div>
-        <div className="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-400">
+        <div className="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500 dark:text-slate-400">
           <span>Rows per page:</span>
           <select
             value={pageSize}
@@ -85,10 +85,10 @@ export function DataTable<T extends Record<string, any>>({
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500"
+            className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-amber-500"
           >
             {pageSizeOptions.map((opt) => (
-              <option key={opt} value={opt}>
+              <option key={opt} value={opt} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                 {opt}
               </option>
             ))}
@@ -97,9 +97,9 @@ export function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Table Container */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="border-b border-slate-800 bg-slate-950/60 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <table className="w-full text-left text-sm text-slate-700 dark:text-slate-200">
+          <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
             <tr>
               {columns.map((col, idx) => (
                 <th key={idx} className={`px-4 py-3.5 ${col.className || ''}`}>
@@ -108,12 +108,12 @@ export function DataTable<T extends Record<string, any>>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
             {paginatedData.length > 0 ? (
               paginatedData.map((item) => (
                 <tr
                   key={keyExtractor(item)}
-                  className="hover:bg-slate-800/40 transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
                 >
                   {columns.map((col, idx) => (
                     <td key={idx} className={`px-4 py-3.5 ${col.className || ''}`}>

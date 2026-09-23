@@ -26,155 +26,350 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Light mode overrides for dashboard containers */
-html.light body {
-  background-color: #f1f5f9;
-  color: #0f172a;
+/* ==========================================================================
+   1. BULLETPROOF LIGHT MODE STYLING (html.light or [data-theme="light"])
+   ========================================================================== */
+
+html.light,
+html[data-theme="light"],
+html.light body,
+html[data-theme="light"] body {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 
-html.light aside {
+/* Navigation containers */
+html.light aside,
+html[data-theme="light"] aside {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
   color: #1e293b !important;
 }
 
-html.light header {
-  background-color: rgba(255, 255, 255, 0.95) !important;
+html.light header,
+html[data-theme="light"] header {
+  background-color: rgba(255, 255, 255, 0.98) !important;
   border-color: #e2e8f0 !important;
 }
 
-html.light .bg-slate-950 {
+html.light nav,
+html[data-theme="light"] nav {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Convert all dark page containers, slate cards, and opacity variants to clean white cards */
+html.light [class*="bg-slate-950"],
+html[data-theme="light"] [class*="bg-slate-950"] {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
-html.light .bg-slate-900 {
+html.light [class*="bg-slate-900"],
+html[data-theme="light"] [class*="bg-slate-900"],
+html.light [class*="bg-slate-850"],
+html[data-theme="light"] [class*="bg-slate-850"] {
   background-color: #ffffff !important;
   color: #0f172a !important;
 }
 
-html.light .border-slate-800 {
-  border-color: #e2e8f0 !important;
-}
-
-html.light .border-slate-700 {
-  border-color: #cbd5e1 !important;
-}
-
-html.light .text-slate-400 {
-  color: #475569 !important;
-}
-
-html.light .text-slate-500 {
-  color: #334155 !important;
-}
-
-html.light .text-slate-300 {
+html.light [class*="bg-slate-800"],
+html[data-theme="light"] [class*="bg-slate-800"] {
+  background-color: #f1f5f9 !important;
   color: #1e293b !important;
 }
 
-html.light .text-slate-200 {
+/* Convert borders and dividers to crisp light borders */
+html.light [class*="border-slate-800"],
+html.light [class*="border-slate-750"],
+html.light [class*="border-slate-700"],
+html[data-theme="light"] [class*="border-slate-800"],
+html[data-theme="light"] [class*="border-slate-750"],
+html[data-theme="light"] [class*="border-slate-700"] {
+  border-color: #e2e8f0 !important;
+}
+
+html.light [class*="divide-slate-800"],
+html.light [class*="divide-slate-850"],
+html[data-theme="light"] [class*="divide-slate-800"],
+html[data-theme="light"] [class*="divide-slate-850"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Light Mode Tables */
+html.light table,
+html[data-theme="light"] table {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+html.light thead,
+html.light thead tr,
+html.light thead th,
+html[data-theme="light"] thead,
+html[data-theme="light"] thead tr,
+html[data-theme="light"] thead th {
+  background-color: #f8fafc !important;
+  color: #475569 !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.light tbody tr,
+html[data-theme="light"] tbody tr {
+  background-color: #ffffff !important;
+}
+
+html.light tbody tr:hover,
+html[data-theme="light"] tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+/* Text Colors in Light Mode */
+html.light .text-white,
+html.light .text-slate-100,
+html.light .text-slate-200,
+html[data-theme="light"] .text-white,
+html[data-theme="light"] .text-slate-100,
+html[data-theme="light"] .text-slate-200 {
   color: #0f172a !important;
 }
 
-html.light .text-white {
+html.light .text-slate-300,
+html[data-theme="light"] .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-400,
+html.light .text-slate-500,
+html.light .text-slate-600,
+html[data-theme="light"] .text-slate-400,
+html[data-theme="light"] .text-slate-500,
+html[data-theme="light"] .text-slate-600 {
+  color: #64748b !important;
+}
+
+/* Form Controls in Light Mode */
+html.light input,
+html.light textarea,
+html.light select,
+html[data-theme="light"] input,
+html[data-theme="light"] textarea,
+html[data-theme="light"] select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
   color: #0f172a !important;
 }
 
-/* Maintain amber and status badges in light mode */
-html.light .text-amber-500,
-html.light .text-amber-400 {
-  color: #d97706 !important;
+html.light select option,
+html[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
-html.light .text-emerald-400 {
-  color: #059669 !important;
-}
-
-html.light .text-rose-400 {
-  color: #e11d48 !important;
-}
-
-html.light .text-blue-400 {
-  color: #2563eb !important;
-}
-
-/* High-Contrast Visibility Enhancements for Dark Mode */
-html.dark body {
-  background-color: #090d16;
-  color: #f8fafc;
-}
-
-/* Elevate low-contrast text in dark mode so all words are clearly visible */
-html.dark .text-slate-500 {
+html.light input::placeholder,
+html.light textarea::placeholder,
+html[data-theme="light"] input::placeholder,
+html[data-theme="light"] textarea::placeholder {
   color: #94a3b8 !important;
 }
 
-html.dark .text-slate-600 {
-  color: #cbd5e1 !important;
+/* Buttons in Light Mode */
+html.light button.bg-slate-800,
+html[data-theme="light"] button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
 }
 
-html.dark .text-slate-400 {
-  color: #cbd5e1 !important;
+html.light button.bg-slate-800:hover,
+html[data-theme="light"] button.bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
-html.dark .text-slate-300 {
-  color: #e2e8f0 !important;
+html.light button.border-slate-700,
+html.light button.border-slate-800,
+html[data-theme="light"] button.border-slate-700,
+html[data-theme="light"] button.border-slate-800 {
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
 }
 
-html.dark .text-slate-200 {
-  color: #f1f5f9 !important;
-}
 
-/* Ensure inputs, textareas, and selects in dark mode are prominent & clear */
-html.dark input,
-html.dark textarea,
-html.dark select {
-  background-color: #0b1120;
-  border-color: #334155;
+/* ==========================================================================
+   2. HIGH-CONTRAST DARK MODE STYLING (html.dark or [data-theme="dark"])
+   ========================================================================== */
+
+html.dark,
+html[data-theme="dark"],
+html.dark body,
+html[data-theme="dark"] body {
+  background-color: #090d16 !important;
   color: #f8fafc !important;
 }
 
-html.dark input::placeholder,
-html.dark textarea::placeholder {
+html.dark aside,
+html[data-theme="dark"] aside {
+  background-color: #0b1120 !important;
+  border-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+html.dark header,
+html[data-theme="dark"] header {
+  background-color: rgba(11, 17, 32, 0.95) !important;
+  border-color: #1e293b !important;
+}
+
+html.dark nav,
+html[data-theme="dark"] nav {
+  background-color: rgba(11, 17, 32, 0.95) !important;
+  border-color: #1e293b !important;
+}
+
+/* Dark Mode Cards & Tables */
+html.dark [class*="bg-slate-900"],
+html[data-theme="dark"] [class*="bg-slate-900"] {
+  background-color: #0f172a !important;
+}
+
+html.dark [class*="bg-slate-950"],
+html[data-theme="dark"] [class*="bg-slate-950"] {
+  background-color: #090d16 !important;
+}
+
+html.dark [class*="border-slate-800"],
+html[data-theme="dark"] [class*="border-slate-800"] {
+  border-color: #1e293b !important;
+}
+
+html.dark [class*="border-slate-700"],
+html[data-theme="dark"] [class*="border-slate-700"] {
+  border-color: #334155 !important;
+}
+
+/* Ensure ALL text in Dark Mode is bright, high-contrast and legible */
+html.dark .text-white,
+html[data-theme="dark"] .text-white {
+  color: #ffffff !important;
+}
+
+html.dark .text-slate-100,
+html[data-theme="dark"] .text-slate-100 {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-200,
+html[data-theme="dark"] .text-slate-200 {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-300,
+html[data-theme="dark"] .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-400,
+html[data-theme="dark"] .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-600,
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-600 {
   color: #94a3b8 !important;
 }
 
-html.dark select option {
+/* Inputs & Form Controls in Dark Mode */
+html.dark input,
+html.dark textarea,
+html.dark select,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: #0b1120 !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark select option,
+html[data-theme="dark"] select option {
   background-color: #0f172a !important;
   color: #f8fafc !important;
 }
 
-/* Form labels visibility in dark mode */
-html.dark label {
-  color: #cbd5e1 !important;
+html.dark input::placeholder,
+html.dark textarea::placeholder,
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #64748b !important;
 }
 
-/* Ensure secondary, ghost, and outline buttons have high visibility in dark mode */
+/* Buttons in Dark Mode */
 html.dark button.bg-slate-800,
-html.dark .bg-slate-800 {
+html[data-theme="dark"] button.bg-slate-800 {
   background-color: #1e293b !important;
   color: #f8fafc !important;
   border: 1px solid #334155 !important;
 }
 
 html.dark button.bg-slate-800:hover,
-html.dark .bg-slate-800:hover {
+html[data-theme="dark"] button.bg-slate-800:hover {
   background-color: #334155 !important;
   color: #ffffff !important;
 }
 
 html.dark button.border-slate-700,
-html.dark button.border-slate-800 {
+html.dark button.border-slate-800,
+html[data-theme="dark"] button.border-slate-700,
+html[data-theme="dark"] button.border-slate-800 {
   border-color: #475569 !important;
   color: #f1f5f9 !important;
 }
 
 html.dark button.border-slate-700:hover,
-html.dark button.border-slate-800:hover {
+html.dark button.border-slate-800:hover,
+html[data-theme="dark"] button.border-slate-700:hover,
+html[data-theme="dark"] button.border-slate-800:hover {
   background-color: #1e293b !important;
   border-color: #94a3b8 !important;
   color: #ffffff !important;
+}
+
+/* Accent Badge and Colors in both modes */
+.text-amber-500,
+.text-amber-400 {
+  color: #f59e0b !important;
+}
+
+html.light .text-amber-500,
+html.light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+.text-emerald-400 {
+  color: #10b981 !important;
+}
+
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+.text-rose-400 {
+  color: #f43f5e !important;
+}
+
+html.light .text-rose-400 {
+  color: #e11d48 !important;
+}
+
+.text-blue-400 {
+  color: #38bdf8 !important;
+}
+
+html.light .text-blue-400 {
+  color: #2563eb !important;
 }
 
 /* Custom scrollbars */

@@ -69,46 +69,52 @@ export function Topbar({
       {/* Global Search Bar (Desktop) */}
       <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center w-80">
         <div className="relative w-full">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Search projects, workers, materials..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 pl-9 pr-4 py-1.5 rounded-lg text-xs focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 placeholder:text-slate-500 transition-colors"
+            className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-900 dark:text-slate-100 pl-9 pr-4 py-1.5 rounded-lg text-xs focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors"
           />
         </div>
       </form>
 
       {/* Right Controls: Filters, Notifications, Profile */}
       <div className="flex items-center gap-2.5 sm:gap-3">
-        {/* Dark / Light Mode Toggle Button */}
+        {/* Dark / Light Mode Toggle Button with Clear Indicator */}
         <button
           type="button"
           onClick={toggleTheme}
-          className="rounded-lg p-2 text-slate-400 hover:bg-slate-900 hover:text-amber-400 transition-colors border border-slate-800"
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:border-amber-500 transition-all shadow-sm cursor-pointer"
+          title={theme === 'dark' ? 'Dark Mode active (Click to switch to Light Mode)' : 'Light Mode active (Click to switch to Dark Mode)'}
           aria-label="Toggle Theme"
         >
           {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
+            <>
+              <Moon className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+              <span className="text-[11px] font-bold text-slate-200">Dark</span>
+            </>
           ) : (
-            <Moon className="w-4 h-4 text-amber-500" />
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+              <span className="text-[11px] font-bold text-slate-800">Light</span>
+            </>
           )}
         </button>
 
         {/* Date Filter Dropdown */}
-        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg text-xs text-slate-300">
-          <Calendar className="w-3.5 h-3.5 text-amber-400" />
+        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300">
+          <Calendar className="w-3.5 h-3.5 text-amber-500" />
           <select
             value={selectedDateFilter}
             onChange={(e) => onDateFilterChange?.(e.target.value)}
-            className="bg-transparent border-none text-slate-200 text-xs focus:outline-none cursor-pointer"
+            className="bg-transparent border-none text-slate-800 dark:text-slate-200 text-xs focus:outline-none cursor-pointer"
           >
-            <option value="today" className="bg-slate-900">Today</option>
-            <option value="week" className="bg-slate-900">This Week</option>
-            <option value="month" className="bg-slate-900">This Month</option>
-            <option value="custom" className="bg-slate-900">Custom Range</option>
+            <option value="today" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">Today</option>
+            <option value="week" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">This Week</option>
+            <option value="month" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">This Month</option>
+            <option value="custom" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">Custom Range</option>
           </select>
         </div>
 
