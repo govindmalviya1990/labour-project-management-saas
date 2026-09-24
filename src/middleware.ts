@@ -6,7 +6,7 @@ import { normalizeRole } from '@/lib/auth/roles';
 const AUTH_COOKIE_NAME = 'auth_token';
 
 // Public routes that don't require authentication
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/worker-portal'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/register') ||
+    pathname.startsWith('/api/worker-portal') ||
     pathname.includes('.')
   ) {
     return NextResponse.next();
@@ -23,9 +24,9 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
-  // 2. Handle unauthenticated requests to public routes
+  // 2. Handle requests to public routes
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    if (token) {
+    if (token && !pathname.startsWith('/worker-portal')) {
       const payload = await verifyJWT(token);
       if (payload?.userId) {
         return NextResponse.redirect(new URL('/', request.url));

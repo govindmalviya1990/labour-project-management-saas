@@ -102,7 +102,21 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 border-t border-slate-800 pt-5 text-center text-xs text-slate-400">
+          {/* Quick Worker Self-Service Passbook Portal */}
+          <div className="mt-5 pt-4 border-t border-slate-800 text-center space-y-2">
+            <p className="text-[11px] text-slate-400">
+              क्या आप साइट मज़दूर या कारीगर हैं? (Field Worker?)
+            </p>
+            <Link
+              href="/worker-portal"
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-cyan-950/70 hover:bg-cyan-900/60 border border-cyan-500/40 text-cyan-300 font-bold text-xs transition-all shadow-md shadow-cyan-950/40"
+            >
+              <HardHat className="w-4 h-4 text-cyan-400" />
+              <span>मज़दूर हाजिरी व पासबुक (बिना पासवर्ड के रिपोर्ट देखें)</span>
+            </Link>
+          </div>
+
+          <div className="mt-4 border-t border-slate-800/80 pt-4 text-center text-xs text-slate-400">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="font-semibold text-amber-400 hover:text-amber-300">
               Register company

@@ -77,6 +77,11 @@ export function Sidebar({
           href: '/khata',
           icon: <BookOpen className="w-4 h-4 text-amber-400" />,
         },
+        {
+          title: 'Digital Passbook Slip',
+          href: '/worker-portal',
+          icon: <HardHat className="w-4 h-4 text-cyan-400" />,
+        },
       ];
     }
 
@@ -104,6 +109,11 @@ export function Sidebar({
           title: 'Work Progress Logs',
           href: '/work',
           icon: <Hammer className="w-4 h-4 text-indigo-400" />,
+        },
+        {
+          title: 'Worker Passbook Lookup',
+          href: '/worker-portal',
+          icon: <UserCheck className="w-4 h-4 text-cyan-400" />,
         },
         {
           title: 'Materials',
@@ -146,6 +156,7 @@ export function Sidebar({
           icon: <Users className="w-4 h-4" />,
           children: [
             { title: 'Worker Directory', href: '/workers' },
+            { title: 'Worker Passbook Portal', href: '/worker-portal' },
             { title: 'Salary & Wages', href: '/salary' },
             { title: 'Khata / Ledger', href: '/khata' },
           ],
@@ -212,6 +223,7 @@ export function Sidebar({
         icon: <Users className="w-4 h-4" />,
         children: [
           { title: 'All Workers', href: '/workers' },
+          { title: 'Worker Passbook Portal', href: '/worker-portal' },
           { title: 'Attendance', href: '/attendance' },
           { title: 'Work Records', href: '/work' },
           { title: 'Salary', href: '/salary' },
