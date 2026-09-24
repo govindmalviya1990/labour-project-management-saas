@@ -11,6 +11,7 @@ interface ReceiptFormModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultProjectId?: string;
+  initialData?: any;
 }
 
 export function ReceiptFormModal({
@@ -18,21 +19,22 @@ export function ReceiptFormModal({
   onClose,
   onSuccess,
   defaultProjectId,
+  initialData,
 }: ReceiptFormModalProps) {
   const [projects, setProjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    projectId: defaultProjectId || '',
-    siteId: '',
-    materialId: '',
-    supplierId: '',
-    date: new Date().toISOString().split('T')[0],
-    quantity: 100,
-    purchaseRate: 350,
-    invoiceNumber: '',
-    notes: '',
+    projectId: initialData?.projectId || defaultProjectId || '',
+    siteId: initialData?.siteId || '',
+    materialId: initialData?.materialId || '',
+    supplierId: initialData?.supplierId || '',
+    date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    quantity: initialData?.quantity !== undefined ? initialData.quantity : 0,
+    purchaseRate: initialData?.purchaseRate !== undefined ? initialData.purchaseRate : 0,
+    invoiceNumber: initialData?.invoiceNumber || '',
+    notes: initialData?.notes || '',
   });
 
   const [error, setError] = useState('');
@@ -70,6 +72,20 @@ export function ReceiptFormModal({
           const s = await supRes.json();
           setSuppliers(s.suppliers || []);
         }
+
+        if (initialData) {
+          setFormData({
+            projectId: initialData.projectId || '',
+            siteId: initialData.siteId || '',
+            materialId: initialData.materialId || '',
+            supplierId: initialData.supplierId || '',
+            date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            quantity: initialData.quantity !== undefined ? initialData.quantity : 0,
+            purchaseRate: initialData.purchaseRate !== undefined ? initialData.purchaseRate : 0,
+            invoiceNumber: initialData.invoiceNumber || '',
+            notes: initialData.notes || '',
+          });
+        }
       } catch (e) {
         console.error('Failed to load receipt form data:', e);
       }
@@ -79,7 +95,7 @@ export function ReceiptFormModal({
       loadData();
       setError('');
     }
-  }, [isOpen, defaultProjectId]);
+  }, [isOpen, defaultProjectId, initialData]);
 
   const selectedMaterial = materials.find((m) => m.id === formData.materialId);
   const totalCost = Math.round((Number(formData.quantity) || 0) * (Number(formData.purchaseRate) || 0) * 100) / 100;
@@ -113,8 +129,11 @@ export function ReceiptFormModal({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/materials/receipts', {
-        method: 'POST',
+      const url = initialData ? `/api/materials/receipts/${initialData.id}` : '/api/materials/receipts';
+      const method = initialData ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: formData.projectId,
@@ -149,7 +168,7 @@ export function ReceiptFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Material Inward / Receipt (GRN)"
+      title={initialData ? 'Edit Material Inward / Receipt (GRN)' : 'Record Material Inward / Receipt (GRN)'}
       description="Add incoming material shipment to site inventory and project cost"
       size="lg"
     >
@@ -298,7 +317,7 @@ export function ReceiptFormModal({
           </Button>
           <Button type="submit" disabled={isLoading} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
             <Truck className="w-4 h-4 mr-1.5" />
-            {isLoading ? 'Recording...' : 'Record Inward Stock'}
+            {isLoading ? 'Saving...' : initialData ? 'Update Inward Delivery' : 'Record Inward Stock'}
           </Button>
         </div>
       </form>

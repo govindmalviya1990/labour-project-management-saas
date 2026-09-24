@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft, Plus, ArrowLeft, Search, Info } from 'lucide-react';
+import { ArrowRightLeft, Plus, ArrowLeft, Search, Info, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { TransferFormModal } from '@/components/materials/TransferFormModal';
 
@@ -34,6 +34,21 @@ export default function MaterialTransfersPage() {
       console.error(e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string, matName: string) => {
+    if (!confirm(`Are you sure you want to delete the transfer record for '${matName || 'material'}'?`)) return;
+    try {
+      const res = await fetch(`/api/materials/transfers/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete transfer record');
+        return;
+      }
+      fetchTransfers();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting transfer record');
     }
   };
 
@@ -135,18 +150,19 @@ export default function MaterialTransfersPage() {
                 <th className="py-3 px-3">Destination Project (To)</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-200">Quantity Transferred</th>
                 <th className="py-3 px-4">Transfer Notes</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-500">
+                  <td colSpan={7} className="text-center py-10 text-slate-500">
                     Loading transfers...
                   </td>
                 </tr>
               ) : filteredTransfers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-400">
+                  <td colSpan={7} className="text-center py-10 text-slate-400">
                     No inter-site material transfers logged yet.
                   </td>
                 </tr>
@@ -175,6 +191,17 @@ export default function MaterialTransfersPage() {
                     </td>
                     <td className="py-3 px-4 text-slate-400 text-[11px]">
                       {t.notes || 'Inter-site stock movement'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+                        onClick={() => handleDelete(t.id, t.material?.name)}
+                        title="Delete Transfer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </td>
                   </tr>
                 ))

@@ -14,6 +14,8 @@ import {
   AlertCircle,
   IndianRupee,
   Layers,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { formatINR } from '@/lib/calculations';
@@ -154,12 +156,24 @@ export default function AttendancePage() {
     );
   };
 
-  // Calculate live total from current state
-  const liveTotalLabourCost = sheet.reduce((sum, item) => sum + (item.wageForDay || 0), 0);
-  const livePresentCount = sheet.filter((s) => s.status === 'PRESENT').length;
-  const liveHalfDayCount = sheet.filter((s) => s.status === 'HALF_DAY').length;
-  const liveAbsentCount = sheet.filter((s) => s.status === 'ABSENT').length;
-  const liveLeaveCount = sheet.filter((s) => s.status === 'LEAVE').length;
+  const handleClearAttendance = async (workerId: string, attendanceId?: string) => {
+    try {
+      if (attendanceId) {
+        await fetch(`/api/attendance?id=${attendanceId}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/attendance?workerId=${workerId}&date=${date}`, { method: 'DELETE' });
+      }
+      setSheet((prev) =>
+        prev.map((item) =>
+          item.workerId === workerId
+            ? { ...item, status: 'UNMARKED', attendanceId: null, wageForDay: 0, overtimeHours: 0 }
+            : item
+        )
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleSaveSheet = async () => {
     if (!selectedProjectId) {
@@ -210,6 +224,12 @@ export default function AttendancePage() {
       setIsSaving(false);
     }
   };
+
+  const livePresentCount = sheet.filter((s) => s.status === 'PRESENT').length;
+  const liveHalfDayCount = sheet.filter((s) => s.status === 'HALF_DAY').length;
+  const liveAbsentCount = sheet.filter((s) => s.status === 'ABSENT').length;
+  const liveLeaveCount = sheet.filter((s) => s.status === 'LEAVE').length;
+  const liveTotalLabourCost = sheet.reduce((acc, curr) => acc + (Number(curr.wageForDay) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -355,6 +375,7 @@ export default function AttendancePage() {
                 <th className="py-3 px-3 text-center">Turnout Status</th>
                 <th className="py-3 px-3 text-center">Overtime (Hours)</th>
                 <th className="py-3 px-4 text-right">Calculated Wage</th>
+                <th className="py-3 px-3 text-center">Reset</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -454,6 +475,18 @@ export default function AttendancePage() {
                     {item.overtimeHours > 0 && (
                       <p className="text-[10px] text-emerald-400">+{item.overtimeHours}h OT</p>
                     )}
+                  </td>
+
+                  {/* Reset / Clear Attendance */}
+                  <td className="py-3 px-3 text-center">
+                    <button
+                      type="button"
+                      title="Clear / Unmark Attendance"
+                      onClick={() => handleClearAttendance(item.workerId, item.attendanceId)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               ))}

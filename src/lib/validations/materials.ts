@@ -83,10 +83,15 @@ export const createMaterialTransferSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const updateMaterialReceiptSchema = createMaterialReceiptSchema.partial();
+export const updateMaterialUsageSchema = createMaterialUsageSchema.partial();
+
 export type CreateMaterialInput = z.infer<typeof createMaterialSchema>;
 export type UpdateMaterialInput = z.infer<typeof updateMaterialSchema>;
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 export type CreateMaterialReceiptInput = z.infer<typeof createMaterialReceiptSchema>;
+export type UpdateMaterialReceiptInput = z.infer<typeof updateMaterialReceiptSchema>;
 export type CreateMaterialUsageInput = z.infer<typeof createMaterialUsageSchema>;
+export type UpdateMaterialUsageInput = z.infer<typeof updateMaterialUsageSchema>;
 export type CreateMaterialTransferInput = z.infer<typeof createMaterialTransferSchema>;

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Server,
   Save,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -29,6 +30,8 @@ export default function SettingsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClearingDemo, setIsClearingDemo] = useState(false);
+  const [clearStatus, setClearStatus] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -265,6 +268,59 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      {/* Danger Zone: Wipe All Demo Data */}
+      <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-5 space-y-3 mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-rose-300 flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-rose-400" /> Reset & Clear All Demo / Test Data
+            </h2>
+            <p className="text-xs text-rose-300/70 mt-1 max-w-xl">
+              Wipe all dummy/demo projects, labour workers, attendance marks, work records, payments, expenses, and materials to start completely fresh. Your company profile and login accounts (Owner, Supervisor, Accountant) are preserved.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isClearingDemo}
+            onClick={async () => {
+              if (
+                !confirm(
+                  'CAUTION: Are you sure you want to wipe all demo entries? This will delete all demo projects, workers, attendance, expenses, payments, materials, and quotations so you can start completely fresh. Proceed?'
+                )
+              ) {
+                return;
+              }
+              setIsClearingDemo(true);
+              setClearStatus('');
+              try {
+                const res = await fetch('/api/admin/clean-demo-data', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) {
+                  alert(data.error || 'Failed to clean demo data');
+                  return;
+                }
+                setClearStatus(data.message || 'All demo entries successfully cleared!');
+                fetchOrg();
+              } catch (e: any) {
+                alert(e.message || 'Error occurred while clearing demo data');
+              } finally {
+                setIsClearingDemo(false);
+              }
+            }}
+            className="border-rose-500/40 text-rose-400 hover:bg-rose-500/20 text-xs shrink-0 font-bold"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            {isClearingDemo ? 'Wiping Demo Data...' : 'Wipe Demo Data & Start Fresh'}
+          </Button>
+        </div>
+        {clearStatus && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg text-xs font-semibold">
+            {clearStatus}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@ interface PaymentFormModalProps {
   defaultWorkerId?: string;
   defaultProjectId?: string;
   defaultType?: 'SALARY' | 'ADVANCE' | 'PAYMENT' | 'ADJUSTMENT';
+  initialData?: any;
 }
 
 export function PaymentFormModal({
@@ -22,20 +23,21 @@ export function PaymentFormModal({
   defaultWorkerId,
   defaultProjectId,
   defaultType = 'PAYMENT',
+  initialData,
 }: PaymentFormModalProps) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    workerId: defaultWorkerId || '',
-    projectId: defaultProjectId || '',
-    siteId: '',
-    date: new Date().toISOString().split('T')[0],
-    transactionType: defaultType,
-    amount: 1000,
-    paymentMethod: 'CASH',
-    reference: '',
-    notes: '',
+    workerId: initialData?.workerId || defaultWorkerId || '',
+    projectId: initialData?.projectId || defaultProjectId || '',
+    siteId: initialData?.siteId || '',
+    date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    transactionType: initialData?.transactionType || defaultType,
+    amount: initialData?.amount !== undefined ? initialData.amount : 0,
+    paymentMethod: initialData?.paymentMethod || 'CASH',
+    reference: initialData?.reference || '',
+    notes: initialData?.notes || '',
   });
 
   const [error, setError] = useState('');
@@ -51,12 +53,27 @@ export function PaymentFormModal({
         setWorkers(wRes.workers || []);
         setProjects(pRes.projects || []);
 
-        setFormData((prev) => ({
-          ...prev,
-          workerId: defaultWorkerId || (wRes.workers?.[0]?.id || ''),
-          projectId: defaultProjectId || '',
-          transactionType: defaultType,
-        }));
+        if (initialData) {
+          setFormData({
+            workerId: initialData.workerId || '',
+            projectId: initialData.projectId || '',
+            siteId: initialData.siteId || '',
+            date: new Date(initialData.date).toISOString().split('T')[0],
+            transactionType: initialData.transactionType || 'PAYMENT',
+            amount: initialData.amount || 0,
+            paymentMethod: initialData.paymentMethod || 'CASH',
+            reference: initialData.reference || '',
+            notes: initialData.notes || '',
+          });
+        } else {
+          setFormData((prev) => ({
+            ...prev,
+            workerId: defaultWorkerId || (wRes.workers?.[0]?.id || ''),
+            projectId: defaultProjectId || '',
+            transactionType: defaultType,
+            amount: 0,
+          }));
+        }
       } catch (e) {
         console.error(e);
       }
@@ -65,7 +82,7 @@ export function PaymentFormModal({
       loadOptions();
       setError('');
     }
-  }, [isOpen, defaultWorkerId, defaultProjectId, defaultType]);
+  }, [isOpen, defaultWorkerId, defaultProjectId, defaultType, initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,8 +100,11 @@ export function PaymentFormModal({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/finance/payments', {
-        method: 'POST',
+      const url = initialData ? `/api/finance/payments/${initialData.id}` : '/api/finance/payments';
+      const method = initialData ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
@@ -110,7 +130,13 @@ export function PaymentFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={formData.transactionType === 'ADVANCE' ? 'Record Worker Advance' : 'Record Worker Payment'}
+      title={
+        initialData
+          ? 'Edit Disbursed Payment / Advance'
+          : formData.transactionType === 'ADVANCE'
+          ? 'Record Worker Advance'
+          : 'Record Worker Payment'
+      }
       description="Disburse wages or advances to workers. This automatically updates the worker Khata ledger."
       maxWidth="md"
     >
@@ -232,7 +258,7 @@ export function PaymentFormModal({
             Cancel
           </Button>
           <Button type="submit" variant="primary" size="md" isLoading={isLoading}>
-            Record Payment
+            {initialData ? 'Update Payment' : 'Record Payment'}
           </Button>
         </div>
       </form>

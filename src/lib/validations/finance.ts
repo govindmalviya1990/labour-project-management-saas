@@ -61,8 +61,12 @@ export const createExpenseSchema = z.object({
 });
 
 export const updateExpenseSchema = createExpenseSchema.partial();
+export const updatePaymentSchema = createPaymentSchema.partial();
+export const updateAllowanceSchema = createAllowanceSchema.partial();
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
 export type CreateAllowanceInput = z.infer<typeof createAllowanceSchema>;
+export type UpdateAllowanceInput = z.infer<typeof updateAllowanceSchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;

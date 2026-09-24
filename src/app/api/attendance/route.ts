@@ -221,3 +221,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to record attendance' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
+
+    const { searchParams } = new URL(req.url);
+    const attendanceId = searchParams.get('id');
+    const workerId = searchParams.get('workerId');
+    const dateStr = searchParams.get('date');
+
+    if (attendanceId) {
+      await prisma.attendance.deleteMany({
+        where: { id: attendanceId, organizationId: orgId },
+      });
+      return NextResponse.json({ success: true, message: 'Attendance record cleared' });
+    }
+
+    if (workerId && dateStr) {
+      const targetDate = new Date(dateStr);
+      targetDate.setUTCHours(0, 0, 0, 0);
+      const endOfTargetDate = new Date(dateStr);
+      endOfTargetDate.setUTCHours(23, 59, 59, 999);
+
+      await prisma.attendance.deleteMany({
+        where: {
+          organizationId: orgId,
+          workerId,
+          date: { gte: targetDate, lte: endOfTargetDate },
+        },
+      });
+      return NextResponse.json({ success: true, message: 'Attendance record cleared for worker' });
+    }
+
+    return NextResponse.json(
+      { error: 'Specify either id or workerId and date to clear attendance' },
+      { status: 400 }
+    );
+  } catch (error: any) {
+    console.error('Attendance DELETE error:', error);
+    return NextResponse.json({ error: 'Failed to clear attendance' }, { status: 500 });
+  }
+}
+

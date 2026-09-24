@@ -12,6 +12,7 @@ interface UsageFormModalProps {
   onSuccess: () => void;
   defaultProjectId?: string;
   defaultMaterialId?: string;
+  initialData?: any;
 }
 
 export function UsageFormModal({
@@ -20,6 +21,7 @@ export function UsageFormModal({
   onSuccess,
   defaultProjectId,
   defaultMaterialId,
+  initialData,
 }: UsageFormModalProps) {
   const [projects, setProjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -27,12 +29,12 @@ export function UsageFormModal({
   const [checkingStock, setCheckingStock] = useState(false);
 
   const [formData, setFormData] = useState({
-    projectId: defaultProjectId || '',
-    materialId: defaultMaterialId || '',
-    date: new Date().toISOString().split('T')[0],
-    quantity: 10,
-    taskPurpose: '',
-    notes: '',
+    projectId: initialData?.projectId || defaultProjectId || '',
+    materialId: initialData?.materialId || defaultMaterialId || '',
+    date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    quantity: initialData?.quantity !== undefined ? initialData.quantity : 0,
+    taskPurpose: initialData?.taskPurpose || '',
+    notes: initialData?.notes || '',
   });
 
   const [error, setError] = useState('');
@@ -60,6 +62,17 @@ export function UsageFormModal({
             setFormData((prev) => ({ ...prev, materialId: m.materials[0].id }));
           }
         }
+
+        if (initialData) {
+          setFormData({
+            projectId: initialData.projectId || '',
+            materialId: initialData.materialId || '',
+            date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            quantity: initialData.quantity !== undefined ? initialData.quantity : 0,
+            taskPurpose: initialData.taskPurpose || '',
+            notes: initialData.notes || '',
+          });
+        }
       } catch (e) {
         console.error('Failed to load usage form dependencies:', e);
       }
@@ -69,7 +82,7 @@ export function UsageFormModal({
       loadData();
       setError('');
     }
-  }, [isOpen, defaultProjectId, defaultMaterialId]);
+  }, [isOpen, defaultProjectId, defaultMaterialId, initialData]);
 
   // Check available stock whenever project or material changes
   useEffect(() => {
@@ -130,7 +143,7 @@ export function UsageFormModal({
       return;
     }
 
-    if (isStockInsufficient) {
+    if (!initialData && isStockInsufficient) {
       setError(
         `Cannot use ${formData.quantity} ${selectedMaterial?.unit || 'units'}. Only ${Math.max(
           0,
@@ -143,8 +156,11 @@ export function UsageFormModal({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/materials/usage', {
-        method: 'POST',
+      const url = initialData ? `/api/materials/usage/${initialData.id}` : '/api/materials/usage';
+      const method = initialData ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: formData.projectId,
@@ -177,7 +193,7 @@ export function UsageFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Material Consumption / Daily Usage"
+      title={initialData ? 'Edit Material Consumption / Usage Log' : 'Record Material Consumption / Daily Usage'}
       description="Log daily materials used on site. Negative inventory is strictly prevented."
       size="lg"
     >
@@ -323,7 +339,7 @@ export function UsageFormModal({
             className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Hammer className="w-4 h-4 mr-1.5" />
-            {isLoading ? 'Saving...' : 'Log Material Usage'}
+            {isLoading ? 'Saving...' : initialData ? 'Update Material Usage' : 'Log Material Usage'}
           </Button>
         </div>
       </form>

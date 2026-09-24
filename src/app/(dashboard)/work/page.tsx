@@ -12,6 +12,8 @@ import {
   RefreshCw,
   AlertCircle,
   Layers,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -31,8 +33,9 @@ export default function WorkPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // New Work Log Modal
+  // New & Edit Work Log Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState('');
 
@@ -101,6 +104,39 @@ export default function WorkPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleEdit = (item: any) => {
+    setEditingRecord(item);
+    setFormData({
+      date: new Date(item.date).toISOString().split('T')[0],
+      workerId: item.workerId || item.worker?.id || '',
+      projectId: item.projectId || item.project?.id || '',
+      siteId: item.siteId || '',
+      task: item.task || '',
+      description: item.description || '',
+      quantity: item.quantity || 0,
+      unit: item.unit || 'sq.ft.',
+      rate: item.rate || 0,
+      notes: item.notes || '',
+    });
+    setModalError('');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, taskName: string) => {
+    if (!confirm(`Are you sure you want to delete work record '${taskName}'?`)) return;
+    try {
+      const res = await fetch(`/api/work/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete work record');
+        return;
+      }
+      fetchData();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting work record');
+    }
+  };
+
   const handleCreateWorkRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalError('');
@@ -116,8 +152,11 @@ export default function WorkPage() {
 
     setIsSaving(true);
     try {
-      const res = await fetch('/api/work', {
-        method: 'POST',
+      const url = editingRecord ? `/api/work/${editingRecord.id}` : '/api/work';
+      const method = editingRecord ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
@@ -126,6 +165,7 @@ export default function WorkPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to save work record');
 
       setIsModalOpen(false);
+      setEditingRecord(null);
       fetchData();
     } catch (err: any) {
       setModalError(err.message || 'Error occurred');
@@ -192,6 +232,32 @@ export default function WorkPage() {
         </div>
       ),
     },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (item) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+            onClick={() => handleEdit(item)}
+            title="Edit Work Record"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+            onClick={() => handleDelete(item.id, item.task)}
+            title="Delete Work Record"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   const totalQuantitySum = workRecords.reduce((sum, r) => sum + (r.quantity || 0), 0);
@@ -216,7 +282,27 @@ export default function WorkPage() {
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Refresh
           </Button>
-          <Button size="sm" variant="primary" onClick={() => setIsModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              setEditingRecord(null);
+              setFormData({
+                date: new Date().toISOString().split('T')[0],
+                workerId: workers[0]?.id || '',
+                projectId: projects[0]?.id || '',
+                siteId: '',
+                task: '',
+                description: '',
+                quantity: 0,
+                unit: 'sq.ft.',
+                rate: 0,
+                notes: '',
+              });
+              setModalError('');
+              setIsModalOpen(true);
+            }}
+          >
             <Plus className="w-4 h-4 mr-1.5" />
             Record Work
           </Button>
@@ -349,12 +435,19 @@ export default function WorkPage() {
         </div>
       )}
 
-      {/* Record Work Modal */}
+      {/* Record / Edit Work Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Record Completed Work Task"
-        description="Log worker output with measurements and rates (e.g. Ramesh Flooring 450 sq.ft. @ ₹12 = ₹5,400)."
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingRecord(null);
+        }}
+        title={editingRecord ? 'Edit Completed Work Task' : 'Record Completed Work Task'}
+        description={
+          editingRecord
+            ? 'Modify task volume, rates, or worker assignment.'
+            : 'Log worker output with measurements and rates (e.g. Ramesh Flooring 450 sq.ft. @ ₹12 = ₹5,400).'
+        }
         maxWidth="lg"
       >
         {modalError && (
@@ -480,7 +573,7 @@ export default function WorkPage() {
               Cancel
             </Button>
             <Button type="submit" variant="primary" size="md" isLoading={isSaving}>
-              Save Work Record
+              {editingRecord ? 'Update Work Record' : 'Save Work Record'}
             </Button>
           </div>
         </form>

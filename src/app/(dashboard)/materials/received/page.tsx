@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Truck, Plus, ArrowLeft, Download, Search } from 'lucide-react';
+import { Truck, Plus, ArrowLeft, Download, Search, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { ReceiptFormModal } from '@/components/materials/ReceiptFormModal';
 
@@ -12,6 +12,7 @@ export default function MaterialReceivedPage() {
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchReceipts = async () => {
@@ -54,6 +55,26 @@ export default function MaterialReceivedPage() {
 
   const totalAmount = filteredReceipts.reduce((sum, r) => sum + r.totalCost, 0);
 
+  const handleEdit = (receipt: any) => {
+    setEditingReceipt(receipt);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, matName: string) => {
+    if (!confirm(`Are you sure you want to delete receipt entry for '${matName || 'material'}'?`)) return;
+    try {
+      const res = await fetch(`/api/materials/receipts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete receipt');
+        return;
+      }
+      fetchReceipts();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting receipt');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -74,7 +95,10 @@ export default function MaterialReceivedPage() {
 
         <div className="flex items-center gap-3">
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingReceipt(null);
+              setIsModalOpen(true);
+            }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
           >
             <Plus className="w-4 h-4 mr-1.5" />
@@ -133,18 +157,19 @@ export default function MaterialReceivedPage() {
                 <th className="py-3 px-3 text-right">Rate</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-200">Total Amount</th>
                 <th className="py-3 px-4">Challan / Inv</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500">
+                  <td colSpan={9} className="text-center py-10 text-slate-500">
                     Loading receipts...
                   </td>
                 </tr>
               ) : filteredReceipts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400">
+                  <td colSpan={9} className="text-center py-10 text-slate-400">
                     No material inward receipts recorded.
                   </td>
                 </tr>
@@ -176,6 +201,28 @@ export default function MaterialReceivedPage() {
                     <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
                       {r.invoiceNumber || '—'}
                     </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                          onClick={() => handleEdit(r)}
+                          title="Edit Receipt"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+                          onClick={() => handleDelete(r.id, r.material?.name)}
+                          title="Delete Receipt"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -186,9 +233,13 @@ export default function MaterialReceivedPage() {
 
       <ReceiptFormModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingReceipt(null);
+        }}
         onSuccess={fetchReceipts}
         defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+        initialData={editingReceipt}
       />
     </div>
   );

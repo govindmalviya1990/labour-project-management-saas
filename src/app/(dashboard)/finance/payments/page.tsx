@@ -13,6 +13,8 @@ import {
   Users,
   CreditCard,
   AlertCircle,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -34,6 +36,7 @@ export default function PaymentsPage() {
   const [error, setError] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
   const [paymentType, setPaymentType] = useState<'PAYMENT' | 'ADVANCE'>('PAYMENT');
 
   useEffect(() => {
@@ -72,6 +75,27 @@ export default function PaymentsPage() {
     { key: 'ADVANCE', label: 'Advances (Peshgi)' },
     { key: 'SALARY', label: 'Salary Settlements' },
   ];
+
+  const handleEdit = (item: any) => {
+    setEditingPayment(item);
+    setPaymentType(item.transactionType === 'ADVANCE' ? 'ADVANCE' : 'PAYMENT');
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, workerName: string, amount: number) => {
+    if (!confirm(`Are you sure you want to delete payment of ₹${amount.toLocaleString('en-IN')} for ${workerName || 'worker'}? This will also remove the transaction from the worker Khata ledger.`)) return;
+    try {
+      const res = await fetch(`/api/finance/payments/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete payment');
+        return;
+      }
+      fetchPayments();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting payment');
+    }
+  };
 
   const columns: Column<any>[] = [
     {
@@ -144,6 +168,32 @@ export default function PaymentsPage() {
         </div>
       ),
     },
+    {
+      header: 'Actions',
+      className: 'text-right',
+      cell: (item) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+            onClick={() => handleEdit(item)}
+            title="Edit Payment"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+            onClick={() => handleDelete(item.id, item.worker?.name, item.amount)}
+            title="Delete Payment"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -170,6 +220,7 @@ export default function PaymentsPage() {
             variant="outline"
             className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
             onClick={() => {
+              setEditingPayment(null);
               setPaymentType('ADVANCE');
               setIsModalOpen(true);
             }}
@@ -181,6 +232,7 @@ export default function PaymentsPage() {
             size="sm"
             variant="primary"
             onClick={() => {
+              setEditingPayment(null);
               setPaymentType('PAYMENT');
               setIsModalOpen(true);
             }}
@@ -241,15 +293,22 @@ export default function PaymentsPage() {
         emptyTitle="No payments recorded"
         emptyDescription="Record worker payments or advances to track disbursements."
         emptyActionLabel="Record First Payment"
-        onEmptyAction={() => setIsModalOpen(true)}
+        onEmptyAction={() => {
+          setEditingPayment(null);
+          setIsModalOpen(true);
+        }}
       />
 
       {/* Payment Modal */}
       <PaymentFormModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingPayment(null);
+        }}
         onSuccess={fetchPayments}
         defaultType={paymentType}
+        initialData={editingPayment}
       />
     </div>
   );

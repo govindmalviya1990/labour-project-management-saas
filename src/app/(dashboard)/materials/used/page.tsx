@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Hammer, Plus, ArrowLeft, Search } from 'lucide-react';
+import { Hammer, Plus, ArrowLeft, Search, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
 
@@ -12,6 +12,7 @@ export default function MaterialUsedPage() {
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUsage, setEditingUsage] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUsages = async () => {
@@ -34,6 +35,26 @@ export default function MaterialUsedPage() {
       console.error(e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleEdit = (usage: any) => {
+    setEditingUsage(usage);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, matName: string) => {
+    if (!confirm(`Are you sure you want to delete material usage entry for '${matName || 'material'}'?`)) return;
+    try {
+      const res = await fetch(`/api/materials/usage/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete usage record');
+        return;
+      }
+      fetchUsages();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting usage record');
     }
   };
 
@@ -71,7 +92,10 @@ export default function MaterialUsedPage() {
 
         <div className="flex items-center gap-3">
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingUsage(null);
+              setIsModalOpen(true);
+            }}
             className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
           >
             <Plus className="w-4 h-4 mr-1.5" />
@@ -128,18 +152,19 @@ export default function MaterialUsedPage() {
                 <th className="py-3 px-3 text-right font-bold text-slate-200">Quantity Used</th>
                 <th className="py-3 px-4">Work Purpose / Task</th>
                 <th className="py-3 px-4">Supervisor Remarks</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-500">
+                  <td colSpan={7} className="text-center py-10 text-slate-500">
                     Loading consumption logs...
                   </td>
                 </tr>
               ) : filteredUsages.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-400">
+                  <td colSpan={7} className="text-center py-10 text-slate-400">
                     No material usage recorded yet.
                   </td>
                 </tr>
@@ -165,6 +190,28 @@ export default function MaterialUsedPage() {
                     <td className="py-3 px-4 text-slate-400 text-[11px]">
                       {u.notes || '—'}
                     </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                          onClick={() => handleEdit(u)}
+                          title="Edit Usage"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+                          onClick={() => handleDelete(u.id, u.material?.name)}
+                          title="Delete Usage"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -175,9 +222,13 @@ export default function MaterialUsedPage() {
 
       <UsageFormModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingUsage(null);
+        }}
         onSuccess={fetchUsages}
         defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+        initialData={editingUsage}
       />
     </div>
   );
