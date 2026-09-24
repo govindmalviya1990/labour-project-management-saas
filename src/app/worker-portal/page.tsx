@@ -128,45 +128,37 @@ export default function WorkerPortalPage() {
   // Month filter: 'ALL' | current month format YYYY-MM
   const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
 
-  // Check if previously searched worker stored in localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('mw_worker_portal_cache');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.worker?.name) {
-          setReport(parsed);
-          setMobile(parsed.worker.mobile || '');
-          setName(parsed.worker.name || '');
-          setFatherName(parsed.worker.fatherOrHusbandName || '');
-        }
-      }
-    } catch (e) {
-      // Ignore cache read error
-    }
-  }, []);
+  const fetchReport = async (searchParams?: {
+    mobile?: string;
+    name?: string;
+    fatherName?: string;
+    siteName?: string;
+    location?: string;
+  }) => {
+    const qMobile = (searchParams?.mobile !== undefined ? searchParams.mobile : mobile).trim();
+    const qName = (searchParams?.name !== undefined ? searchParams.name : name).trim();
+    const qFather = (searchParams?.fatherName !== undefined ? searchParams.fatherName : fatherName).trim();
+    const qSite = (searchParams?.siteName !== undefined ? searchParams.siteName : siteName).trim();
+    const qLoc = (searchParams?.location !== undefined ? searchParams.location : location).trim();
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setError('');
-
-    if (!mobile.trim() && !name.trim()) {
+    if (!qMobile && !qName) {
       setError('कृपया मोबाइल नंबर या अपना नाम दर्ज करें (Please enter mobile or name).');
       return;
     }
 
     setIsLoading(true);
+    setError('');
 
     try {
       const res = await fetch('/api/worker-portal/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mobile: mobile.trim(),
-          name: name.trim(),
-          fatherName: fatherName.trim(),
-          siteName: siteName.trim(),
-          location: location.trim(),
+          mobile: qMobile,
+          name: qName,
+          fatherName: qFather,
+          siteName: qSite,
+          location: qLoc,
           saveSession,
         }),
       });
@@ -187,6 +179,34 @@ export default function WorkerPortalPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Check if previously searched worker stored in localStorage & auto-sync fresh data
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mw_worker_portal_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.worker?.name) {
+          setReport(parsed);
+          const m = parsed.worker.mobile || '';
+          const n = parsed.worker.name || '';
+          const f = parsed.worker.fatherOrHusbandName || '';
+          setMobile(m);
+          setName(n);
+          setFatherName(f);
+          // Auto background fetch fresh database data
+          fetchReport({ mobile: m, name: n, fatherName: f });
+        }
+      }
+    } catch (e) {
+      // Ignore cache read error
+    }
+  }, []);
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    fetchReport();
   };
 
   const handleReset = () => {
@@ -462,13 +482,23 @@ _यह रिपोर्ट Modern Way Civil Solution सिस्टम द�
           <div className="space-y-6">
             {/* Top Bar for Reset and Print/Share */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800 print:hidden">
-              <button
-                onClick={handleReset}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>दूसरा मज़दूर खोजें (Change Worker)</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>दूसरा मज़दूर खोजें</span>
+                </button>
+                <button
+                  onClick={() => fetchReport()}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>ताज़ा हिसाब (Live Refresh)</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
                 <Button
