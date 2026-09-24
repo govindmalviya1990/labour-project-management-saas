@@ -431,6 +431,7 @@ export async function GET(req: Request) {
         const netPayable = Math.max(0, grossSalary - advances - payments);
 
         return {
+          id: w.id,
           workerCode: w.workerCode,
           name: w.name,
           category: w.category,
