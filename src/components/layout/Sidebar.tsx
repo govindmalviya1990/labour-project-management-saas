@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -41,6 +41,9 @@ export function Sidebar({
   userRole?: string;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentSearch = searchParams ? searchParams.toString() : '';
+  const fullUrl = pathname + (currentSearch ? '?' + currentSearch : '');
   const currentRole = normalizeRole(userRole);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -347,7 +350,9 @@ export function Sidebar({
           }
 
           const isOpen = openSections[item.title];
-          const hasActiveChild = item.children.some((c) => pathname === c.href);
+          const hasActiveChild = item.children.some((c) =>
+            c.href.includes('?') ? fullUrl === c.href : pathname === c.href
+          );
 
           return (
             <div key={item.title} className="space-y-1">
@@ -373,7 +378,9 @@ export function Sidebar({
               {isOpen && (
                 <div className="pl-9 pr-2 space-y-1 border-l border-slate-200 dark:border-slate-800 ml-5">
                   {item.children.map((child) => {
-                    const isChildActive = pathname === child.href;
+                    const isChildActive = child.href.includes('?')
+                      ? fullUrl === child.href
+                      : pathname === child.href && !searchParams?.get('status');
                     return (
                       <Link
                         key={child.title}

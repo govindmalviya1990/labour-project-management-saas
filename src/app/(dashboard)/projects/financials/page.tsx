@@ -65,22 +65,24 @@ export default function ProjectFinancialsPage() {
     return p.name?.toLowerCase().includes(q) || p.projectCode?.toLowerCase().includes(q);
   });
 
-  const portfolio = data?.portfolio || {
+  const portfolio = data?.portfolio || data?.portfolioSummary || {
     totalProjects: 0,
     portfolioValue: 0,
     portfolioEstimatedBudget: 0,
     portfolioActualCost: 0,
     portfolioProjectedProfit: 0,
+    portfolioGrossProfit: 0,
     portfolioMarginPct: 0,
+    portfolioMargin: 0,
     overBudgetProjectsCount: 0,
   };
 
   // Chart data for top projects
   const chartData = projects.slice(0, 8).map((p: any) => ({
-    name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
-    Estimated: p.financials.estimatedTotalCost,
-    Actual: p.financials.actualTotalCost,
-    Value: p.projectValue,
+    name: p.name?.length > 15 ? p.name.substring(0, 15) + '...' : (p.name || 'Project'),
+    Estimated: p.financials?.estimatedTotalCost ?? p.estimatedBudget ?? 0,
+    Actual: p.financials?.actualTotalCost ?? 0,
+    Value: p.projectValue || 0,
   }));
 
   const exportCSV = () => {
@@ -102,23 +104,27 @@ export default function ProjectFinancialsPage() {
       'Cost per Unit (INR)',
     ];
 
-    const rows = projects.map((p: any) => [
-      `"${p.projectCode}"`,
-      `"${p.name}"`,
-      `"${p.status}"`,
-      p.projectValue,
-      p.financials.estimatedTotalCost,
-      p.financials.actualLabourCost,
-      p.financials.actualMaterialCost,
-      p.financials.actualOtherExpense,
-      p.financials.actualTotalCost,
-      p.financials.variance,
-      p.financials.variancePercentage,
-      p.financials.isOverBudget ? 'OVER BUDGET' : 'WITHIN BUDGET',
-      p.financials.projectedProfit,
-      p.financials.profitMarginPercentage,
-      p.costPerUnit.costPerUnit,
-    ]);
+    const rows = projects.map((p: any) => {
+      const f = p.financials || {};
+      const costPerUnitVal = p.costPerUnit?.costPerUnit ?? f.costPerUnit ?? 0;
+      return [
+        `"${p.projectCode || ''}"`,
+        `"${p.name || ''}"`,
+        `"${p.status || ''}"`,
+        p.projectValue || 0,
+        f.estimatedTotalCost ?? p.estimatedBudget ?? 0,
+        f.actualLabourCost || 0,
+        f.actualMaterialCost || 0,
+        f.actualOtherExpense || 0,
+        f.actualTotalCost || 0,
+        f.variance ?? f.budgetVariance ?? 0,
+        f.variancePercentage || 0,
+        f.isOverBudget ? 'OVER BUDGET' : 'WITHIN BUDGET',
+        f.projectedProfit ?? f.grossProfit ?? 0,
+        f.profitMarginPercentage ?? f.profitMarginPercent ?? 0,
+        costPerUnitVal,
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -187,11 +193,11 @@ export default function ProjectFinancialsPage() {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projected Portfolio Profit</span>
             <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className={`text-2xl font-black mt-2 ${portfolio.portfolioProjectedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {formatINR(portfolio.portfolioProjectedProfit)}
+          <div className={`text-2xl font-black mt-2 ${(portfolio.portfolioProjectedProfit ?? portfolio.portfolioGrossProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {formatINR(portfolio.portfolioProjectedProfit ?? portfolio.portfolioGrossProfit ?? 0)}
           </div>
           <div className="text-xs text-slate-500 mt-1">
-            Overall Margin: <strong className="text-slate-300 font-bold">{portfolio.portfolioMarginPct}%</strong>
+            Overall Margin: <strong className="text-slate-300 font-bold">{portfolio.portfolioMarginPct ?? portfolio.portfolioMargin ?? 0}%</strong>
           </div>
         </div>
 
@@ -303,8 +309,15 @@ export default function ProjectFinancialsPage() {
                 </tr>
               ) : (
                 projects.map((p: any) => {
-                  const f = p.financials;
-                  const isOver = f.isOverBudget;
+                  const f = p.financials || {};
+                  const isOver = Boolean(f.isOverBudget);
+                  const estimatedCost = f.estimatedTotalCost ?? p.estimatedBudget ?? 0;
+                  const varianceVal = f.variance ?? f.budgetVariance ?? 0;
+                  const variancePct = f.variancePercentage ?? 0;
+                  const profitVal = f.projectedProfit ?? f.grossProfit ?? 0;
+                  const marginPct = f.profitMarginPercentage ?? f.profitMarginPercent ?? 0;
+                  const unitCost = p.costPerUnit?.costPerUnit ?? f.costPerUnit ?? 0;
+
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition">
                       <td className="py-3 px-4">
@@ -317,42 +330,42 @@ export default function ProjectFinancialsPage() {
                         <StatusBadge status={p.status} />
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">
-                        {formatINR(p.projectValue)}
+                        {formatINR(p.projectValue || 0)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        {formatINR(f.estimatedTotalCost)}
+                        {formatINR(estimatedCost)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-sky-400">
-                        {formatINR(f.actualLabourCost)}
+                        {formatINR(f.actualLabourCost || 0)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-emerald-400">
-                        {formatINR(f.actualMaterialCost)}
+                        {formatINR(f.actualMaterialCost || 0)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-amber-300">
-                        {formatINR(f.actualOtherExpense)}
+                        {formatINR(f.actualOtherExpense || 0)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono font-bold text-slate-100 text-sm">
-                        {formatINR(f.actualTotalCost)}
+                        {formatINR(f.actualTotalCost || 0)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
                         <div className={`font-bold flex items-center justify-end gap-1 ${isOver ? 'text-rose-400' : 'text-emerald-400'}`}>
                           {isOver ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                          {formatINR(f.variance)}
+                          {formatINR(varianceVal)}
                         </div>
                         <div className={`text-[10px] ${isOver ? 'text-rose-400' : 'text-emerald-400'}`}>
-                          {isOver ? `+${f.variancePercentage}% OVER` : `${f.variancePercentage}% remaining`}
+                          {isOver ? `+${variancePct}% OVER` : `${variancePct}% remaining`}
                         </div>
                       </td>
                       <td className="py-3 px-3 text-right font-mono">
-                        <div className={`font-bold ${f.projectedProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {formatINR(f.projectedProfit)}
+                        <div className={`font-bold ${profitVal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {formatINR(profitVal)}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {f.profitMarginPercentage}% margin
+                          {marginPct}% margin
                         </div>
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-amber-400 font-bold">
-                        ₹{p.costPerUnit.costPerUnit}
+                        ₹{unitCost}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <Link

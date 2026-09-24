@@ -82,27 +82,41 @@ export async function GET(req: Request) {
         unitName: p.targetUnit || 'sq.ft.',
       });
 
+      const variancePercentage =
+        estimatedBudget > 0
+          ? Math.round((Math.abs(budgetVariance) / estimatedBudget) * 100 * 10) / 10
+          : 0;
+
       return {
         id: p.id,
         projectCode: p.projectCode,
         name: p.name,
         clientName: p.clientName,
         status: p.status,
-        projectValue: p.projectValue,
+        projectValue: p.projectValue || 0,
         estimatedBudget,
-        targetUnit: p.targetUnit,
-        targetQuantity: p.targetQuantity,
+        targetUnit: p.targetUnit || 'sq.ft.',
+        targetQuantity: p.targetQuantity || 0,
         completedQuantity,
+        costPerUnit: {
+          costPerUnit: unitMetrics.totalCostPerUnit || 0,
+        },
         financials: {
           actualLabourCost,
           actualMaterialCost,
           actualOtherExpense,
+          estimatedTotalCost: estimatedBudget,
           totalActualCost: financials.actualTotalCost,
+          actualTotalCost: financials.actualTotalCost,
           grossProfit: financials.actualProfit,
+          projectedProfit: financials.actualProfit,
           profitMarginPercent: financials.profitMarginPercentage,
+          profitMarginPercentage: financials.profitMarginPercentage,
           budgetVariance,
+          variance: budgetVariance,
+          variancePercentage,
           isOverBudget,
-          costPerUnit: unitMetrics.totalCostPerUnit,
+          costPerUnit: unitMetrics.totalCostPerUnit || 0,
         },
       };
     });
@@ -110,17 +124,22 @@ export async function GET(req: Request) {
     const portfolioGrossProfit = portfolioValue - portfolioActualCost;
     const portfolioMargin = portfolioValue > 0 ? (portfolioGrossProfit / portfolioValue) * 100 : 0;
 
+    const portfolioSummary = {
+      totalProjects: projects.length,
+      portfolioValue,
+      portfolioEstimatedBudget,
+      portfolioActualCost,
+      portfolioGrossProfit,
+      portfolioProjectedProfit: portfolioGrossProfit,
+      portfolioMargin: Math.round(portfolioMargin * 10) / 10,
+      portfolioMarginPct: Math.round(portfolioMargin * 10) / 10,
+      overBudgetProjectsCount,
+    };
+
     return NextResponse.json({
       projects: projectFinancials,
-      portfolioSummary: {
-        totalProjects: projects.length,
-        portfolioValue,
-        portfolioEstimatedBudget,
-        portfolioActualCost,
-        portfolioGrossProfit,
-        portfolioMargin: Math.round(portfolioMargin * 10) / 10,
-        overBudgetProjectsCount,
-      },
+      portfolio: portfolioSummary,
+      portfolioSummary,
     });
   } catch (error: any) {
     console.error('Project financials GET error:', error);

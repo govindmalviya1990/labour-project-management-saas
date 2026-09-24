@@ -43,8 +43,11 @@ export default function ProjectsPage() {
   const [deletingProject, setDeletingProject] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Check URL action parameter (e.g. /projects?action=new)
+  // Sync status and action from URL parameters
   useEffect(() => {
+    const statusParam = searchParams.get('status') || 'ALL';
+    setActiveStatus(statusParam);
+
     if (searchParams.get('action') === 'new') {
       setIsFormModalOpen(true);
     }
