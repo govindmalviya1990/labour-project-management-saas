@@ -58,41 +58,41 @@ html[data-theme="light"] nav {
   border-color: #e2e8f0 !important;
 }
 
-/* Convert all dark page containers, slate cards, and opacity variants to clean white cards */
-html.light [class*="bg-slate-950"],
-html[data-theme="light"] [class*="bg-slate-950"] {
+/* Convert all dark page containers, slate cards, and opacity variants to clean white cards (Excluding login portal-auth-page) */
+html.light [class*="bg-slate-950"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="bg-slate-950"]:not(.portal-auth-page):not(.portal-auth-page *) {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
-html.light [class*="bg-slate-900"],
-html[data-theme="light"] [class*="bg-slate-900"],
-html.light [class*="bg-slate-850"],
-html[data-theme="light"] [class*="bg-slate-850"] {
+html.light [class*="bg-slate-900"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="bg-slate-900"]:not(.portal-auth-page):not(.portal-auth-page *),
+html.light [class*="bg-slate-850"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="bg-slate-850"]:not(.portal-auth-page):not(.portal-auth-page *) {
   background-color: #ffffff !important;
   color: #0f172a !important;
 }
 
-html.light [class*="bg-slate-800"],
-html[data-theme="light"] [class*="bg-slate-800"] {
+html.light [class*="bg-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="bg-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *) {
   background-color: #f1f5f9 !important;
   color: #1e293b !important;
 }
 
 /* Convert borders and dividers to crisp light borders */
-html.light [class*="border-slate-800"],
-html.light [class*="border-slate-750"],
-html.light [class*="border-slate-700"],
-html[data-theme="light"] [class*="border-slate-800"],
-html[data-theme="light"] [class*="border-slate-750"],
-html[data-theme="light"] [class*="border-slate-700"] {
+html.light [class*="border-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *),
+html.light [class*="border-slate-750"]:not(.portal-auth-page):not(.portal-auth-page *),
+html.light [class*="border-slate-700"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="border-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="border-slate-750"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="border-slate-700"]:not(.portal-auth-page):not(.portal-auth-page *) {
   border-color: #e2e8f0 !important;
 }
 
-html.light [class*="divide-slate-800"],
-html.light [class*="divide-slate-850"],
-html[data-theme="light"] [class*="divide-slate-800"],
-html[data-theme="light"] [class*="divide-slate-850"] {
+html.light [class*="divide-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *),
+html.light [class*="divide-slate-850"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="divide-slate-800"]:not(.portal-auth-page):not(.portal-auth-page *),
+html[data-theme="light"] [class*="divide-slate-850"]:not(.portal-auth-page):not(.portal-auth-page *) {
   border-color: #e2e8f0 !important;
 }
 
@@ -124,19 +124,46 @@ html[data-theme="light"] tbody tr:hover:not(.print-container tbody tr) {
   background-color: #f8fafc !important;
 }
 
-/* Text Colors in Light Mode - Invert on light cards, but preserve on dark containers and quotations */
-html.light .text-white:not(.print-container *):not([class*="bg-"] *):not(button *),
-html.light .text-slate-100:not(.print-container *):not([class*="bg-"] *):not(button *),
-html.light .text-slate-200:not(.print-container *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-white:not(.print-container *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-slate-100:not(.print-container *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-slate-200:not(.print-container *):not([class*="bg-"] *):not(button *) {
+html.light .text-white:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
+html.light .text-slate-100:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
+html.light .text-slate-200:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
+html[data-theme="light"] .text-white:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
+html[data-theme="light"] .text-slate-100:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
+html[data-theme="light"] .text-slate-200:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *) {
   color: #0f172a !important;
 }
 
-html.light .text-slate-300,
-html[data-theme="light"] .text-slate-300 {
+html.light .text-slate-300:not(.portal-auth-page *),
+html[data-theme="light"] .text-slate-300:not(.portal-auth-page *) {
   color: #1e293b !important;
+}
+
+/* ==========================================================================
+   PORTAL LOGIN DASHBOARD (Strictly Dark Aesthetic - immune to light overrides)
+   ========================================================================== */
+html.light .portal-auth-page,
+html[data-theme="light"] .portal-auth-page,
+.portal-auth-page {
+  background-color: #0b0f17 !important;
+  color: #f8fafc !important;
+}
+
+html.light .portal-auth-page h1,
+html.light .portal-auth-page h2,
+html.light .portal-auth-page h3,
+html[data-theme="light"] .portal-auth-page h1,
+html[data-theme="light"] .portal-auth-page h2,
+html[data-theme="light"] .portal-auth-page h3,
+.portal-auth-page h1,
+.portal-auth-page h2,
+.portal-auth-page h3 {
+  color: #ffffff !important;
+}
+
+html.light .portal-auth-page p,
+html[data-theme="light"] .portal-auth-page p,
+.portal-auth-page p {
+  color: #94a3b8 !important;
 }
 
 html.light .text-slate-400,

@@ -50,6 +50,18 @@ function LoginContent() {
   const [workerLoading, setWorkerLoading] = useState(false);
   const [workerError, setWorkerError] = useState('');
 
+  // Force dark theme on mount for the 3-portal selector page
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+    document.documentElement.classList.remove('light');
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if (document.body) {
+      document.body.classList.add('dark');
+      document.body.classList.remove('light');
+      document.body.style.backgroundColor = '#0b0f17';
+    }
+  }, []);
+
   // Sync initial portal from query param
   useEffect(() => {
     const p = searchParams.get('portal') as PortalType;
@@ -160,27 +172,25 @@ function LoginContent() {
 
   return (
     <div
-      className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 bg-slate-950 text-slate-100 relative overflow-hidden"
+      className="portal-auth-page min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative overflow-hidden"
       style={{
-        backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px)`,
+        backgroundColor: '#090d16',
+        color: '#f8fafc',
+        backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.12) 1px, #090d16 1px)`,
         backgroundSize: '24px 24px',
       }}
     >
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 left-1/3 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-
       {/* --------------------------------------------------------------- */}
       {/* BRAND HEADER                                                    */}
       {/* --------------------------------------------------------------- */}
       <div className="text-center space-y-2 mb-8 sm:mb-10 max-w-xl relative z-10">
-        <div className="inline-flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 shadow-xl shadow-amber-500/20 mb-2">
-          <HardHat className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.2]" />
+        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500 text-slate-950 shadow-xl shadow-amber-500/20 mb-2">
+          <HardHat className="w-8 h-8 stroke-[2.2]" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+        <h1 className="text-2xl sm:text-3xl font-black tracking-wider text-white">
           MODERN WAY CIVIL SOLUTION
         </h1>
-        <p className="text-xs sm:text-sm text-slate-400">
+        <p className="text-xs sm:text-sm text-slate-400 font-medium">
           Waterproofing, Epoxy Flooring & Labour Project Management System
         </p>
       </div>
@@ -190,11 +200,11 @@ function LoginContent() {
       {/* =============================================================== */}
       {activePortal === 'none' && (
         <div className="w-full max-w-5xl space-y-6 relative z-10 animate-in fade-in duration-300">
-          <div className="text-center mb-4">
-            <h2 className="text-lg sm:text-xl font-bold text-slate-200">
+          <div className="text-center mb-6">
+            <h2 className="text-xl sm:text-2xl font-black text-white">
               Select Your Access Portal (पोर्टल चुनें)
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-400 mt-1.5 font-medium">
               लॉगिन करने या अपनी रिपोर्ट देखने के लिए अपना रोल चुनें
             </p>
           </div>
@@ -206,30 +216,31 @@ function LoginContent() {
             {/* ----------------------------------------------------------- */}
             <div
               onClick={() => selectPortal('owner')}
-              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-[#0c1017]/95 border border-slate-800 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer backdrop-blur-xl"
+              style={{ backgroundColor: '#0f1422' }}
+              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl border border-slate-800 hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer"
             >
               <div>
                 {/* Top Row: Icon + Badge */}
                 <div className="flex items-center justify-between gap-3 mb-6">
-                  <div className="h-12 w-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shadow-md shadow-purple-500/10 group-hover:scale-105 transition-transform">
+                  <div className="h-12 w-12 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center shadow-md shadow-purple-500/10 group-hover:scale-105 transition-transform">
                     <Shield className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-[11px] font-medium tracking-wide px-3 py-1 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60">
+                  <span className="text-[11px] font-semibold tracking-wide px-3 py-1 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700/80">
                     Restricted Access
                   </span>
                 </div>
 
                 {/* Title & Description */}
-                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors">
+                <h3 className="text-xl font-bold text-white tracking-tight group-hover:text-purple-300 transition-colors">
                   Owner Portal
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mt-2.5">
+                <p className="text-sm text-slate-400 leading-relaxed mt-2.5">
                   Secure access to company projects, worker directory, financials, salary, quotations, and full organization settings.
                 </p>
               </div>
 
               {/* Action Link at Bottom */}
-              <div className="mt-8 pt-4 border-t border-slate-850 flex items-center text-xs sm:text-sm font-semibold text-purple-400 group-hover:text-purple-300">
+              <div className="mt-8 pt-4 border-t border-slate-800/80 flex items-center text-sm font-semibold text-purple-400 group-hover:text-purple-300">
                 <span>Enter Portal</span>
                 <ArrowRight className="w-4 h-4 ml-1.5 transition-transform group-hover:translate-x-1" />
               </div>
@@ -240,30 +251,31 @@ function LoginContent() {
             {/* ----------------------------------------------------------- */}
             <div
               onClick={() => selectPortal('supervisor')}
-              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-[#0c1017]/95 border border-slate-800 hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer backdrop-blur-xl"
+              style={{ backgroundColor: '#0f1422' }}
+              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl border border-slate-800 hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer"
             >
               <div>
                 {/* Top Row: Icon + Badge */}
                 <div className="flex items-center justify-between gap-3 mb-6">
-                  <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shadow-md shadow-emerald-500/10 group-hover:scale-105 transition-transform">
+                  <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-md shadow-emerald-500/10 group-hover:scale-105 transition-transform">
                     <Activity className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-[11px] font-medium tracking-wide px-3 py-1 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60">
+                  <span className="text-[11px] font-semibold tracking-wide px-3 py-1 rounded-full bg-slate-800/90 text-slate-300 border border-slate-700/80">
                     Site Operations
                   </span>
                 </div>
 
                 {/* Title & Description */}
-                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors">
+                <h3 className="text-xl font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors">
                   Supervisor Portal
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mt-2.5">
+                <p className="text-sm text-slate-400 leading-relaxed mt-2.5">
                   Daily site attendance marking, waterproofing/epoxy work measurement logs, and material receipts for assigned sites.
                 </p>
               </div>
 
               {/* Action Link at Bottom */}
-              <div className="mt-8 pt-4 border-t border-slate-850 flex items-center text-xs sm:text-sm font-semibold text-emerald-400 group-hover:text-emerald-300">
+              <div className="mt-8 pt-4 border-t border-slate-800/80 flex items-center text-sm font-semibold text-emerald-400 group-hover:text-emerald-300">
                 <span>Enter Portal</span>
                 <ArrowRight className="w-4 h-4 ml-1.5 transition-transform group-hover:translate-x-1" />
               </div>
@@ -274,30 +286,31 @@ function LoginContent() {
             {/* ----------------------------------------------------------- */}
             <div
               onClick={() => selectPortal('worker')}
-              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl bg-[#0c1017]/95 border border-slate-800 hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer backdrop-blur-xl"
+              style={{ backgroundColor: '#0f1422' }}
+              className="group relative flex flex-col justify-between p-6 sm:p-7 rounded-2xl border border-slate-800 hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 hover:-translate-y-1 transition-all duration-200 cursor-pointer"
             >
               <div>
                 {/* Top Row: Icon + Badge */}
                 <div className="flex items-center justify-between gap-3 mb-6">
-                  <div className="h-12 w-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shadow-md shadow-cyan-500/10 group-hover:scale-105 transition-transform">
+                  <div className="h-12 w-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shadow-md shadow-cyan-500/10 group-hover:scale-105 transition-transform">
                     <Calendar className="w-6 h-6 stroke-[2.2]" />
                   </div>
-                  <span className="text-[11px] font-medium tracking-wide px-3 py-1 rounded-full bg-slate-800/80 text-cyan-300 border border-cyan-500/30">
+                  <span className="text-[11px] font-semibold tracking-wide px-3 py-1 rounded-full bg-slate-800/90 text-cyan-300 border border-cyan-500/30">
                     No Password
                   </span>
                 </div>
 
                 {/* Title & Description */}
-                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight group-hover:text-cyan-300 transition-colors">
+                <h3 className="text-xl font-bold text-white tracking-tight group-hover:text-cyan-300 transition-colors">
                   Worker Portal
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mt-2.5">
+                <p className="text-sm text-slate-400 leading-relaxed mt-2.5">
                   View your personal attendance history, wages earned, payment ledger, and check your pending balance in one step.
                 </p>
               </div>
 
               {/* Action Link at Bottom */}
-              <div className="mt-8 pt-4 border-t border-slate-850 flex items-center text-xs sm:text-sm font-semibold text-cyan-400 group-hover:text-cyan-300">
+              <div className="mt-8 pt-4 border-t border-slate-800/80 flex items-center text-sm font-semibold text-cyan-400 group-hover:text-cyan-300">
                 <span>Enter Portal</span>
                 <ArrowRight className="w-4 h-4 ml-1.5 transition-transform group-hover:translate-x-1" />
               </div>
