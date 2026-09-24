@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createWorkRecordSchema } from '@/lib/validations/workers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission([
+      'OWNER',
+      'MANAGER',
+      'SITE_SUPERVISOR',
+      'ACCOUNTANT',
+      'LABOUR',
+    ]);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
+    const isLabour = normalizeRole(session.role) === 'LABOUR';
 
     const { searchParams } = new URL(req.url);
     const workerId = searchParams.get('workerId');
@@ -19,7 +28,16 @@ export async function GET(req: Request) {
       organizationId: orgId,
     };
 
-    if (workerId && workerId !== 'ALL') where.workerId = workerId;
+    if (isLabour) {
+      if (session.workerId) {
+        where.workerId = session.workerId;
+      } else {
+        where.workerId = '__NONE__';
+      }
+    } else if (workerId && workerId !== 'ALL') {
+      where.workerId = workerId;
+    }
+
     if (projectId && projectId !== 'ALL') where.projectId = projectId;
     if (task && task.trim()) where.task = { contains: task.trim() };
 
@@ -52,21 +70,24 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER, MANAGER, and SITE_SUPERVISOR can add work records
+    // ACCOUNTANT and LABOUR are forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = createWorkRecordSchema.safeParse(body);
 
     if (!validated.success) {
       return NextResponse.json(
-        { error: validated.error.errors[0]?.message || 'Invalid work record' },
+        { error: validated.error.errors[0]?.message || 'Invalid work record data' },
         { status: 400 }
       );
     }
 
     const data = validated.data;
-    const totalWorkValue = Math.round((data.quantity * data.rate) * 100) / 100;
+    const totalWorkValue = data.quantity * data.rate;
 
     const record = await prisma.workRecord.create({
       data: {
@@ -81,10 +102,9 @@ export async function POST(req: Request) {
         unit: data.unit,
         rate: data.rate,
         totalWorkValue,
-        notes: data.notes || null,
       },
       include: {
-        worker: { select: { name: true } },
+        worker: { select: { name: true, workerCode: true } },
         project: { select: { name: true } },
       },
     });
@@ -92,10 +112,10 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       record,
-      message: 'Work record logged successfully',
+      message: 'Work record created successfully',
     });
   } catch (error: any) {
-    console.error('Work records POST error:', error);
-    return NextResponse.json({ error: 'Failed to save work record' }, { status: 500 });
+    console.error('Work record POST error:', error);
+    return NextResponse.json({ error: 'Failed to create work record' }, { status: 500 });
   }
 }

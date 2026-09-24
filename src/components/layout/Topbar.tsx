@@ -157,19 +157,31 @@ export function Topbar({
               <div className="px-3 py-2 border-b border-slate-800 mb-1">
                 <p className="text-xs font-semibold text-white">{userName}</p>
                 {userEmail && <p className="text-[11px] text-slate-400 truncate">{userEmail}</p>}
-                <span className="inline-block mt-1 text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 uppercase font-medium">
+                <span
+                  className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded border uppercase font-bold tracking-wider ${
+                    userRole === 'OWNER'
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      : userRole === 'SITE_SUPERVISOR' || userRole === 'SUPERVISOR'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      : userRole === 'ACCOUNTANT'
+                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                      : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                  }`}
+                >
                   {userRole}
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => router.push('/settings')}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                <Building2 className="w-4 h-4 text-slate-400" />
-                <span>Organization Settings</span>
-              </button>
+              {(userRole === 'OWNER' || userRole === 'MANAGER') && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/settings')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <Building2 className="w-4 h-4 text-slate-400" />
+                  <span>Organization Settings</span>
+                </button>
+              )}
 
               <button
                 type="button"

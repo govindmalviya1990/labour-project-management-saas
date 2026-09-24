@@ -35,6 +35,7 @@ export default function WorkersPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentUserRole, setCurrentUserRole] = useState<string>('OWNER');
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -43,10 +44,21 @@ export default function WorkersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('action') === 'new') {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user?.role) setCurrentUserRole(d.user.role);
+      })
+      .catch(() => {});
+  }, []);
+
+  const canManageWorkers = currentUserRole === 'OWNER' || currentUserRole === 'MANAGER';
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new' && canManageWorkers) {
       setIsFormModalOpen(true);
     }
-  }, [searchParams]);
+  }, [searchParams, canManageWorkers]);
 
   const fetchWorkers = useCallback(async () => {
     setIsLoading(true);
@@ -178,32 +190,36 @@ export default function WorkersPage() {
       cell: (item) => (
         <div className="flex items-center justify-end gap-1.5">
           <Link href={`/khata?workerId=${item.id}`}>
-            <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-slate-300 hover:text-amber-400">
-              <BookOpen className="w-3.5 h-3.5 mr-1 text-amber-400" />
+            <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-slate-600 dark:text-slate-300 hover:text-amber-500">
+              <BookOpen className="w-3.5 h-3.5 mr-1 text-amber-500" />
               Khata
             </Button>
           </Link>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0 text-slate-400 hover:text-white"
-            onClick={() => {
-              setEditingWorker(item);
-              setIsFormModalOpen(true);
-            }}
-            title="Edit Worker"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
-            onClick={() => setDeletingWorker(item)}
-            title="Archive Worker"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          {canManageWorkers && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                onClick={() => {
+                  setEditingWorker(item);
+                  setIsFormModalOpen(true);
+                }}
+                title="Edit Worker"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 text-slate-400 hover:text-rose-500"
+                onClick={() => setDeletingWorker(item)}
+                title="Archive Worker"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       ),
     },
@@ -212,13 +228,13 @@ export default function WorkersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Users className="w-6 h-6 text-amber-500" />
             Labour & Worker Management
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Register and manage skilled masons, carpenters, fitters, helpers, and daily wages
           </p>
         </div>
@@ -228,17 +244,20 @@ export default function WorkersPage() {
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Refresh
           </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => {
-              setEditingWorker(null);
-              setIsFormModalOpen(true);
-            }}
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Add Worker
-          </Button>
+          {canManageWorkers && (
+            <Button
+              size="sm"
+              variant="primary"
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              onClick={() => {
+                setEditingWorker(null);
+                setIsFormModalOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Worker
+            </Button>
+          )}
         </div>
       </div>
 

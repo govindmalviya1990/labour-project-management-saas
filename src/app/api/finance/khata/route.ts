@@ -1,23 +1,41 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWorkerBalance } from '@/lib/calculations';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    // Only OWNER, MANAGER, ACCOUNTANT, and LABOUR (for own ledger) can view Khata
+    // SUPERVISOR is strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT', 'LABOUR']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
+    const isLabour = normalizeRole(session.role) === 'LABOUR';
 
     const { searchParams } = new URL(req.url);
-    const workerId = searchParams.get('workerId');
+    let workerId = searchParams.get('workerId');
     const projectId = searchParams.get('projectId');
     const startDateStr = searchParams.get('startDate');
     const endDateStr = searchParams.get('endDate');
 
+    if (isLabour) {
+      // Force Labour to their own worker record
+      workerId = session.workerId || null;
+    }
+
     if (!workerId) {
       return NextResponse.json({ error: 'Worker ID is required for Khata ledger' }, { status: 400 });
+    }
+
+    // Double check: if Labour attempts to query another worker's ledger
+    if (isLabour && session.workerId && workerId !== session.workerId) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only view your own Khata ledger records.' },
+        { status: 403 }
+      );
     }
 
     const worker = await prisma.worker.findFirst({
@@ -159,7 +177,7 @@ export async function GET(req: Request) {
       item.balance = Math.round(runningBalance * 100) / 100;
     });
 
-    // Totals for Worker Summary (Section 20 & 66)
+    // Totals for Worker Summary
     const totalEarnedSalary = attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
     const totalAllowances = allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
     const totalAdvances = payments
@@ -195,7 +213,7 @@ export async function GET(req: Request) {
         totalCredits: summary.totalCredits,
         totalDebits: summary.totalDebits,
       },
-      ledger: lineItems.reverse(), // Most recent first for ledger table display
+      ledger: lineItems.reverse(),
     });
   } catch (error: any) {
     console.error('Khata GET error:', error);

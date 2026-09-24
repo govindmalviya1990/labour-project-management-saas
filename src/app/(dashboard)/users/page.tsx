@@ -42,6 +42,12 @@ const ROLES = [
     badge: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
     desc: 'Financial payments, khata ledger, wage settlements & site expenses.',
   },
+  {
+    role: 'LABOUR',
+    name: 'Field Labour / Worker',
+    badge: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    desc: 'Self-service view only: Check own attendance history, wages, and received payments.',
+  },
 ];
 
 export default function UsersAndRolesPage() {
@@ -361,6 +367,7 @@ export default function UsersAndRolesPage() {
             >
               <option value="SITE_SUPERVISOR">Site Supervisor (Daily attendance & consumption)</option>
               <option value="ACCOUNTANT">Accountant (Payments, Khata ledger, Expenses)</option>
+              <option value="LABOUR">Field Labour (View own attendance & payment records)</option>
               <option value="MANAGER">Manager (Projects, sites, workers, approvals)</option>
               <option value="OWNER">Owner (Unrestricted administrator)</option>
             </select>
@@ -439,6 +446,7 @@ export default function UsersAndRolesPage() {
             >
               <option value="SITE_SUPERVISOR">Site Supervisor</option>
               <option value="ACCOUNTANT">Accountant</option>
+              <option value="LABOUR">Field Labour</option>
               <option value="MANAGER">Manager</option>
               <option value="OWNER">Owner</option>
             </select>

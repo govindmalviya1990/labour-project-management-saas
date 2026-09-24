@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { saveAttendanceSheetSchema } from '@/lib/validations/workers';
 import { calculateSalary } from '@/lib/calculations';
 
@@ -8,8 +8,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission([
+      'OWNER',
+      'MANAGER',
+      'SITE_SUPERVISOR',
+      'ACCOUNTANT',
+      'LABOUR',
+    ]);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
+    const isLabour = normalizeRole(session.role) === 'LABOUR';
 
     const { searchParams } = new URL(req.url);
     const dateStr = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -22,9 +31,14 @@ export async function GET(req: Request) {
     const endOfQueryDate = new Date(dateStr);
     endOfQueryDate.setUTCHours(23, 59, 59, 999);
 
-    // 1. Get all active workers
+    // 1. Get active workers (restricted to self for LABOUR)
     const activeWorkers = await prisma.worker.findMany({
-      where: { organizationId: orgId, status: 'ACTIVE', deletedAt: null },
+      where: {
+        organizationId: orgId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        ...(isLabour && session.workerId ? { id: session.workerId } : {}),
+      },
       orderBy: { name: 'asc' },
     });
 
@@ -35,6 +49,7 @@ export async function GET(req: Request) {
         date: { gte: queryDate, lte: endOfQueryDate },
         ...(projectId ? { projectId } : {}),
         ...(siteId ? { siteId } : {}),
+        ...(isLabour && session.workerId ? { workerId: session.workerId } : {}),
       },
       include: {
         project: { select: { id: true, name: true, projectCode: true } },
@@ -58,7 +73,7 @@ export async function GET(req: Request) {
         category: worker.category,
         dailyWage: worker.dailyWage,
         attendanceId: att?.id || null,
-        status: att?.status || 'UNMARKED', // PRESENT, HALF_DAY, ABSENT, LEAVE, UNMARKED
+        status: att?.status || 'UNMARKED',
         shift: att?.shift || 'DAY',
         overtimeHours: att?.overtimeHours || 0,
         wageForDay: att?.wageForDay || 0,
@@ -101,8 +116,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER, MANAGER, and SITE_SUPERVISOR can mark/save attendance
+    // ACCOUNTANT and LABOUR are strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = saveAttendanceSheetSchema.safeParse(body);

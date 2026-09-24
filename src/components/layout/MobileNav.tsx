@@ -3,19 +3,62 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FolderKanban, CalendarCheck, BookOpen, Menu } from 'lucide-react';
+import {
+  LayoutDashboard,
+  FolderKanban,
+  CalendarCheck,
+  BookOpen,
+  Menu,
+  Hammer,
+  Wallet,
+  Receipt,
+  Package,
+} from 'lucide-react';
 import { clsx } from 'clsx';
+import { normalizeRole } from '@/lib/auth/roles';
 
-export function MobileNav() {
+export function MobileNav({ userRole = 'OWNER' }: { userRole?: string }) {
   const pathname = usePathname();
+  const currentRole = normalizeRole(userRole);
 
-  const navItems = [
-    { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { label: 'Projects', href: '/projects', icon: <FolderKanban className="w-5 h-5" /> },
-    { label: 'Attendance', href: '/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
-    { label: 'Khata', href: '/khata', icon: <BookOpen className="w-5 h-5" /> },
-    { label: 'More', href: '/settings', icon: <Menu className="w-5 h-5" /> },
-  ];
+  const getNavItems = () => {
+    if (currentRole === 'LABOUR') {
+      return [
+        { label: 'Overview', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: 'Attendance', href: '/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+        { label: 'Wages & Khata', href: '/khata', icon: <BookOpen className="w-5 h-5" /> },
+      ];
+    }
+
+    if (currentRole === 'SITE_SUPERVISOR') {
+      return [
+        { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: 'Projects', href: '/projects', icon: <FolderKanban className="w-5 h-5" /> },
+        { label: 'Attendance', href: '/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+        { label: 'Work', href: '/work', icon: <Hammer className="w-5 h-5" /> },
+        { label: 'Materials', href: '/materials', icon: <Package className="w-5 h-5" /> },
+      ];
+    }
+
+    if (currentRole === 'ACCOUNTANT') {
+      return [
+        { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: 'Payments', href: '/finance/payments', icon: <Wallet className="w-5 h-5" /> },
+        { label: 'Expenses', href: '/finance/expenses', icon: <Receipt className="w-5 h-5" /> },
+        { label: 'Khata', href: '/khata', icon: <BookOpen className="w-5 h-5" /> },
+      ];
+    }
+
+    return [
+      { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+      { label: 'Projects', href: '/projects', icon: <FolderKanban className="w-5 h-5" /> },
+      { label: 'Attendance', href: '/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
+      { label: 'Khata', href: '/khata', icon: <BookOpen className="w-5 h-5" /> },
+      { label: 'More', href: '/settings', icon: <Menu className="w-5 h-5" /> },
+    ];
+  };
+
+  const navItems = getNavItems();
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-2 py-1.5 flex items-center justify-around shadow-lg">

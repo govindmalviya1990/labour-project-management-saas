@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission } from '@/lib/auth/session';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
-  role: z.enum(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']).optional(),
+  role: z.enum(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT', 'LABOUR']).optional(),
   mobile: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 });
@@ -17,13 +17,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const targetUserId = params.id;
-
-    if (session.role !== 'OWNER' && session.role !== 'MANAGER') {
-      return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
-    }
 
     const body = await req.json();
     const validated = updateUserSchema.safeParse(body);
@@ -95,13 +93,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission(['OWNER']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const targetUserId = params.id;
-
-    if (session.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Only owners can remove team members' }, { status: 403 });
-    }
 
     if (session.userId === targetUserId) {
       return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });

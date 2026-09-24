@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createPaymentSchema } from '@/lib/validations/finance';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    // Only OWNER, MANAGER, ACCOUNTANT, and LABOUR (for own records) can view payments
+    // SUPERVISOR is strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT', 'LABOUR']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
+    const isLabour = normalizeRole(session.role) === 'LABOUR';
 
     const { searchParams } = new URL(req.url);
     const workerId = searchParams.get('workerId');
@@ -20,7 +25,16 @@ export async function GET(req: Request) {
       deletedAt: null,
     };
 
-    if (workerId && workerId !== 'ALL') where.workerId = workerId;
+    if (isLabour) {
+      if (session.workerId) {
+        where.workerId = session.workerId;
+      } else {
+        where.workerId = '__NONE__';
+      }
+    } else if (workerId && workerId !== 'ALL') {
+      where.workerId = workerId;
+    }
+
     if (projectId && projectId !== 'ALL') where.projectId = projectId;
     if (type && type !== 'ALL') where.transactionType = type;
 
@@ -58,8 +72,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER, MANAGER, and ACCOUNTANT can record payments
+    // SUPERVISOR and LABOUR are strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = createPaymentSchema.safeParse(body);

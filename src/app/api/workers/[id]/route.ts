@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { updateWorkerSchema } from '@/lib/validations/workers';
 import { calculateWorkerBalance } from '@/lib/calculations';
 
@@ -11,9 +11,25 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission([
+      'OWNER',
+      'MANAGER',
+      'SITE_SUPERVISOR',
+      'ACCOUNTANT',
+      'LABOUR',
+    ]);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const workerId = params.id;
+
+    // If LABOUR, restrict strictly to their own worker ID
+    if (normalizeRole(session.role) === 'LABOUR' && session.workerId !== workerId) {
+      return NextResponse.json(
+        { error: 'Forbidden: You can only view your own worker profile and records.' },
+        { status: 403 }
+      );
+    }
 
     const worker = await prisma.worker.findFirst({
       where: { id: workerId, organizationId: orgId, deletedAt: null },
@@ -89,7 +105,7 @@ export async function GET(
         halfDays,
         absentDays,
         leaveDays,
-        totalDaysWorked: presentDays + (halfDays * 0.5),
+        totalDaysWorked: presentDays + halfDays * 0.5,
         totalEarnedSalary,
         totalAllowances,
         totalAdvances,
@@ -112,8 +128,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER and MANAGER can update workers (ACCOUNTANT, SUPERVISOR, LABOUR are forbidden)
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
     const workerId = params.id;
 
     const body = await req.json();
@@ -158,8 +176,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER and MANAGER can delete/archive workers
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
     const workerId = params.id;
 
     const existing = await prisma.worker.findFirst({

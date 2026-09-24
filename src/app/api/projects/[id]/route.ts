@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission } from '@/lib/auth/session';
 import { updateProjectSchema } from '@/lib/validations/projects';
 import { calculateProjectCost, calculateCostPerUnit } from '@/lib/calculations';
 
@@ -11,7 +11,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const projectId = params.id;
 
@@ -124,7 +126,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const projectId = params.id;
 
@@ -194,7 +198,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
     const projectId = params.id;
 

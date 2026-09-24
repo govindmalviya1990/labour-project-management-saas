@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
-import { calculateProjectCost, calculateMaterialStock } from '@/lib/calculations';
+import { requireOrg, normalizeRole } from '@/lib/auth/session';
+import { calculateProjectCost, calculateMaterialStock, calculateWorkerBalance } from '@/lib/calculations';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +9,122 @@ export async function GET(req: Request) {
   try {
     const session = await requireOrg();
     const orgId = session.organizationId;
+    const role = normalizeRole(session.role);
 
+    // -------------------------------------------------------------
+    // SPECIAL LABOUR DASHBOARD: strictly personal worker records
+    // -------------------------------------------------------------
+    if (role === 'LABOUR') {
+      const workerId = session.workerId;
+      const worker = workerId
+        ? await prisma.worker.findFirst({
+            where: { id: workerId, organizationId: orgId, deletedAt: null },
+          })
+        : null;
+
+      if (!worker) {
+        return NextResponse.json({
+          role: 'LABOUR',
+          organization: {
+            id: session.organizationId,
+            name: session.organizationName,
+            role: session.role,
+          },
+          worker: null,
+          labourSummary: {
+            totalEarned: 0,
+            totalPaid: 0,
+            totalAdvances: 0,
+            remainingPayable: 0,
+            presentDays: 0,
+            halfDays: 0,
+            absentDays: 0,
+            overtimeHours: 0,
+          },
+          recentAttendance: [],
+          recentPayments: [],
+        });
+      }
+
+      // Fetch labour attendance records
+      const attendance = await prisma.attendance.findMany({
+        where: { workerId: worker.id, organizationId: orgId },
+        include: {
+          project: { select: { id: true, name: true } },
+          site: { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'desc' },
+      });
+
+      const presentDays = attendance.filter((a) => a.status === 'PRESENT').length;
+      const halfDays = attendance.filter((a) => a.status === 'HALF_DAY').length;
+      const absentDays = attendance.filter((a) => a.status === 'ABSENT').length;
+      const overtimeHours = attendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
+      const totalEarned = attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+
+      // Fetch labour allowances
+      const allowances = await prisma.allowance.findMany({
+        where: { workerId: worker.id, organizationId: orgId, deletedAt: null },
+      });
+      const totalAllowances = allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
+
+      // Fetch labour payments
+      const payments = await prisma.payment.findMany({
+        where: { workerId: worker.id, organizationId: orgId, deletedAt: null },
+        include: { project: { select: { name: true } } },
+        orderBy: { date: 'desc' },
+      });
+
+      const totalAdvances = payments
+        .filter((p) => p.transactionType === 'ADVANCE')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalPaid = payments
+        .filter((p) => p.transactionType !== 'ADVANCE')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      const bal = calculateWorkerBalance({
+        totalEarnedSalary: totalEarned,
+        totalAllowances,
+        totalAdvances,
+        totalPayments: totalPaid,
+      });
+
+      return NextResponse.json({
+        role: 'LABOUR',
+        organization: {
+          id: session.organizationId,
+          name: session.organizationName,
+          role: session.role,
+        },
+        worker: {
+          id: worker.id,
+          workerCode: worker.workerCode,
+          name: worker.name,
+          category: worker.category,
+          dailyWage: worker.dailyWage,
+          mobile: worker.mobile,
+        },
+        labourSummary: {
+          totalEarned,
+          totalPaid,
+          totalAdvances,
+          totalAllowances,
+          remainingPayable: bal.remainingPayable,
+          paymentStatus: bal.paymentStatus,
+          presentDays,
+          halfDays,
+          absentDays,
+          overtimeHours,
+        },
+        recentAttendance: attendance.slice(0, 10),
+        recentPayments: payments.slice(0, 10),
+      });
+    }
+
+    // -------------------------------------------------------------
+    // SITE SUPERVISOR OR OWNER / ACCOUNTANT DASHBOARD
+    // -------------------------------------------------------------
     const { searchParams } = new URL(req.url);
-    const dateFilter = searchParams.get('dateFilter') || 'today'; // today, week, month, custom
     const selectedProjectId = searchParams.get('projectId') || undefined;
 
     // Today's boundaries in UTC
@@ -21,16 +134,14 @@ export async function GET(req: Request) {
     const endOfToday = new Date(today);
     endOfToday.setUTCHours(23, 59, 59, 999);
 
-    // 1. Project Counts & Values
+    // 1. Projects
     const allProjects = await prisma.project.findMany({
       where: {
         organizationId: orgId,
         deletedAt: null,
         ...(selectedProjectId ? { id: selectedProjectId } : {}),
       },
-      include: {
-        sites: true,
-      },
+      include: { sites: true },
     });
 
     const totalProjects = allProjects.length;
@@ -38,7 +149,7 @@ export async function GET(req: Request) {
     const runningProjectsCount = runningProjectsList.length;
     const totalProjectValue = allProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
 
-    // 2. Workers & Today's Attendance
+    // 2. Workers & Attendance
     const totalWorkers = await prisma.worker.count({
       where: { organizationId: orgId, deletedAt: null },
     });
@@ -57,7 +168,48 @@ export async function GET(req: Request) {
     const absentToday = todayAttendance.filter((a) => a.status === 'ABSENT').length;
     const todayLabourCost = todayAttendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
 
-    // 3. Today's Expenses
+    // If SITE_SUPERVISOR: Return operational metrics only (hide sensitive financial P&L)
+    if (role === 'SITE_SUPERVISOR') {
+      const todayWorkRecords = await prisma.workRecord.findMany({
+        where: {
+          organizationId: orgId,
+          date: { gte: startOfToday, lte: endOfToday },
+        },
+        include: {
+          worker: { select: { name: true } },
+          project: { select: { name: true } },
+        },
+        take: 10,
+      });
+
+      return NextResponse.json({
+        role: 'SITE_SUPERVISOR',
+        organization: {
+          id: session.organizationId,
+          name: session.organizationName,
+          role: session.role,
+        },
+        summary: {
+          totalProjects,
+          runningProjects: runningProjectsCount,
+          totalWorkers,
+          presentToday,
+          absentToday,
+          markedCount: todayAttendance.length,
+          unmarkedCount: Math.max(0, totalWorkers - todayAttendance.length),
+        },
+        runningProjects: runningProjectsList.slice(0, 5).map((p) => ({
+          id: p.id,
+          projectCode: p.projectCode,
+          name: p.name,
+          location: p.location,
+          status: p.status,
+        })),
+        recentWorkRecords: todayWorkRecords,
+      });
+    }
+
+    // 3. For OWNER, MANAGER, ACCOUNTANT: Full financial metrics & charts
     const todayExpenses = await prisma.expense.findMany({
       where: {
         organizationId: orgId,
@@ -68,7 +220,6 @@ export async function GET(req: Request) {
     });
     const todayExpenseTotal = todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    // 4. All-time Expenses & Labour Cost for Project Cost & Profit/Loss
     const allAttendance = await prisma.attendance.findMany({
       where: {
         organizationId: orgId,
@@ -95,7 +246,6 @@ export async function GET(req: Request) {
     });
     const totalActualOtherExpenses = allExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    // Dynamic calculation engine call
     const projectFinancials = calculateProjectCost({
       projectValue: totalProjectValue,
       labourCost: totalActualLabourCost,
@@ -103,7 +253,6 @@ export async function GET(req: Request) {
       otherExpenses: totalActualOtherExpenses,
     });
 
-    // 5. Pending Labour Payments (Worker Ledgers)
     const allAllowances = await prisma.allowance.findMany({
       where: { organizationId: orgId, deletedAt: null },
     });
@@ -113,9 +262,8 @@ export async function GET(req: Request) {
       where: { organizationId: orgId, deletedAt: null },
     });
     const totalPaidAndAdvances = allPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const pendingLabourPayment = Math.max(0, (totalActualLabourCost + totalAllowances) - totalPaidAndAdvances);
+    const pendingLabourPayment = Math.max(0, totalActualLabourCost + totalAllowances - totalPaidAndAdvances);
 
-    // 6. Material Stock Value
     const materials = await prisma.material.findMany({
       where: { organizationId: orgId, deletedAt: null },
       include: {
@@ -140,7 +288,7 @@ export async function GET(req: Request) {
       if (stock.isLowStock) lowStockCount++;
     });
 
-    // 7. Recent 7-Day Chart Data
+    // 7-Day Chart Data
     const chartDays = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -151,7 +299,6 @@ export async function GET(req: Request) {
       dayEnd.setUTCHours(23, 59, 59, 999);
 
       const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-
       const dayAtt = allAttendance.filter(
         (a) => new Date(a.date) >= dayStart && new Date(a.date) <= dayEnd
       );
@@ -172,6 +319,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
+      role,
       organization: {
         id: session.organizationId,
         name: session.organizationName,

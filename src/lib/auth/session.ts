@@ -1,8 +1,13 @@
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import { verifyJWT, JWTPayload } from './jwt';
+import { normalizeRole, hasRole, AppRole } from './roles';
 import prisma from '../db/prisma';
 
 export const AUTH_COOKIE_NAME = 'auth_token';
+
+export type { AppRole };
+export { normalizeRole, hasRole };
 
 export interface UserSession {
   userId: string;
@@ -11,6 +16,7 @@ export interface UserSession {
   organizationId?: string;
   role?: string;
   organizationName?: string;
+  workerId?: string;
 }
 
 /**
@@ -40,28 +46,46 @@ export async function getSession(): Promise<UserSession | null> {
   if (!user || user.status !== 'ACTIVE') return null;
 
   const activeMembership = user.memberships[0];
+  const role = activeMembership?.role || 'OWNER';
+
+  let workerId: string | undefined;
+  if (normalizeRole(role) === 'LABOUR' && activeMembership?.organizationId) {
+    // If Labour, find matching worker record in organization
+    const worker = await prisma.worker.findFirst({
+      where: {
+        organizationId: activeMembership.organizationId,
+        deletedAt: null,
+        OR: [
+          ...(user.mobile ? [{ mobile: user.mobile }] : []),
+          { name: { contains: user.name } },
+        ],
+      },
+    });
+
+    if (worker) {
+      workerId = worker.id;
+    } else {
+      // Fallback: first active worker in org
+      const firstWorker = await prisma.worker.findFirst({
+        where: { organizationId: activeMembership.organizationId, deletedAt: null },
+      });
+      workerId = firstWorker?.id;
+    }
+  }
 
   return {
     userId: user.id,
     email: user.email,
     name: user.name,
     organizationId: activeMembership?.organizationId,
-    role: activeMembership?.role,
+    role,
     organizationName: activeMembership?.organization?.name,
+    workerId,
   };
 }
 
 /**
- * Validates whether a user's role has permission for an operation.
- */
-export function hasRole(currentRole: string | undefined, allowedRoles: string[]): boolean {
-  if (!currentRole) return false;
-  if (currentRole === 'OWNER') return true; // Owner has all permissions
-  return allowedRoles.includes(currentRole);
-}
-
-/**
- * Enforces authenticated tenant session. Throws or returns 401/403.
+ * Enforces authenticated tenant session. Throws UNAUTHORIZED if not authenticated.
  */
 export async function requireAuth(): Promise<UserSession> {
   const session = await getSession();
@@ -80,4 +104,69 @@ export async function requireOrg(): Promise<Required<UserSession>> {
     throw new Error('NO_ORGANIZATION');
   }
   return session as Required<UserSession>;
+}
+
+/**
+ * Enforces role authorization. Throws FORBIDDEN if the role is not allowed.
+ */
+export async function requireRole(allowedRoles: string[]): Promise<Required<UserSession>> {
+  const session = await requireOrg();
+  if (!hasRole(session.role, allowedRoles)) {
+    throw new Error('FORBIDDEN');
+  }
+  return session;
+}
+
+/**
+ * Reusable API route helper that verifies authentication and role permissions.
+ * If unauthorized, returns an immediate 401 or 403 NextResponse.
+ * If authorized, returns `{ authorized: true, session }`.
+ */
+export async function checkRolePermission(allowedRoles: string[]) {
+  try {
+    const session = await requireOrg();
+    if (!hasRole(session.role, allowedRoles)) {
+      return {
+        authorized: false as const,
+        response: NextResponse.json(
+          {
+            error: `Access Denied: Your role '${session.role}' is not authorized for this operation. Permitted roles: ${allowedRoles.join(', ')}`,
+            currentRole: session.role,
+            allowedRoles,
+          },
+          { status: 403 }
+        ),
+      };
+    }
+    return {
+      authorized: true as const,
+      session,
+    };
+  } catch (error: any) {
+    if (error.message === 'UNAUTHORIZED') {
+      return {
+        authorized: false as const,
+        response: NextResponse.json(
+          { error: 'Authentication required. Please sign in.' },
+          { status: 401 }
+        ),
+      };
+    }
+    if (error.message === 'NO_ORGANIZATION') {
+      return {
+        authorized: false as const,
+        response: NextResponse.json(
+          { error: 'No active organization found. Please complete setup.' },
+          { status: 403 }
+        ),
+      };
+    }
+    return {
+      authorized: false as const,
+      response: NextResponse.json(
+        { error: error?.message || 'Access Denied' },
+        { status: 403 }
+      ),
+    };
+  }
 }

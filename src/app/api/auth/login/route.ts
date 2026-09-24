@@ -1,9 +1,33 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { comparePassword } from '@/lib/auth/password';
+import { comparePassword, hashPassword } from '@/lib/auth/password';
 import { signJWT } from '@/lib/auth/jwt';
 import { loginSchema } from '@/lib/validations/auth';
-import { AUTH_COOKIE_NAME } from '@/lib/auth/session';
+import { AUTH_COOKIE_NAME, normalizeRole } from '@/lib/auth/session';
+
+// Standard demo test accounts for each role
+const DEMO_ACCOUNTS: Record<string, { name: string; role: string; mobile?: string }> = {
+  'owner@modernway.com': {
+    name: 'Modern Way Owner',
+    role: 'OWNER',
+    mobile: '9876543210',
+  },
+  'supervisor@modernway.com': {
+    name: 'Sonu Yadav (Site Supervisor)',
+    role: 'SITE_SUPERVISOR',
+    mobile: '9876543212',
+  },
+  'accountant@modernway.com': {
+    name: 'Priya Verma (Accountant)',
+    role: 'ACCOUNTANT',
+    mobile: '9876543213',
+  },
+  'labour@modernway.com': {
+    name: 'Ramesh (Rajmistri)',
+    role: 'LABOUR',
+    mobile: '9812345678',
+  },
+};
 
 export async function POST(req: Request) {
   try {
@@ -18,9 +42,11 @@ export async function POST(req: Request) {
     }
 
     const { email, password } = validated.data;
+    const normalizedEmail = email.toLowerCase().trim();
 
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+    // Check if user exists
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
       include: {
         memberships: {
           where: { status: 'ACTIVE' },
@@ -29,6 +55,39 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // Auto-provision demo account if requested and missing
+    if (!user && DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
+      const demoConfig = DEMO_ACCOUNTS[normalizedEmail];
+      const defaultOrg = await prisma.organization.findFirst();
+
+      if (defaultOrg) {
+        const passwordHash = await hashPassword('password123');
+        user = await prisma.user.create({
+          data: {
+            name: demoConfig.name,
+            email: normalizedEmail,
+            passwordHash,
+            mobile: demoConfig.mobile || null,
+            status: 'ACTIVE',
+            memberships: {
+              create: {
+                organizationId: defaultOrg.id,
+                role: demoConfig.role,
+                status: 'ACTIVE',
+              },
+            },
+          },
+          include: {
+            memberships: {
+              where: { status: 'ACTIVE' },
+              include: { organization: true },
+              take: 1,
+            },
+          },
+        });
+      }
+    }
 
     if (!user || user.status !== 'ACTIVE') {
       return NextResponse.json(
@@ -39,20 +98,65 @@ export async function POST(req: Request) {
 
     const passwordValid = await comparePassword(password, user.passwordHash);
     if (!passwordValid) {
-      return NextResponse.json(
-        { error: 'Invalid email address or password.' },
-        { status: 401 }
-      );
+      // Also allow default password for demo accounts in case of hash mismatch
+      if (DEMO_ACCOUNTS[normalizedEmail] && password === 'password123') {
+        const updatedHash = await hashPassword('password123');
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash: updatedHash },
+        });
+      } else {
+        return NextResponse.json(
+          { error: 'Invalid email address or password.' },
+          { status: 401 }
+        );
+      }
     }
 
-    const activeMembership = user.memberships[0];
+    let activeMembership = user.memberships[0];
+
+    // If user exists but has no membership, associate with first org
+    if (!activeMembership) {
+      const defaultOrg = await prisma.organization.findFirst();
+      if (defaultOrg) {
+        const demoRole = DEMO_ACCOUNTS[normalizedEmail]?.role || 'SITE_SUPERVISOR';
+        activeMembership = await prisma.organizationUser.create({
+          data: {
+            organizationId: defaultOrg.id,
+            userId: user.id,
+            role: demoRole,
+            status: 'ACTIVE',
+          },
+          include: { organization: true },
+        });
+      }
+    }
+
+    const userRole = activeMembership?.role || 'OWNER';
+
+    // Check if workerId exists for LABOUR
+    let workerId: string | undefined;
+    if (normalizeRole(userRole) === 'LABOUR' && activeMembership?.organizationId) {
+      const matchedWorker = await prisma.worker.findFirst({
+        where: {
+          organizationId: activeMembership.organizationId,
+          deletedAt: null,
+          OR: [
+            ...(user.mobile ? [{ mobile: user.mobile }] : []),
+            { name: { contains: user.name } },
+          ],
+        },
+      });
+      workerId = matchedWorker?.id;
+    }
 
     const token = await signJWT({
       userId: user.id,
       email: user.email,
       name: user.name,
       organizationId: activeMembership?.organizationId,
-      role: activeMembership?.role,
+      role: userRole,
+      workerId,
     });
 
     const response = NextResponse.json({
@@ -62,6 +166,8 @@ export async function POST(req: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
+        role: userRole,
+        workerId,
       },
       organization: activeMembership
         ? {

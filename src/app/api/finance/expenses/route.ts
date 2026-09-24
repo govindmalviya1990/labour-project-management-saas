@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission } from '@/lib/auth/session';
 import { createExpenseSchema } from '@/lib/validations/finance';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    // Only OWNER, MANAGER, and ACCOUNTANT can view expenses
+    // SUPERVISOR and LABOUR are strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
 
     const { searchParams } = new URL(req.url);
@@ -67,8 +71,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER, MANAGER, and ACCOUNTANT can record expenses
+    // SUPERVISOR and LABOUR are forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = createExpenseSchema.safeParse(body);
@@ -89,16 +96,13 @@ export async function POST(req: Request) {
         siteId: data.siteId || null,
         date: new Date(data.date),
         category: data.category,
-        description: data.description,
         amount: data.amount,
-        paidBy: data.paidBy || null,
-        paymentMethod: data.paymentMethod,
+        description: data.description,
         vendorName: data.vendorName || null,
+        paymentMethod: data.paymentMethod || 'CASH',
+        paidBy: data.paidBy || null,
         receiptUrl: data.receiptUrl || null,
         notes: data.notes || null,
-      },
-      include: {
-        project: { select: { name: true } },
       },
     });
 
@@ -109,6 +113,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Expense POST error:', error);
-    return NextResponse.json({ error: 'Failed to create expense' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to record expense' }, { status: 500 });
   }
 }

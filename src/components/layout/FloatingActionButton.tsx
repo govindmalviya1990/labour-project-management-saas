@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -16,21 +16,48 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { normalizeRole } from '@/lib/auth/roles';
 
-export function FloatingActionButton() {
+export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string }) {
   const [isOpen, setIsOpen] = useState(false);
+  const currentRole = normalizeRole(userRole);
 
-  const actions = [
-    { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-emerald-400" /> },
-    { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
-    { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
-    { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
-    { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
-    { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
-    { label: 'Add Worker', href: '/workers?action=new', icon: <UserPlus className="w-4 h-4 text-indigo-400" /> },
-    { label: 'Create Project', href: '/projects?action=new', icon: <FolderPlus className="w-4 h-4 text-amber-400" /> },
-    { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
-  ];
+  // Labour role has no administrative creation actions
+  if (currentRole === 'LABOUR') {
+    return null;
+  }
+
+  const actions = useMemo(() => {
+    if (currentRole === 'SITE_SUPERVISOR') {
+      return [
+        { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
+        { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
+        { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
+      ];
+    }
+
+    if (currentRole === 'ACCOUNTANT') {
+      return [
+        { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
+        { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
+        { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
+      ];
+    }
+
+    // Default for OWNER / MANAGER
+    return [
+      { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-emerald-400" /> },
+      { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
+      { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
+      { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
+      { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
+      { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
+      { label: 'Add Worker', href: '/workers?action=new', icon: <UserPlus className="w-4 h-4 text-indigo-400" /> },
+      { label: 'Create Project', href: '/projects?action=new', icon: <FolderPlus className="w-4 h-4 text-amber-400" /> },
+      { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
+    ];
+  }, [currentRole]);
 
   return (
     <>

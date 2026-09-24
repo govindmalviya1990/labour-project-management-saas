@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission } from '@/lib/auth/session';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 
@@ -9,15 +9,16 @@ export const dynamic = 'force-dynamic';
 const createUserSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   email: z.string().email('Valid email is required'),
-  role: z.enum(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']).default('SITE_SUPERVISOR'),
+  role: z.enum(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT', 'LABOUR']).default('SITE_SUPERVISOR'),
   mobile: z.string().optional(),
   password: z.string().min(6, 'Password must be at least 6 characters').default('password123'),
 });
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const memberships = await prisma.organizationUser.findMany({
       where: { organizationId: orgId },
@@ -56,13 +57,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
-
-    // Only OWNER or MANAGER can invite users
-    if (session.role !== 'OWNER' && session.role !== 'MANAGER') {
-      return NextResponse.json({ error: 'Only Owners and Managers can add users' }, { status: 403 });
-    }
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = createUserSchema.safeParse(body);
@@ -77,7 +74,7 @@ export async function POST(req: Request) {
     const data = validated.data;
 
     let user = await prisma.user.findUnique({
-      where: { email: data.email.toLowerCase() },
+      where: { email: data.email.toLowerCase().trim() },
     });
 
     if (!user) {
@@ -85,7 +82,7 @@ export async function POST(req: Request) {
       user = await prisma.user.create({
         data: {
           name: data.name,
-          email: data.email.toLowerCase(),
+          email: data.email.toLowerCase().trim(),
           passwordHash,
           mobile: data.mobile || null,
           status: 'ACTIVE',

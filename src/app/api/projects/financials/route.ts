@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission } from '@/lib/auth/session';
 import { calculateProjectCost, calculateCostPerUnit } from '@/lib/calculations';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    // Only OWNER, MANAGER, and ACCOUNTANT can view portfolio financials
+    // SUPERVISOR and LABOUR are strictly forbidden
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
 
     const { searchParams } = new URL(req.url);
@@ -59,72 +63,67 @@ export async function GET(req: Request) {
         labourCost: actualLabourCost,
         materialCost: actualMaterialCost,
         otherExpenses: actualOtherExpense,
-        estimatedLabourCost: p.estimatedLabourCost,
-        estimatedMaterialCost: p.estimatedMaterialCost,
-        estimatedOtherExpense: p.estimatedOtherExpense,
       });
 
-      const costPerUnit = calculateCostPerUnit({
-        completedQuantity: completedQuantity || p.targetQuantity || 0,
+      const estimatedBudget = p.estimatedTotalCost || 0;
+      const budgetVariance = estimatedBudget - financials.actualTotalCost;
+      const isOverBudget = financials.actualTotalCost > estimatedBudget && estimatedBudget > 0;
+
+      if (isOverBudget) overBudgetProjectsCount++;
+      portfolioValue += p.projectValue || 0;
+      portfolioEstimatedBudget += estimatedBudget;
+      portfolioActualCost += financials.actualTotalCost;
+
+      const unitMetrics = calculateCostPerUnit({
+        completedQuantity: completedQuantity || p.targetQuantity || 1,
         totalLabourCost: actualLabourCost,
         totalMaterialCost: actualMaterialCost,
         totalOtherCost: actualOtherExpense,
         unitName: p.targetUnit || 'sq.ft.',
       });
 
-      portfolioValue += p.projectValue;
-      portfolioEstimatedBudget += financials.estimatedTotalCost;
-      portfolioActualCost += financials.actualTotalCost;
-
-      if (financials.isBudgetExceeded) {
-        overBudgetProjectsCount++;
-      }
-
       return {
         id: p.id,
-        name: p.name,
         projectCode: p.projectCode,
+        name: p.name,
+        clientName: p.clientName,
         status: p.status,
         projectValue: p.projectValue,
+        estimatedBudget,
+        targetUnit: p.targetUnit,
         targetQuantity: p.targetQuantity,
-        targetUnit: p.targetUnit || 'sq.ft.',
         completedQuantity,
         financials: {
-          ...financials,
-          variance: financials.costVariance,
-          isOverBudget: financials.isBudgetExceeded,
-          projectedProfit: financials.actualProfit,
-        },
-        costPerUnit: {
-          ...costPerUnit,
-          costPerUnit: costPerUnit.totalCostPerUnit,
+          actualLabourCost,
+          actualMaterialCost,
+          actualOtherExpense,
+          totalActualCost: financials.actualTotalCost,
+          grossProfit: financials.actualProfit,
+          profitMarginPercent: financials.profitMarginPercentage,
+          budgetVariance,
+          isOverBudget,
+          costPerUnit: unitMetrics.totalCostPerUnit,
         },
       };
     });
 
-    const portfolioProjectedProfit = portfolioValue - portfolioActualCost;
-    const portfolioMarginPct =
-      portfolioValue > 0
-        ? Math.round((portfolioProjectedProfit / portfolioValue) * 10000) / 100
-        : 0;
+    const portfolioGrossProfit = portfolioValue - portfolioActualCost;
+    const portfolioMargin = portfolioValue > 0 ? (portfolioGrossProfit / portfolioValue) * 100 : 0;
 
     return NextResponse.json({
       projects: projectFinancials,
-      portfolio: {
+      portfolioSummary: {
         totalProjects: projects.length,
         portfolioValue,
         portfolioEstimatedBudget,
         portfolioActualCost,
-        portfolioProjectedProfit,
-        portfolioMarginPct,
+        portfolioGrossProfit,
+        portfolioMargin: Math.round(portfolioMargin * 10) / 10,
         overBudgetProjectsCount,
       },
     });
   } catch (error: any) {
-    console.error('Projects Financials GET error:', error);
-    return NextResponse.json(
-      { error: 'Failed to retrieve project financials' },
-      { status: 500 }
-    );
+    console.error('Project financials GET error:', error);
+    return NextResponse.json({ error: 'Failed to retrieve project financials' }, { status: 500 });
   }
 }

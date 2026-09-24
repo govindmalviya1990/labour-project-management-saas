@@ -46,10 +46,10 @@ export default async function DashboardLayout({
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <MobileNav />
+      <MobileNav userRole={session.role} />
 
       {/* Mobile & Desktop Floating Quick Action Button */}
-      <FloatingActionButton />
+      <FloatingActionButton userRole={session.role} />
     </div>
   );
 }

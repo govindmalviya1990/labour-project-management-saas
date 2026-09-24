@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
-import { requireOrg } from '@/lib/auth/session';
+import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createWorkerSchema } from '@/lib/validations/workers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const session = await requireOrg();
+    const auth = await checkRolePermission([
+      'OWNER',
+      'MANAGER',
+      'SITE_SUPERVISOR',
+      'ACCOUNTANT',
+      'LABOUR',
+    ]);
+    if (!auth.authorized) return auth.response;
+    const session = auth.session;
     const orgId = session.organizationId;
 
     const { searchParams } = new URL(req.url);
@@ -20,22 +28,29 @@ export async function GET(req: Request) {
       deletedAt: null,
     };
 
-    if (category && category !== 'ALL') {
-      where.category = category;
-    }
-
-    if (status && status !== 'ALL') {
-      where.status = status;
-    }
-
-    if (search && search.trim()) {
-      const q = search.trim();
-      where.OR = [
-        { name: { contains: q } },
-        { workerCode: { contains: q } },
-        { mobile: { contains: q } },
-        { skill: { contains: q } },
-      ];
+    // LABOUR can only see their own worker record
+    if (normalizeRole(session.role) === 'LABOUR') {
+      if (session.workerId) {
+        where.id = session.workerId;
+      } else {
+        where.id = '__NONE__';
+      }
+    } else {
+      if (category && category !== 'ALL') {
+        where.category = category;
+      }
+      if (status && status !== 'ALL') {
+        where.status = status;
+      }
+      if (search && search.trim()) {
+        const q = search.trim();
+        where.OR = [
+          { name: { contains: q } },
+          { workerCode: { contains: q } },
+          { mobile: { contains: q } },
+          { skill: { contains: q } },
+        ];
+      }
     }
 
     const workers = await prisma.worker.findMany({
@@ -55,7 +70,11 @@ export async function GET(req: Request) {
 
     // Overview counters
     const allOrgWorkers = await prisma.worker.findMany({
-      where: { organizationId: orgId, deletedAt: null },
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        ...(normalizeRole(session.role) === 'LABOUR' && session.workerId ? { id: session.workerId } : {}),
+      },
       select: { category: true, status: true, dailyWage: true },
     });
 
@@ -79,6 +98,7 @@ export async function GET(req: Request) {
       summary: {
         totalWorkers,
         activeWorkers,
+        inactiveWorkers: totalWorkers - activeWorkers,
         avgDailyWage,
         categoryCounts,
       },
@@ -91,8 +111,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await requireOrg();
-    const orgId = session.organizationId;
+    // Only OWNER and MANAGER can create workers (ACCOUNTANT, SUPERVISOR, LABOUR are forbidden)
+    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    if (!auth.authorized) return auth.response;
+    const orgId = auth.session.organizationId;
 
     const body = await req.json();
     const validated = createWorkerSchema.safeParse(body);
