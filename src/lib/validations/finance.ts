@@ -12,16 +12,24 @@ export const paymentMethodEnum = z.enum(['CASH', 'BANK', 'UPI', 'OTHER']);
 export const allowanceTypeEnum = z.enum(['FOOD', 'TRAVEL', 'STAY', 'TRANSPORT', 'OTHER']);
 
 export const expenseCategoryEnum = z.enum([
-  'LABOUR',
-  'MATERIAL',
-  'TRANSPORT',
+  'GOODS_PURCHASE',
+  'CHAY_NASTA',
+  'GROCERY_WORKER',
+  'GROCERY_SELF',
   'FOOD',
-  'FUEL',
-  'EQUIPMENT',
+  'TRAVEL_PETROL',
+  'TRANSPORT',
+  'LABOUR_FOOD',
+  'EQUIPMENT_TOOLS',
   'RENT',
-  'ELECTRICITY',
+  'MOBILE_RECHARGE',
+  'PERSONAL',
   'MISCELLANEOUS',
   'OTHER',
+  'LABOUR',
+  'MATERIAL',
+  'FUEL',
+  'ELECTRICITY',
 ]);
 
 export const createPaymentSchema = z.object({
@@ -54,6 +62,9 @@ export const createExpenseSchema = z.object({
   description: z.string().min(2, 'Expense description is required'),
   amount: z.number().min(1, 'Amount must be greater than 0'),
   paidBy: z.string().optional(),
+  walletOwnerId: z.string().optional().nullable(),
+  spentById: z.string().optional().nullable(),
+  receiptId: z.string().optional().nullable(),
   paymentMethod: paymentMethodEnum.default('CASH'),
   vendorName: z.string().optional(),
   receiptUrl: z.string().optional(),

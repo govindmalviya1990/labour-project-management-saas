@@ -351,3 +351,114 @@ export function calculateProductivity(input: ProductivityInput): ProductivityRes
     costPerUnit: Math.round(safeDivide(value, qty) * 100) / 100,
   };
 }
+
+// =============================================================
+// 8. WALLET & CASH BOOK CALCULATIONS (Single Source of Truth)
+// =============================================================
+
+export interface WalletTransactionInput {
+  totalMoneyIn: number;       // Project receipts / client payments received by user
+  totalTransfersIn: number;   // Funds received from other partners/users
+  totalTransfersOut: number;  // Funds sent to supervisors, workers, or other partners
+  totalExpenses: number;      // Expenses debited from user's wallet
+}
+
+export interface WalletBalanceResult {
+  totalCredits: number;       // totalMoneyIn + totalTransfersIn
+  totalDebits: number;        // totalTransfersOut + totalExpenses
+  balance: number;            // totalCredits - totalDebits
+}
+
+/**
+ * Formula:
+ * Balance = (Money In + Transfers In) - (Transfers Out + Wallet Expenses)
+ * All entries strictly exclude deletedAt != null records.
+ */
+export function calculateWalletBalance(input: WalletTransactionInput): WalletBalanceResult {
+  const moneyIn = Math.max(0, input.totalMoneyIn || 0);
+  const transfersIn = Math.max(0, input.totalTransfersIn || 0);
+  const transfersOut = Math.max(0, input.totalTransfersOut || 0);
+  const expenses = Math.max(0, input.totalExpenses || 0);
+
+  const totalCredits = Math.round((moneyIn + transfersIn) * 100) / 100;
+  const totalDebits = Math.round((transfersOut + expenses) * 100) / 100;
+  const balance = Math.round((totalCredits - totalDebits) * 100) / 100;
+
+  return {
+    totalCredits,
+    totalDebits,
+    balance,
+  };
+}
+
+export interface DailyCashFlowInput {
+  openingBalance: number;     // Derived closing of prior days
+  moneyInToday: number;       // Receipts received today
+  transfersInToday: number;   // Transfers received today
+  transfersOutToday: number;  // Transfers given today
+  expensesToday: number;      // Expenses paid from wallet today
+  actualPhysicalCash?: number | null;
+}
+
+export interface DailyCashFlowResult {
+  openingBalance: number;
+  totalInflowToday: number;
+  totalOutflowToday: number;
+  closingBalance: number;
+  actualPhysicalCash?: number | null;
+  discrepancy?: number | null; // actualPhysicalCash - closingBalance
+}
+
+/**
+ * Calculates derived daily cash statement (Din ka hisaab)
+ * Closing = Opening + Inflow - Outflow
+ */
+export function calculateDailyCashFlow(input: DailyCashFlowInput): DailyCashFlowResult {
+  const opening = input.openingBalance || 0;
+  const moneyIn = Math.max(0, input.moneyInToday || 0);
+  const transfersIn = Math.max(0, input.transfersInToday || 0);
+  const transfersOut = Math.max(0, input.transfersOutToday || 0);
+  const expenses = Math.max(0, input.expensesToday || 0);
+
+  const totalInflowToday = Math.round((moneyIn + transfersIn) * 100) / 100;
+  const totalOutflowToday = Math.round((transfersOut + expenses) * 100) / 100;
+  const closingBalance = Math.round((opening + totalInflowToday - totalOutflowToday) * 100) / 100;
+
+  let discrepancy: number | null = null;
+  if (input.actualPhysicalCash !== undefined && input.actualPhysicalCash !== null) {
+    discrepancy = Math.round((input.actualPhysicalCash - closingBalance) * 100) / 100;
+  }
+
+  return {
+    openingBalance: Math.round(opening * 100) / 100,
+    totalInflowToday,
+    totalOutflowToday,
+    closingBalance,
+    actualPhysicalCash: input.actualPhysicalCash ?? null,
+    discrepancy,
+  };
+}
+
+export interface ProjectReceivableResult {
+  projectValue: number;
+  totalReceived: number;
+  pendingReceivable: number;
+  receivedPercentage: number;
+}
+
+/**
+ * Calculates project client billing progress and pending receivables.
+ */
+export function calculateProjectReceivables(projectValue: number, totalReceived: number): ProjectReceivableResult {
+  const value = Math.max(0, projectValue || 0);
+  const received = Math.max(0, totalReceived || 0);
+  const pending = Math.max(0, Math.round((value - received) * 100) / 100);
+  const receivedPercentage = value > 0 ? Math.round(((received / value) * 100) * 10) / 10 : 0;
+
+  return {
+    projectValue: value,
+    totalReceived: received,
+    pendingReceivable: pending,
+    receivedPercentage,
+  };
+}

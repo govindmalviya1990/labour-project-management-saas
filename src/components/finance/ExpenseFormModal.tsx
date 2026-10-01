@@ -174,15 +174,18 @@ export function ExpenseFormModal({
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500"
             >
-              <option value="LABOUR">Labour / Daily Wages</option>
-              <option value="MATERIAL">Material / Hardware</option>
-              <option value="TRANSPORT">Transport / Cartage</option>
-              <option value="FOOD">Food / Mess</option>
-              <option value="FUEL">Fuel / Diesel / Petrol</option>
-              <option value="EQUIPMENT">Equipment Rental / Machinery</option>
-              <option value="RENT">Site Office / Scaffolding Rent</option>
-              <option value="ELECTRICITY">Electricity / Power</option>
-              <option value="MISCELLANEOUS">Miscellaneous</option>
+              <option value="CHAY_NASTA">☕ Chay / Nasta / Refreshments</option>
+              <option value="TRAVEL_PETROL">⛽ Petrol / Travel / Auto Fare</option>
+              <option value="GROCERY_WORKER">🛒 Worker Grocery / Mess Ration</option>
+              <option value="EQUIPMENT_TOOLS">🔨 Equipment &amp; Waterproofing Tools</option>
+              <option value="LABOUR_FOOD">🍲 Labour Food / Lunch</option>
+              <option value="GOODS_PURCHASE">📦 Goods / Material Purchase</option>
+              <option value="TRANSPORT">🚚 Transport / Tempo / Cartage</option>
+              <option value="MOBILE_RECHARGE">📱 Mobile Recharge</option>
+              <option value="RENT">🏢 Site Office / Scaffolding Rent</option>
+              <option value="ELECTRICITY">⚡ Electricity / Power</option>
+              <option value="MISCELLANEOUS">📋 Miscellaneous Site Expense</option>
+              <option value="PERSONAL">💼 Personal Draw</option>
               <option value="OTHER">Other</option>
             </select>
           </div>

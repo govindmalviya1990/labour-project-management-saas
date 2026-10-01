@@ -14,6 +14,10 @@ import {
   UserPlus,
   FolderPlus,
   FileSpreadsheet,
+  BookOpen,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ShoppingBag,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { normalizeRole } from '@/lib/auth/roles';
@@ -30,15 +34,28 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
   const actions = useMemo(() => {
     if (currentRole === 'SITE_SUPERVISOR') {
       return [
-        { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Cash Book (Hisaab)', href: '/cash-book', icon: <BookOpen className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
         { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
         { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
         { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
       ];
     }
 
+    if (currentRole === 'PARTNER') {
+      return [
+        { label: 'Din Ka Hisaab (Cash Book)', href: '/cash-book', icon: <BookOpen className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Receive Client Money', href: '/cash-book', icon: <ArrowDownLeft className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Give Cash / Payout', href: '/cash-book', icon: <ArrowUpRight className="w-4 h-4 text-amber-400" /> },
+        { label: 'Buy Goods (1-Click)', href: '/cash-book', icon: <ShoppingBag className="w-4 h-4 text-blue-400" /> },
+        { label: 'Site Daily Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
+        { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
+      ];
+    }
+
     if (currentRole === 'ACCOUNTANT') {
       return [
+        { label: 'Cash Book & Wallets', href: '/cash-book', icon: <BookOpen className="w-4 h-4 text-emerald-400" /> },
         { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
         { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
         { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
@@ -47,15 +64,15 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
 
     // Default for OWNER / MANAGER
     return [
-      { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-emerald-400" /> },
-      { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
+      { label: 'Cash Book (Hisaab)', href: '/cash-book', icon: <BookOpen className="w-4 h-4 text-emerald-400" /> },
+      { label: 'Receive Client Money', href: '/cash-book', icon: <ArrowDownLeft className="w-4 h-4 text-emerald-400" /> },
+      { label: 'Give Money / Transfer', href: '/cash-book', icon: <ArrowUpRight className="w-4 h-4 text-amber-400" /> },
+      { label: 'Buy Goods (Stock + Cash)', href: '/cash-book', icon: <ShoppingBag className="w-4 h-4 text-blue-400" /> },
       { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
-      { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
-      { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
-      { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
+      { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
+      { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
       { label: 'Add Worker', href: '/workers?action=new', icon: <UserPlus className="w-4 h-4 text-indigo-400" /> },
       { label: 'Create Project', href: '/projects?action=new', icon: <FolderPlus className="w-4 h-4 text-amber-400" /> },
-      { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
     ];
   }, [currentRole]);
 

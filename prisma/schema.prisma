@@ -30,26 +30,30 @@ model Organization {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  members          OrganizationUser[]
-  projects         Project[]
-  projectSites     ProjectSite[]
-  workers          Worker[]
-  attendance       Attendance[]
-  workRecords      WorkRecord[]
-  salaryRecords    SalaryRecord[]
-  allowances       Allowance[]
-  payments         Payment[]
-  transactions     Transaction[]
-  expenses         Expense[]
-  materials        Material[]
-  suppliers        Supplier[]
-  materialReceipts MaterialReceipt[]
-  materialUsages   MaterialUsage[]
-  transfersSent    MaterialTransfer[] @relation("SourceProjectOrg")
-  notifications    Notification[]
-  auditLogs        AuditLog[]
-  subscriptions    Subscription[]
-  quotations       Quotation[]
+  members            OrganizationUser[]
+  projects           Project[]
+  projectSites       ProjectSite[]
+  workers            Worker[]
+  attendance         Attendance[]
+  workRecords        WorkRecord[]
+  salaryRecords      SalaryRecord[]
+  allowances         Allowance[]
+  payments           Payment[]
+  transactions       Transaction[]
+  expenses           Expense[]
+  materials          Material[]
+  suppliers          Supplier[]
+  materialReceipts   MaterialReceipt[]
+  materialUsages     MaterialUsage[]
+  transfersSent      MaterialTransfer[]  @relation("SourceProjectOrg")
+  partnerAssignments PartnerAssignment[]
+  projectReceipts    ProjectReceipt[]
+  fundTransfers      FundTransfer[]
+  dailyClosings      DailyClosing[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  subscriptions      Subscription[]
+  quotations         Quotation[]
 
   @@map("organizations")
 }
@@ -60,14 +64,29 @@ model User {
   email        String   @unique
   passwordHash String
   mobile       String?
+  partnerId    String?  // If user is a supervisor, links to their assigned Partner
   status       String   @default("ACTIVE") // ACTIVE, INACTIVE
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Self-relation: Partner <-> Supervisors
+  partner            User?               @relation("PartnerSupervisors", fields: [partnerId], references: [id], onDelete: SetNull)
+  supervisors        User[]              @relation("PartnerSupervisors")
+
   // Relations
-  memberships   OrganizationUser[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  memberships        OrganizationUser[]
+  partnerAssignments PartnerAssignment[]
+  managedProjects    Project[]           @relation("ProjectPartner")
+  managedSites       ProjectSite[]       @relation("SitePartner")
+  receivedReceipts   ProjectReceipt[]    @relation("ReceivedReceipts")
+  sentTransfers      FundTransfer[]      @relation("SentTransfers")
+  receivedTransfers  FundTransfer[]      @relation("ReceivedTransfers")
+  expensesSpent      Expense[]           @relation("ExpensesSpent")
+  expensesWallet     Expense[]           @relation("ExpensesWallet")
+  purchasedReceipts  MaterialReceipt[]   @relation("ReceiptPurchaser")
+  dailyClosings      DailyClosing[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
 
   @@map("users")
 }
@@ -76,7 +95,8 @@ model OrganizationUser {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
-  role           String   @default("OWNER") // OWNER, MANAGER, SITE_SUPERVISOR, ACCOUNTANT
+  role           String   @default("OWNER") // OWNER, PARTNER, MANAGER, SITE_SUPERVISOR, ACCOUNTANT, LABOUR
+  partnerId      String?  // If supervisor, links to their supervising partner
   status         String   @default("ACTIVE") // ACTIVE, INACTIVE
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -122,27 +142,34 @@ model Project {
   targetUnit             String?   @default("sq.ft.") // sq.ft., sq.m., etc.
   targetQuantity         Float?    @default(0)
   notes                  String?
+  partnerId              String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
+  deletedById            String?
 
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sites            ProjectSite[]
-  attendance       Attendance[]
-  workRecords      WorkRecord[]
-  salaryRecords    SalaryRecord[]
-  allowances       Allowance[]
-  payments         Payment[]
-  expenses         Expense[]
-  materialReceipts MaterialReceipt[]
-  materialUsages   MaterialUsage[]
-  transfersFrom    MaterialTransfer[] @relation("SourceProject")
-  transfersTo      MaterialTransfer[] @relation("DestProject")
-  budgets          ProjectBudget[]
-  quotations       Quotation[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner            User?               @relation("ProjectPartner", fields: [partnerId], references: [id], onDelete: SetNull)
+  partnerAssignments PartnerAssignment[]
+  sites              ProjectSite[]
+  attendance         Attendance[]
+  workRecords        WorkRecord[]
+  salaryRecords      SalaryRecord[]
+  allowances         Allowance[]
+  payments           Payment[]
+  expenses           Expense[]
+  receipts           ProjectReceipt[]
+  fundTransfers      FundTransfer[]
+  materialReceipts   MaterialReceipt[]
+  materialUsages     MaterialUsage[]
+  transfersFrom      MaterialTransfer[]  @relation("SourceProject")
+  transfersTo        MaterialTransfer[]  @relation("DestProject")
+  budgets            ProjectBudget[]
+  quotations         Quotation[]
 
   @@unique([organizationId, projectCode])
   @@index([organizationId, status])
+  @@index([organizationId, partnerId])
   @@map("projects")
 }
 
@@ -150,6 +177,7 @@ model ProjectSite {
   id               String   @id @default(cuid())
   organizationId   String
   projectId        String
+  partnerId        String?
   name             String   // e.g. "Tower A", "Basement", "Block 1"
   address          String?
   location         String?
@@ -158,18 +186,27 @@ model ProjectSite {
   notes            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+  deletedById      String?
 
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  attendance       Attendance[]
-  workRecords      WorkRecord[]
-  allowances       Allowance[]
-  payments         Payment[]
-  expenses         Expense[]
-  materialReceipts MaterialReceipt[]
-  materialUsages   MaterialUsage[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  partner            User?               @relation("SitePartner", fields: [partnerId], references: [id], onDelete: SetNull)
+  partnerAssignments PartnerAssignment[]
+  receipts           ProjectReceipt[]
+  fundTransfers      FundTransfer[]
+  attendance         Attendance[]
+  workRecords        WorkRecord[]
+  allowances         Allowance[]
+  payments           Payment[]
+  expenses           Expense[]
+  materialReceipts   MaterialReceipt[]
+  materialUsages     MaterialUsage[]
+  sourceTransfers    MaterialTransfer[]  @relation("SourceSiteTransfers")
+  destTransfers      MaterialTransfer[]  @relation("DestSiteTransfers")
 
   @@index([organizationId, projectId])
+  @@index([organizationId, partnerId])
   @@map("project_sites")
 }
 
@@ -203,6 +240,7 @@ model Worker {
   allowances    Allowance[]
   payments      Payment[]
   transactions  Transaction[]
+  fundTransfers FundTransfer[]
 
   @@unique([organizationId, workerCode])
   @@index([organizationId, status])
@@ -329,6 +367,7 @@ model Payment {
   workerId        String
   projectId       String?
   siteId          String?
+  fundTransferId  String?
   date            DateTime
   transactionType String    @default("PAYMENT") // SALARY, ADVANCE, PAYMENT, ADJUSTMENT
   amount          Float     @default(0)
@@ -339,14 +378,17 @@ model Payment {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
+  deletedById     String?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  worker       Worker       @relation(fields: [workerId], references: [id], onDelete: Cascade)
-  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  worker       Worker        @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site         ProjectSite?  @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  fundTransfer FundTransfer? @relation(fields: [fundTransferId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, workerId])
   @@index([organizationId, date])
+  @@index([organizationId, fundTransferId])
   @@map("payments")
 }
 
@@ -381,10 +423,13 @@ model Expense {
   projectId      String?
   siteId         String?
   date           DateTime
-  category       String    @default("MISCELLANEOUS") // LABOUR, MATERIAL, TRANSPORT, FOOD, FUEL, EQUIPMENT, RENT, ELECTRICITY, MISCELLANEOUS, OTHER
+  category       String    @default("MISCELLANEOUS") // GOODS_PURCHASE, CHAY_NASTA, GROCERY_WORKER, GROCERY_SELF, FOOD, TRAVEL_PETROL, TRANSPORT, LABOUR_FOOD, EQUIPMENT_TOOLS, RENT, MOBILE_RECHARGE, MISCELLANEOUS, PERSONAL, OTHER
   description    String
   amount         Float     @default(0)
   paidBy         String?
+  spentById      String?   // User who physically spent the money
+  walletOwnerId  String?   // User whose wallet/cash book was debited
+  receiptId      String?   // If generated from material purchase
   paymentMethod  String    @default("CASH") // CASH, BANK, UPI, OTHER
   vendorName     String?
   receiptUrl     String?
@@ -392,13 +437,19 @@ model Expense {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  deletedById    String?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site            ProjectSite?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  spentBy         User?            @relation("ExpensesSpent", fields: [spentById], references: [id], onDelete: SetNull)
+  walletOwner     User?            @relation("ExpensesWallet", fields: [walletOwnerId], references: [id], onDelete: SetNull)
+  materialReceipt MaterialReceipt? @relation("ReceiptExpenses", fields: [receiptId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, date])
   @@index([organizationId, projectId])
+  @@index([organizationId, walletOwnerId, date])
+  @@index([organizationId, spentById, date])
   @@index([organizationId, category])
   @@map("expenses")
 }
@@ -461,6 +512,8 @@ model MaterialReceipt {
   projectId      String
   siteId         String?
   supplierId     String?
+  purchasedById  String?   // User (Partner or Supervisor) who bought the goods
+  paymentMethod  String?   @default("CASH") // CASH, BANK, UPI, OTHER
   date           DateTime
   quantity       Float     @default(0)
   purchaseRate   Float     @default(0)
@@ -471,15 +524,19 @@ model MaterialReceipt {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  deletedById    String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
   project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
   supplier     Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  purchasedBy  User?        @relation("ReceiptPurchaser", fields: [purchasedById], references: [id], onDelete: SetNull)
+  expenses     Expense[]    @relation("ReceiptExpenses")
 
   @@index([organizationId, date])
   @@index([projectId, materialId])
+  @@index([purchasedById, date])
   @@map("material_receipts")
 }
 
@@ -496,6 +553,7 @@ model MaterialUsage {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  deletedById    String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
@@ -508,21 +566,27 @@ model MaterialUsage {
 }
 
 model MaterialTransfer {
-  id                   String   @id @default(cuid())
+  id                   String       @id @default(cuid())
   organizationId       String
   materialId           String
   sourceProjectId      String
+  sourceSiteId         String?
   destinationProjectId String
+  destinationSiteId    String?
   date                 DateTime
-  quantity             Float    @default(0)
+  quantity             Float        @default(0)
   notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  deletedAt            DateTime?
+  deletedById          String?
 
   organization       Organization @relation("SourceProjectOrg", fields: [organizationId], references: [id], onDelete: Cascade)
   material           Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
   sourceProject      Project      @relation("SourceProject", fields: [sourceProjectId], references: [id], onDelete: Cascade)
   destinationProject Project      @relation("DestProject", fields: [destinationProjectId], references: [id], onDelete: Cascade)
+  sourceSite         ProjectSite? @relation("SourceSiteTransfers", fields: [sourceSiteId], references: [id], onDelete: SetNull)
+  destSite           ProjectSite? @relation("DestSiteTransfers", fields: [destinationSiteId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, date])
   @@index([sourceProjectId])
@@ -680,5 +744,131 @@ model QuotationItem {
 
   @@index([quotationId])
   @@map("quotation_items")
+}
+
+// -------------------------------------------------------------
+// 13. PARTNER ASSIGNMENTS
+// -------------------------------------------------------------
+
+model PartnerAssignment {
+  id             String    @id @default(cuid())
+  organizationId String
+  partnerId      String
+  projectId      String
+  siteId         String?
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+  deletedById    String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partner      User         @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, partnerId, projectId, siteId])
+  @@index([organizationId, partnerId])
+  @@index([projectId])
+  @@map("partner_assignments")
+}
+
+// -------------------------------------------------------------
+// 14. PROJECT CLIENT RECEIPTS (MONEY IN)
+// -------------------------------------------------------------
+
+model ProjectReceipt {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  siteId         String?
+  receivedById   String    // User (Partner) who received funds
+  clientName     String
+  amount         Float     @default(0)
+  date           DateTime
+  paymentMethod  String    @default("CASH") // CASH, BANK, UPI, CHEQUE, OTHER
+  reference      String?
+  purpose        String    @default("RUNNING_BILL") // ADVANCE, RUNNING_BILL, FINAL_PAYMENT, RETENTION, OTHER
+  notes          String?
+  attachmentUrl  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  deletedById    String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  receivedBy   User         @relation("ReceivedReceipts", fields: [receivedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([projectId, date])
+  @@index([receivedById, date])
+  @@map("project_receipts")
+}
+
+// -------------------------------------------------------------
+// 15. FUND TRANSFERS & INTERNAL CASH MOVEMENT
+// -------------------------------------------------------------
+
+model FundTransfer {
+  id              String    @id @default(cuid())
+  organizationId  String
+  transferType    String    // PARTNER_TO_SUPERVISOR, PARTNER_TO_WORKER, PARTNER_TO_PARTNER, SUPERVISOR_TO_WORKER, PARTNER_DRAWING
+  fromUserId      String
+  toUserId        String?
+  toWorkerId      String?
+  projectId       String?
+  siteId          String?
+  amount          Float     @default(0)
+  date            DateTime
+  paymentMethod   String    @default("CASH") // CASH, UPI, BANK, CHEQUE
+  purpose         String    @default("SITE_EXPENSE") // SITE_EXPENSE, SALARY, ADVANCE, PERSONAL_DRAWING, SETTLEMENT, OTHER
+  notes           String?
+  reference       String?
+  linkedPaymentId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  deletedById     String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromUser     User         @relation("SentTransfers", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser       User?        @relation("ReceivedTransfers", fields: [toUserId], references: [id], onDelete: SetNull)
+  toWorker     Worker?      @relation(fields: [toWorkerId], references: [id], onDelete: SetNull)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  site         ProjectSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+
+  @@index([organizationId, date])
+  @@index([fromUserId, date])
+  @@index([toUserId, date])
+  @@index([toWorkerId, date])
+  @@map("fund_transfers")
+}
+
+// -------------------------------------------------------------
+// 16. DAILY CASH CLOSING (DIN KA HISAAB)
+// Single Source of Truth: All balances derived from transactions!
+// -------------------------------------------------------------
+
+model DailyClosing {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String    // Partner or Supervisor
+  date           DateTime  // Day of closing (start of day UTC)
+  actualCash     Float?    // Actual physical cash counted by partner/supervisor
+  isVerified     Boolean   @default(false)
+  verifiedAt     DateTime?
+  verifiedById   String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, date])
+  @@index([organizationId, date])
+  @@index([userId, date])
+  @@map("daily_closings")
 }
 

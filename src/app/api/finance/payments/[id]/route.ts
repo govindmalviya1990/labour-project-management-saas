@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { updatePaymentSchema } from '@/lib/validations/finance';
+import { verifyDayLock } from '@/lib/auth/day-lock';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT', 'LABOUR']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'ACCOUNTANT', 'LABOUR']);
     if (!auth.authorized) return auth.response;
     const orgId = auth.session.organizationId;
 
@@ -39,9 +40,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
-    const orgId = auth.session.organizationId;
+    const session = auth.session;
+    const orgId = session.organizationId;
 
     const existing = await prisma.payment.findFirst({
       where: { id: params.id, organizationId: orgId, deletedAt: null },
@@ -49,6 +51,23 @@ export async function PUT(
 
     if (!existing) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
+    }
+
+    // Check Day Lock on existing payment date
+    const lockCheck = await verifyDayLock({
+      organizationId: orgId,
+      userId: existing.deletedById || session.userId,
+      date: existing.date,
+      actorUserId: session.userId,
+      actorRole: session.role,
+      entityType: 'Payment',
+      entityId: existing.id,
+      action: 'UPDATE',
+      details: { oldAmount: existing.amount, workerId: existing.workerId },
+    });
+
+    if (lockCheck.locked) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 403 });
     }
 
     const body = await req.json();
@@ -73,40 +92,50 @@ export async function PUT(
       const updated = await tx.payment.update({
         where: { id: params.id },
         data: {
-          ...(data.workerId ? { workerId: data.workerId } : {}),
-          ...(data.projectId !== undefined ? { projectId: data.projectId || null } : {}),
-          ...(data.siteId !== undefined ? { siteId: data.siteId || null } : {}),
-          ...(data.date ? { date: new Date(data.date) } : {}),
-          ...(data.transactionType ? { transactionType: data.transactionType } : {}),
-          ...(data.amount !== undefined ? { amount: data.amount } : {}),
-          ...(data.paymentMethod ? { paymentMethod: data.paymentMethod } : {}),
-          ...(data.reference !== undefined ? { reference: data.reference || null } : {}),
-          ...(data.notes !== undefined ? { notes: data.notes || null } : {}),
+          workerId: newWorkerId,
+          projectId: data.projectId !== undefined ? data.projectId : existing.projectId,
+          siteId: data.siteId !== undefined ? data.siteId : existing.siteId,
+          date: newDate,
+          transactionType: newType,
+          amount: newAmount,
+          paymentMethod: newMethod,
+          reference: newRef,
+          notes: data.notes !== undefined ? data.notes : existing.notes,
         },
       });
 
-      // Also update linked Khata ledger transaction if exists
-      const existingTx = await tx.transaction.findFirst({
-        where: { sourceId: params.id, organizationId: orgId },
-      });
-
-      if (existingTx) {
-        await tx.transaction.update({
-          where: { id: existingTx.id },
+      // If linked to fund transfer, update transfer too
+      if (existing.fundTransferId) {
+        await tx.fundTransfer.update({
+          where: { id: existing.fundTransferId },
           data: {
-            workerId: newWorkerId,
+            amount: newAmount,
             date: newDate,
-            sourceType: newType,
-            description: `${newType}: ${newMethod}${newRef ? ` (${newRef})` : ''}`,
-            debit: newAmount,
+            paymentMethod: newMethod,
           },
         });
       }
 
+      // Update corresponding transaction in Khata ledger
+      await tx.transaction.updateMany({
+        where: { sourceId: params.id, organizationId: orgId },
+        data: {
+          workerId: newWorkerId,
+          date: newDate,
+          sourceType: newType,
+          description: `${newType}: ${newMethod}${newRef ? ` (${newRef})` : ''}`,
+          debit: newAmount,
+        },
+      });
+
       return updated;
     });
 
-    return NextResponse.json({ success: true, payment: result });
+    return NextResponse.json({
+      success: true,
+      payment: result,
+      warning: lockCheck.isVerifiedDay ? 'Modified entry on a verified closed day (Audit logged)' : undefined,
+    });
   } catch (error: any) {
     console.error('Payment PUT error:', error);
     return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 });
@@ -118,9 +147,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
-    const orgId = auth.session.organizationId;
+    const session = auth.session;
+    const orgId = session.organizationId;
 
     const existing = await prisma.payment.findFirst({
       where: { id: params.id, organizationId: orgId, deletedAt: null },
@@ -130,19 +160,58 @@ export async function DELETE(
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
+    // Check Day Lock on payment date
+    const lockCheck = await verifyDayLock({
+      organizationId: orgId,
+      userId: session.userId,
+      date: existing.date,
+      actorUserId: session.userId,
+      actorRole: session.role,
+      entityType: 'Payment',
+      entityId: existing.id,
+      action: 'DELETE',
+      details: { amount: existing.amount, workerId: existing.workerId },
+    });
+
+    if (lockCheck.locked) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 403 });
+    }
+
     await prisma.$transaction(async (tx) => {
-      // Soft-delete or hard-delete payment
-      await tx.payment.delete({
+      // Soft-delete payment
+      await tx.payment.update({
         where: { id: params.id },
+        data: {
+          deletedAt: new Date(),
+          deletedById: session.userId,
+        },
       });
 
-      // Remove corresponding transaction from Khata ledger
-      await tx.transaction.deleteMany({
+      // If linked to fund transfer, soft-delete it too
+      if (existing.fundTransferId) {
+        await tx.fundTransfer.update({
+          where: { id: existing.fundTransferId },
+          data: {
+            deletedAt: new Date(),
+            deletedById: session.userId,
+          },
+        });
+      }
+
+      // Soft delete corresponding transaction in Khata ledger
+      await tx.transaction.updateMany({
         where: { sourceId: params.id, organizationId: orgId },
+        data: {
+          deletedAt: new Date(),
+        },
       });
     });
 
-    return NextResponse.json({ success: true, message: 'Payment deleted successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Payment deleted successfully',
+      warning: lockCheck.isVerifiedDay ? 'Deleted entry from a verified closed day (Audit logged)' : undefined,
+    });
   } catch (error: any) {
     console.error('Payment DELETE error:', error);
     return NextResponse.json({ error: 'Failed to delete payment' }, { status: 500 });

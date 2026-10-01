@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { updateExpenseSchema } from '@/lib/validations/finance';
+import { verifyDayLock } from '@/lib/auth/day-lock';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +11,10 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
-    const orgId = auth.session.organizationId;
+    const session = auth.session;
+    const orgId = session.organizationId;
     const expenseId = params.id;
 
     const body = await req.json();
@@ -33,6 +35,23 @@ export async function PUT(
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
     }
 
+    // Check Day Lock on existing expense date
+    const lockCheck = await verifyDayLock({
+      organizationId: orgId,
+      userId: existing.walletOwnerId || session.userId,
+      date: existing.date,
+      actorUserId: session.userId,
+      actorRole: session.role,
+      entityType: 'Expense',
+      entityId: existing.id,
+      action: 'UPDATE',
+      details: { oldAmount: existing.amount, category: existing.category },
+    });
+
+    if (lockCheck.locked) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 403 });
+    }
+
     const updated = await prisma.expense.update({
       where: { id: expenseId },
       data: {
@@ -45,6 +64,7 @@ export async function PUT(
       success: true,
       expense: updated,
       message: 'Expense updated successfully',
+      warning: lockCheck.isVerifiedDay ? 'Modified entry on a verified closed day (Audit logged)' : undefined,
     });
   } catch (error: any) {
     console.error('Expense PUT error:', error);
@@ -57,9 +77,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
-    const orgId = auth.session.organizationId;
+    const session = auth.session;
+    const orgId = session.organizationId;
     const expenseId = params.id;
 
     const existing = await prisma.expense.findFirst({
@@ -70,14 +91,36 @@ export async function DELETE(
       return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
     }
 
+    // Check Day Lock on expense date
+    const lockCheck = await verifyDayLock({
+      organizationId: orgId,
+      userId: existing.walletOwnerId || session.userId,
+      date: existing.date,
+      actorUserId: session.userId,
+      actorRole: session.role,
+      entityType: 'Expense',
+      entityId: existing.id,
+      action: 'DELETE',
+      details: { amount: existing.amount, category: existing.category },
+    });
+
+    if (lockCheck.locked) {
+      return NextResponse.json({ error: lockCheck.message }, { status: 403 });
+    }
+
+    // Soft delete
     await prisma.expense.update({
       where: { id: expenseId },
-      data: { deletedAt: new Date() },
+      data: {
+        deletedAt: new Date(),
+        deletedById: session.userId,
+      },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Expense archived successfully. Project costs and financial reports have been updated dynamically.',
+      message: 'Expense deleted successfully',
+      warning: lockCheck.isVerifiedDay ? 'Deleted entry from a verified closed day (Audit logged)' : undefined,
     });
   } catch (error: any) {
     console.error('Expense DELETE error:', error);

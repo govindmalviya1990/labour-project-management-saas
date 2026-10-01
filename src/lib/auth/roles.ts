@@ -1,7 +1,8 @@
-export type AppRole = 'OWNER' | 'MANAGER' | 'SITE_SUPERVISOR' | 'SUPERVISOR' | 'ACCOUNTANT' | 'LABOUR';
+export type AppRole = 'OWNER' | 'PARTNER' | 'MANAGER' | 'SITE_SUPERVISOR' | 'SUPERVISOR' | 'ACCOUNTANT' | 'LABOUR';
 
 export const ROLE_HIERARCHY: Record<string, number> = {
   OWNER: 100,
+  PARTNER: 90,
   MANAGER: 80,
   ACCOUNTANT: 60,
   SITE_SUPERVISOR: 40,

@@ -99,6 +99,11 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
         },
         {
+          title: 'Cash Book (Din Ka Hisaab)',
+          href: '/cash-book',
+          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
+        },
+        {
           title: 'Site Projects',
           href: '/projects',
           icon: <FolderKanban className="w-4 h-4 text-blue-400" />,
@@ -137,6 +142,75 @@ export function Sidebar({
     }
 
     // -------------------------------------------------------------
+    // PARTNER ROLE: Site, Supervisor, Wallet, Goods & Hisaab Focused
+    // -------------------------------------------------------------
+    if (currentRole === 'PARTNER') {
+      return [
+        {
+          title: 'Partner Dashboard',
+          href: '/',
+          icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
+        },
+        {
+          title: 'Cash Book & Wallet',
+          href: '/cash-book',
+          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
+        },
+        {
+          title: 'Assigned Sites & Projects',
+          href: '/projects',
+          icon: <FolderKanban className="w-4 h-4 text-blue-400" />,
+        },
+        {
+          title: 'Daily Attendance',
+          href: '/attendance',
+          icon: <CalendarCheck className="w-4 h-4 text-teal-400" />,
+        },
+        {
+          title: 'Work Progress Logs',
+          href: '/work',
+          icon: <Hammer className="w-4 h-4 text-indigo-400" />,
+        },
+        {
+          title: 'Materials & Stock',
+          icon: <Package className="w-4 h-4 text-orange-400" />,
+          children: [
+            { title: 'Inventory Stock', href: '/materials' },
+            { title: 'Material Received', href: '/materials/received' },
+            { title: 'Material Used', href: '/materials/used' },
+            { title: 'Inter-Site Transfers', href: '/materials/transfers' },
+            { title: 'Suppliers', href: '/materials/suppliers' },
+          ],
+        },
+        {
+          title: 'Finance & Hisaab',
+          icon: <Wallet className="w-4 h-4 text-emerald-400" />,
+          children: [
+            { title: 'Cash Book Statement', href: '/cash-book' },
+            { title: 'Site Expenses', href: '/finance/expenses' },
+            { title: 'Worker Payments', href: '/finance/payments' },
+            { title: 'Worker Khata Ledger', href: '/khata' },
+          ],
+        },
+        {
+          title: 'Reports',
+          icon: <FileBarChart className="w-4 h-4 text-cyan-400" />,
+          children: [
+            { title: 'Daily Expense', href: '/reports/daily-expense' },
+            { title: 'Salary Report', href: '/reports/salary' },
+            { title: 'Khata Report', href: '/reports/khata' },
+            { title: 'Project Cost', href: '/reports/project-cost' },
+          ],
+        },
+        {
+          title: 'Notifications',
+          href: '/notifications',
+          icon: <Bell className="w-4 h-4" />,
+        },
+      ];
+    }
+
+    // -------------------------------------------------------------
     // ACCOUNTANT ROLE: Financials, Salary, Expenses, Khata Ledger
     // -------------------------------------------------------------
     if (currentRole === 'ACCOUNTANT') {
@@ -145,6 +219,11 @@ export function Sidebar({
           title: 'Accounts Dashboard',
           href: '/',
           icon: <LayoutDashboard className="w-4 h-4 text-purple-400" />,
+        },
+        {
+          title: 'Cash Book & Wallets',
+          href: '/cash-book',
+          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
         },
         {
           title: 'Projects',
@@ -168,6 +247,7 @@ export function Sidebar({
           title: 'Finance & Accounts',
           icon: <Wallet className="w-4 h-4 text-emerald-400" />,
           children: [
+            { title: 'Cash Book & Wallets', href: '/cash-book' },
             { title: 'Payments & Advances', href: '/finance/payments' },
             { title: 'Site Expenses', href: '/finance/expenses' },
             { title: 'Khata Ledger', href: '/finance/khata' },
@@ -209,6 +289,11 @@ export function Sidebar({
         icon: <LayoutDashboard className="w-4 h-4" />,
       },
       {
+        title: 'Cash Book (Hisaab)',
+        href: '/cash-book',
+        icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
+      },
+      {
         title: 'Projects',
         icon: <FolderKanban className="w-4 h-4" />,
         children: [
@@ -235,8 +320,9 @@ export function Sidebar({
       },
       {
         title: 'Finance',
-        icon: <Wallet className="w-4 h-4" />,
+        icon: <Wallet className="w-4 h-4 text-emerald-400" />,
         children: [
+          { title: 'Cash Book & Wallets', href: '/cash-book' },
           { title: 'Payments', href: '/finance/payments' },
           { title: 'Expenses', href: '/finance/expenses' },
           { title: 'Khata Ledger', href: '/finance/khata' },
@@ -299,6 +385,8 @@ export function Sidebar({
     switch (currentRole) {
       case 'OWNER':
         return { label: 'Owner', badge: 'bg-amber-500/10 text-amber-500 border-amber-500/30' };
+      case 'PARTNER':
+        return { label: 'Partner', badge: 'bg-blue-500/10 text-blue-400 border-blue-500/30' };
       case 'SITE_SUPERVISOR':
         return { label: 'Site Supervisor', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
       case 'ACCOUNTANT':

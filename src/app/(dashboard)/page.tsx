@@ -508,6 +508,104 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Aaj Ka Hisaab (Connected Cash Flow & Partner Wallet) */}
+      {data?.aajKaHisaab && (
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-amber-500/30 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                  Aaj Ka Hisaab (Daily Cash Flow &amp; Wallet)
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                      data.aajKaHisaab.isClosingVerified
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    }`}
+                  >
+                    {data.aajKaHisaab.isClosingVerified ? 'Verified & Locked' : 'Pending Closing'}
+                  </span>
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  Live partner cash book, daily site expenses, client receipts, and worker payouts
+                </p>
+              </div>
+            </div>
+
+            <Link href="/cash-book">
+              <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs">
+                Open Cash Book &rarr;
+              </Button>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+              <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider block">
+                Cash In Hand (Wallet)
+              </span>
+              <div className="text-lg font-extrabold text-amber-400 mt-1">
+                {formatINR(data.aajKaHisaab.walletBalance)}
+              </div>
+              <span className="text-[10px] text-slate-400">Current live balance</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
+              <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider block">
+                Today&apos;s Inflow (Aaya)
+              </span>
+              <div className="text-lg font-bold text-emerald-400 mt-1">
+                +{formatINR(data.aajKaHisaab.todayInflow)}
+              </div>
+              <span className="text-[10px] text-emerald-500/80">Client bills &amp; transfers</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40">
+              <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider block">
+                Transfers Given (Diya)
+              </span>
+              <div className="text-lg font-bold text-amber-400 mt-1">
+                -{formatINR(data.aajKaHisaab.todayTransfersOut)}
+              </div>
+              <span className="text-[10px] text-amber-500/80">To supervisors / workers</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-800/40">
+              <span className="text-[11px] text-rose-400 font-semibold uppercase tracking-wider block">
+                Spent (Kharch)
+              </span>
+              <div className="text-lg font-bold text-rose-400 mt-1">
+                -{formatINR(data.aajKaHisaab.todayExpenses)}
+              </div>
+              <span className="text-[10px] text-rose-500/80">Goods, chay, petrol</span>
+            </div>
+          </div>
+
+          {/* Partner Comparison if available */}
+          {data.partnersComparison && data.partnersComparison.length > 0 && (
+            <div className="pt-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                All Partners Cash in Hand:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {data.partnersComparison.map((p: any) => (
+                  <div
+                    key={p.userId}
+                    className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs flex items-center gap-2"
+                  >
+                    <span className="font-semibold text-slate-300">{p.name}:</span>
+                    <span className="font-bold text-amber-400">{formatINR(p.balance)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 12 Key Summary Metrics Grid */}
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">

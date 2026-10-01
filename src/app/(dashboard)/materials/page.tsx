@@ -31,6 +31,7 @@ export default function MaterialsPage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'receipts' | 'usages' | 'transfers' | 'suppliers'>('catalog');
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
+  const [selectedSiteId, setSelectedSiteId] = useState('ALL');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [lowStockFilter, setLowStockFilter] = useState(false);
@@ -66,6 +67,7 @@ export default function MaterialsPage() {
       // 2. Materials
       let matUrl = `/api/materials?category=${selectedCategory}&search=${encodeURIComponent(searchQuery)}`;
       if (selectedProjectId !== 'ALL') matUrl += `&projectId=${selectedProjectId}`;
+      if (selectedSiteId !== 'ALL') matUrl += `&siteId=${selectedSiteId}`;
       if (lowStockFilter) matUrl += `&lowStock=true`;
 
       const matRes = await fetch(matUrl);
@@ -78,6 +80,7 @@ export default function MaterialsPage() {
       // 3. Receipts
       let recUrl = `/api/materials/receipts?`;
       if (selectedProjectId !== 'ALL') recUrl += `projectId=${selectedProjectId}`;
+      if (selectedSiteId !== 'ALL') recUrl += `&siteId=${selectedSiteId}`;
       const recRes = await fetch(recUrl);
       if (recRes.ok) {
         const r = await recRes.json();
@@ -87,6 +90,7 @@ export default function MaterialsPage() {
       // 4. Usages
       let useUrl = `/api/materials/usage?`;
       if (selectedProjectId !== 'ALL') useUrl += `projectId=${selectedProjectId}`;
+      if (selectedSiteId !== 'ALL') useUrl += `&siteId=${selectedSiteId}`;
       const useRes = await fetch(useUrl);
       if (useRes.ok) {
         const u = await useRes.json();
@@ -117,7 +121,7 @@ export default function MaterialsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedProjectId, selectedCategory, searchQuery, lowStockFilter]);
+  }, [selectedProjectId, selectedSiteId, selectedCategory, searchQuery, lowStockFilter]);
 
   const handleDeleteMaterial = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to remove '${name}' from inventory?`)) return;
@@ -349,7 +353,10 @@ export default function MaterialsPage() {
           <div className="w-full sm:w-56">
             <select
               value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
+              onChange={(e) => {
+                setSelectedProjectId(e.target.value);
+                setSelectedSiteId('ALL');
+              }}
               className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-amber-500"
             >
               <option value="ALL">🏢 All Construction Sites</option>
@@ -358,6 +365,26 @@ export default function MaterialsPage() {
               ))}
             </select>
           </div>
+
+          {/* Site / Tower Filter if project has multiple sites */}
+          {selectedProjectId !== 'ALL' && (
+            <div className="w-full sm:w-44">
+              <select
+                value={selectedSiteId}
+                onChange={(e) => setSelectedSiteId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="ALL">All Towers / Sub-Sites</option>
+                {projects
+                  .find((p) => p.id === selectedProjectId)
+                  ?.sites?.map((s: any) => (
+                    <option key={s.id} value={s.id}>
+                      Tower: {s.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           {/* Category Filter */}
           {activeTab === 'catalog' && (
@@ -430,11 +457,10 @@ export default function MaterialsPage() {
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-4">Code & Name</th>
-                  <th className="py-3 px-3">Category</th>
                   <th className="py-3 px-3 text-right">Opening</th>
-                  <th className="py-3 px-3 text-right">Received</th>
-                  <th className="py-3 px-3 text-right">Used</th>
-                  <th className="py-3 px-3 text-right font-bold text-slate-200">Available Stock</th>
+                  <th className="py-3 px-3 text-right text-emerald-400 font-bold">Aaya (Inward)</th>
+                  <th className="py-3 px-3 text-right text-sky-400 font-bold">Use Hua (Used)</th>
+                  <th className="py-3 px-3 text-right font-black text-amber-400">Bacha (Stock)</th>
                   <th className="py-3 px-3 text-right">Min Level</th>
                   <th className="py-3 px-3 text-right">Rate</th>
                   <th className="py-3 px-3 text-right">Valuation</th>

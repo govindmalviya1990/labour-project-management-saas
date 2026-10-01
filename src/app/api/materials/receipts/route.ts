@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -109,6 +109,8 @@ export async function POST(req: Request) {
         projectId: data.projectId,
         siteId: data.siteId || null,
         supplierId: data.supplierId || null,
+        purchasedById: session.userId,
+        paymentMethod: (data as any).paymentMethod || 'CASH',
         date: new Date(data.date),
         quantity: data.quantity,
         purchaseRate: data.purchaseRate,

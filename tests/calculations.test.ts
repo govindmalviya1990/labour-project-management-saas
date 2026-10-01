@@ -6,7 +6,10 @@ import {
   calculateProjectCost,
   calculateCostPerUnit,
   calculateProductivity,
-} from '../src/lib/calculations/index.ts';
+  calculateWalletBalance,
+  calculateDailyCashFlow,
+  calculateProjectReceivables,
+} from '../src/lib/calculations/index';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -117,4 +120,55 @@ const prodResult = calculateProductivity({
 assert(prodResult.averageQuantityPerDay === 225, `Average per day should be 225 (got: ${prodResult.averageQuantityPerDay})`);
 assert(prodResult.costPerUnit === 6, `Cost per unit should be 6 (got: ${prodResult.costPerUnit})`);
 
-console.log('\n🎉 ALL 18 CALCULATION TESTS PASSED ACCURATELY!\n');
+// 8. Wallet Balance & End-to-End Cash Flow Scenario (Rs 50,000 -> Rs 29,700)
+console.log('\nTesting Wallet Balance & Daily Cash Flow (Rs 50,000 to Rs 29,700 End-to-End Scenario):');
+// In this scenario:
+// Partner receives client money: Rs 50,000
+// Gives supervisor: Rs 10,000
+// Gives worker: Rs 2,000
+// Buys goods/materials: Rs 8,000
+// Spends on chay-nasta: Rs 300
+// Total Inflow = 50,000
+// Total Transfers Out = 10,000 + 2,000 = 12,000
+// Total Expenses = 8,000 + 300 = 8,300
+// Total Outflow = 12,000 + 8,300 = 20,300
+// Closing = 50,000 - 20,300 = 29,700!
+
+const partnerWallet = calculateWalletBalance({
+  totalMoneyIn: 50000,
+  totalTransfersIn: 0,
+  totalTransfersOut: 10000 + 2000, // 10,000 to supervisor + 2,000 to worker
+  totalExpenses: 8000 + 300,        // 8,000 goods purchase + 300 chay-nasta
+});
+assert(partnerWallet.totalCredits === 50000, `Total credits should be 50,000 (got: ${partnerWallet.totalCredits})`);
+assert(partnerWallet.totalDebits === 20300, `Total debits should be 20,300 (got: ${partnerWallet.totalDebits})`);
+assert(partnerWallet.balance === 29700, `Partner closing wallet balance must be EXACTLY Rs 29,700 (got: ${partnerWallet.balance})`);
+
+// Verify Daily Cash Flow function with physical cash verification
+const dailyCashFlow = calculateDailyCashFlow({
+  openingBalance: 0,
+  moneyInToday: 50000,
+  transfersInToday: 0,
+  transfersOutToday: 12000,
+  expensesToday: 8300,
+  actualPhysicalCash: 29700,
+});
+assert(dailyCashFlow.closingBalance === 29700, `Daily closing balance should be 29,700 (got: ${dailyCashFlow.closingBalance})`);
+assert(dailyCashFlow.discrepancy === 0, `Discrepancy should be 0 when physical cash matches system (got: ${dailyCashFlow.discrepancy})`);
+
+// 9. Non-Double-Counting Verification: Worker Khata vs User Wallet
+console.log('\nTesting Non-Double-Counting (Worker Khata vs User Wallet):');
+// When Partner pays worker Rs 2,000:
+// - Debited from Partner wallet as a FundTransfer: Rs 2,000
+// - Credited to Worker Khata as a Payment: Rs 2,000 (reduces worker's remaining payable)
+// - Worker Khata earned is based on daily wage/attendance, NOT on the wallet transfer
+const workerKhataTest = calculateWorkerBalance({
+  totalEarnedSalary: 5000, // 5 days @ 1000
+  totalAllowances: 0,
+  totalAdvances: 0,
+  totalPayments: 2000,    // Paid via the fund transfer
+});
+assert(workerKhataTest.totalDebits === 2000, 'Worker khata debits must be 2000 (not double counted)');
+assert(workerKhataTest.remainingPayable === 3000, 'Worker remaining payable must be 3000');
+
+console.log('\n🎉 ALL CALCULATION AND CASH FLOW TESTS PASSED ACCURATELY!\n');

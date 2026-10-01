@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { requireOrg, normalizeRole } from '@/lib/auth/session';
-import { calculateProjectCost, calculateMaterialStock, calculateWorkerBalance } from '@/lib/calculations';
+import {
+  calculateProjectCost,
+  calculateMaterialStock,
+  calculateWorkerBalance,
+  calculateWalletBalance,
+  calculateDailyCashFlow,
+} from '@/lib/calculations';
 
 export const dynamic = 'force-dynamic';
 
@@ -318,6 +324,107 @@ export async function GET(req: Request) {
       });
     }
 
+    // 4. Aaj Ka Hisaab (Today's Cash Flow & Partner Wallet)
+    const [myMoneyInAgg, myTransfersInAgg, myTransfersOutAgg, myExpensesAgg] = await Promise.all([
+      prisma.projectReceipt.aggregate({
+        where: { organizationId: orgId, receivedById: session.userId, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.fundTransfer.aggregate({
+        where: { organizationId: orgId, toUserId: session.userId, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.fundTransfer.aggregate({
+        where: { organizationId: orgId, fromUserId: session.userId, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.expense.aggregate({
+        where: { organizationId: orgId, walletOwnerId: session.userId, deletedAt: null },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const myWallet = calculateWalletBalance({
+      totalMoneyIn: myMoneyInAgg._sum.amount || 0,
+      totalTransfersIn: myTransfersInAgg._sum.amount || 0,
+      totalTransfersOut: myTransfersOutAgg._sum.amount || 0,
+      totalExpenses: myExpensesAgg._sum.amount || 0,
+    });
+
+    const [todayMoneyIn, todayTransfersIn, todayTransfersOut, todayExp] = await Promise.all([
+      prisma.projectReceipt.aggregate({
+        where: { organizationId: orgId, receivedById: session.userId, date: { gte: startOfToday, lte: endOfToday }, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.fundTransfer.aggregate({
+        where: { organizationId: orgId, toUserId: session.userId, date: { gte: startOfToday, lte: endOfToday }, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.fundTransfer.aggregate({
+        where: { organizationId: orgId, fromUserId: session.userId, date: { gte: startOfToday, lte: endOfToday }, deletedAt: null },
+        _sum: { amount: true },
+      }),
+      prisma.expense.aggregate({
+        where: { organizationId: orgId, walletOwnerId: session.userId, date: { gte: startOfToday, lte: endOfToday }, deletedAt: null },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const todayClosing = await prisma.dailyClosing.findFirst({
+      where: { organizationId: orgId, userId: session.userId, date: startOfToday },
+    });
+
+    // Multi-Partner summary if Owner
+    let partnersComparison = null;
+    if (['OWNER', 'MANAGER'].includes(role)) {
+      const partnerMemberships = await prisma.organizationUser.findMany({
+        where: { organizationId: orgId, status: 'ACTIVE' },
+        include: { user: { select: { id: true, name: true, email: true } } },
+      });
+
+      const partnerUsers = partnerMemberships
+        .filter((m: any) => ['PARTNER', 'OWNER'].includes(normalizeRole(m.role)))
+        .map((m: any) => m.user);
+
+      partnersComparison = await Promise.all(
+        partnerUsers.map(async (u: any) => {
+          const [mIn, tIn, tOut, exp] = await Promise.all([
+            prisma.projectReceipt.aggregate({
+              where: { organizationId: orgId, receivedById: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: orgId, toUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: orgId, fromUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.expense.aggregate({
+              where: { organizationId: orgId, walletOwnerId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+          ]);
+
+          const w = calculateWalletBalance({
+            totalMoneyIn: mIn._sum.amount || 0,
+            totalTransfersIn: tIn._sum.amount || 0,
+            totalTransfersOut: tOut._sum.amount || 0,
+            totalExpenses: exp._sum.amount || 0,
+          });
+
+          return {
+            userId: u.id,
+            name: u.name,
+            balance: w.balance,
+            totalCredits: w.totalCredits,
+            totalDebits: w.totalDebits,
+          };
+        })
+      );
+    }
+
     return NextResponse.json({
       role,
       organization: {
@@ -325,6 +432,16 @@ export async function GET(req: Request) {
         name: session.organizationName,
         role: session.role,
       },
+      aajKaHisaab: {
+        walletBalance: myWallet.balance,
+        todayInflow: (todayMoneyIn._sum.amount || 0) + (todayTransfersIn._sum.amount || 0),
+        todayTransfersOut: todayTransfersOut._sum.amount || 0,
+        todayExpenses: todayExp._sum.amount || 0,
+        todayOutflow: (todayTransfersOut._sum.amount || 0) + (todayExp._sum.amount || 0),
+        isClosingVerified: Boolean(todayClosing?.isVerified),
+        physicalCash: todayClosing?.actualCash ?? null,
+      },
+      partnersComparison,
       summary: {
         totalProjects,
         runningProjects: runningProjectsCount,

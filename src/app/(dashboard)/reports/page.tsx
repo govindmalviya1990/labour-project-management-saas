@@ -55,6 +55,14 @@ const REPORTS = [
     tag: 'Site Work',
   },
   {
+    id: 'cash-book',
+    title: 'Cash Book & Partner Statements',
+    href: '/cash-book',
+    description: 'Daily cash book statement, client money IN, fund transfers out, worker payouts, and daily closing verification (Din ka Hisaab).',
+    icon: <BookOpen className="w-6 h-6 text-emerald-400" />,
+    tag: 'Cash Flow',
+  },
+  {
     id: 'daily-expense',
     title: 'Daily Expense Report',
     href: '/reports/daily-expense',

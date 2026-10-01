@@ -69,8 +69,13 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/?denied=admin_only', request.url));
     }
 
-    // Finance & Salary: blocked for SUPERVISOR and LABOUR
-    if (pathname.startsWith('/finance') || pathname.startsWith('/salary')) {
+    // PARTNER: Full access to Cash Book, Projects, Workers, Materials, Finance, Salary, Reports
+    if (role === 'PARTNER') {
+      return NextResponse.next();
+    }
+
+    // Finance, Salary, Cash Book: blocked for SUPERVISOR and LABOUR
+    if (pathname.startsWith('/finance') || pathname.startsWith('/salary') || pathname.startsWith('/cash-book') || pathname.startsWith('/wallet')) {
       return NextResponse.redirect(new URL('/?denied=finance_restricted', request.url));
     }
 

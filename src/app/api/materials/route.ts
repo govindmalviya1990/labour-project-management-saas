@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -18,6 +18,7 @@ export async function GET(req: Request) {
     const lowStockOnly = searchParams.get('lowStock') === 'true';
     const search = searchParams.get('search');
     const projectId = searchParams.get('projectId');
+    const siteId = searchParams.get('siteId');
 
     const where: any = {
       organizationId: orgId,
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
             organizationId: orgId,
             deletedAt: null,
             ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+            ...(siteId && siteId !== 'ALL' ? { siteId } : {}),
           },
         },
         usages: {
@@ -50,12 +52,16 @@ export async function GET(req: Request) {
             organizationId: orgId,
             deletedAt: null,
             ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+            ...(siteId && siteId !== 'ALL' ? { siteId } : {}),
           },
         },
         transfers: {
           where: {
             organizationId: orgId,
-            ...(projectId && projectId !== 'ALL'
+            deletedAt: null,
+            ...(siteId && siteId !== 'ALL'
+              ? { OR: [{ sourceSiteId: siteId }, { destinationSiteId: siteId }] }
+              : projectId && projectId !== 'ALL'
               ? { OR: [{ sourceProjectId: projectId }, { destinationProjectId: projectId }] }
               : {}),
           },
@@ -74,7 +80,14 @@ export async function GET(req: Request) {
       // Transfers
       let transfersIn = 0;
       let transfersOut = 0;
-      if (projectId && projectId !== 'ALL') {
+      if (siteId && siteId !== 'ALL') {
+        transfersIn = m.transfers
+          .filter((t) => t.destinationSiteId === siteId)
+          .reduce((sum, t) => sum + t.quantity, 0);
+        transfersOut = m.transfers
+          .filter((t) => t.sourceSiteId === siteId)
+          .reduce((sum, t) => sum + t.quantity, 0);
+      } else if (projectId && projectId !== 'ALL') {
         transfersIn = m.transfers
           .filter((t) => t.destinationProjectId === projectId)
           .reduce((sum, t) => sum + t.quantity, 0);
@@ -83,8 +96,12 @@ export async function GET(req: Request) {
           .reduce((sum, t) => sum + t.quantity, 0);
       }
 
+      const isFiltered = Boolean(
+        (projectId && projectId !== 'ALL') || (siteId && siteId !== 'ALL')
+      );
+
       const stock = calculateMaterialStock({
-        openingStock: projectId ? 0 : m.openingStock,
+        openingStock: isFiltered ? 0 : m.openingStock,
         totalReceived,
         totalUsed,
         transfersIn,
@@ -135,7 +152,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
