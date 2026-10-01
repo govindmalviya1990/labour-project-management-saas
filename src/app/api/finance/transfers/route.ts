@@ -170,7 +170,12 @@ export async function POST(req: Request) {
       // 2. If transfer is to a worker, create linked Payment & Transaction in worker Khata
       let createdPayment = null;
       if (isWorkerTransfer && toWorkerId) {
-        const paymentType = purpose === 'ADVANCE' ? 'ADVANCE' : 'PAYMENT';
+        const isAdvance =
+          purpose === 'ADVANCE' ||
+          purpose === 'Worker Advance' ||
+          purpose?.toLowerCase().includes('advance') ||
+          purpose?.toLowerCase().includes('kharcha');
+        const paymentType = isAdvance ? 'ADVANCE' : 'PAYMENT';
 
         createdPayment = await tx.payment.create({
           data: {

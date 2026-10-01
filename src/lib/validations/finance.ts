@@ -58,7 +58,7 @@ export const createExpenseSchema = z.object({
   date: z.string().min(10, 'Valid date is required'),
   projectId: z.string().optional().nullable(),
   siteId: z.string().optional().nullable(),
-  category: expenseCategoryEnum.default('MISCELLANEOUS'),
+  category: z.string().min(1).default('MISCELLANEOUS'),
   description: z.string().min(2, 'Expense description is required'),
   amount: z.number().min(1, 'Amount must be greater than 0'),
   paidBy: z.string().optional(),

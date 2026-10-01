@@ -54,6 +54,7 @@ model Organization {
   auditLogs          AuditLog[]
   subscriptions      Subscription[]
   quotations         Quotation[]
+  purposeOptions     PurposeOption[]
 
   @@map("organizations")
 }
@@ -87,6 +88,7 @@ model User {
   dailyClosings      DailyClosing[]
   auditLogs          AuditLog[]
   notifications      Notification[]
+  createdPurposeOptions PurposeOption[] @relation("UserCreatedPurposes")
 
   @@map("users")
 }
@@ -871,4 +873,27 @@ model DailyClosing {
   @@index([userId, date])
   @@map("daily_closings")
 }
+
+// -------------------------------------------------------------
+// 17. PURPOSE & REASON OPTIONS (Custom Purpose & Categories)
+// -------------------------------------------------------------
+
+model PurposeOption {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  type           String    // TRANSFER, EXPENSE
+  isSystem       Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?        @relation("UserCreatedPurposes", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, type, isActive, deletedAt])
+  @@map("purpose_options")
+}
+
 

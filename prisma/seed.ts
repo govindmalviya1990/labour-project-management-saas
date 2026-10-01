@@ -44,6 +44,7 @@ async function main() {
     } else {
       console.log('✔ Database is clean and ready for fresh production entries.');
     }
+    await seedDefaultPurposes(existingOrg.id);
     return;
   }
 
@@ -105,7 +106,49 @@ async function main() {
     data: { organizationId: org.id, userId: accountant.id, role: 'ACCOUNTANT' },
   });
 
+  await seedDefaultPurposes(org.id);
+
   console.log('✔ Clean organization & users initialized successfully!');
+}
+
+async function seedDefaultPurposes(orgId: string) {
+  const transferReasons = [
+    'Site Daily Expenses & Petty Cash',
+    'Worker Advance',
+    'Salary Payout',
+    'Partner Drawing',
+    'Internal Settlement',
+    'Other',
+  ];
+  for (const name of transferReasons) {
+    const exists = await prisma.purposeOption.findFirst({
+      where: { organizationId: orgId, type: 'TRANSFER', name },
+    });
+    if (!exists) {
+      await prisma.purposeOption.create({
+        data: { organizationId: orgId, name, type: 'TRANSFER', isSystem: true, isActive: true },
+      });
+    }
+  }
+
+  const expenseSuggestions = [
+    'Chay-Nasta',
+    'Lunch',
+    'Dinner',
+    'Labour Food',
+    'Petrol',
+    'Travel',
+  ];
+  for (const name of expenseSuggestions) {
+    const exists = await prisma.purposeOption.findFirst({
+      where: { organizationId: orgId, type: 'EXPENSE', name },
+    });
+    if (!exists) {
+      await prisma.purposeOption.create({
+        data: { organizationId: orgId, name, type: 'EXPENSE', isSystem: false, isActive: true },
+      });
+    }
+  }
 }
 
 main()

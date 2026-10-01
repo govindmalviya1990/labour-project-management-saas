@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ArrowUpRight, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { SearchablePurposeSelect } from '@/components/ui/SearchablePurposeSelect';
 
 interface UserOption {
   id: string;
@@ -353,23 +354,12 @@ export function FundTransferModal({
           </div>
 
           {/* Purpose */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Purpose / Reason
-            </label>
-            <select
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              className="w-full h-10 px-3 text-sm rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-amber-500"
-            >
-              <option value="SITE_EXPENSE">Site Daily Expenses &amp; Petty Cash</option>
-              <option value="ADVANCE">Worker Advance (Kharcha)</option>
-              <option value="SALARY">Salary Payout</option>
-              <option value="PERSONAL_DRAWING">Partner Drawing</option>
-              <option value="SETTLEMENT">Internal Settlement</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
+          <SearchablePurposeSelect
+            type="TRANSFER"
+            value={purpose}
+            onChange={setPurpose}
+            label="Purpose / Reason"
+          />
 
           {/* Linked Project (Optional) */}
           <div>

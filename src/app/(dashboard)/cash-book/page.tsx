@@ -645,8 +645,13 @@ export default function CashBookPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 max-w-xs">
-                        <div className="font-medium text-slate-200 truncate">
-                          {item.description}
+                        <div className="font-medium text-slate-200 truncate flex items-center gap-1.5">
+                          <span className="truncate">{item.description}</span>
+                          {(item.raw?.purpose || item.category) && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 border border-amber-500/20 shrink-0">
+                              {item.raw?.purpose || item.category}
+                            </span>
+                          )}
                         </div>
                         {item.notes && (
                           <div className="text-[11px] text-slate-400 truncate mt-0.5">

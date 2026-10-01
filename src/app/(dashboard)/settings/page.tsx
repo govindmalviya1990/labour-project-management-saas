@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ReasonsSettings } from '@/components/settings/ReasonsSettings';
 
 export default function SettingsPage() {
   const [org, setOrg] = useState<any>(null);
@@ -268,6 +269,9 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      {/* Custom Reasons Management */}
+      <ReasonsSettings />
 
       {/* Danger Zone: Wipe All Demo Data */}
       <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-5 space-y-3 mt-6">
