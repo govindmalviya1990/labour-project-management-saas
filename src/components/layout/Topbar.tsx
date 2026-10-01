@@ -19,6 +19,7 @@ interface TopbarProps {
   userName?: string;
   userEmail?: string;
   organizationName?: string;
+  organizationLogo?: string | null;
   userRole?: string;
   selectedDateFilter?: string;
   onDateFilterChange?: (filter: string) => void;
@@ -28,6 +29,7 @@ export function Topbar({
   userName = 'User',
   userEmail,
   organizationName = 'Modern Way Civil',
+  organizationLogo,
   userRole = 'OWNER',
   selectedDateFilter = 'today',
   onDateFilterChange,
@@ -58,11 +60,19 @@ export function Topbar({
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur-md lg:px-6">
       {/* Mobile Branding */}
       <div className="flex items-center gap-2 lg:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950 font-bold">
-          <HardHat className="w-4 h-4" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950 font-bold overflow-hidden shrink-0">
+          {organizationLogo ? (
+            <img
+              src={organizationLogo}
+              alt={organizationName || 'Company Logo'}
+              className="h-full w-full object-contain p-0.5 rounded-lg"
+            />
+          ) : (
+            <HardHat className="w-4 h-4" />
+          )}
         </div>
         <span className="text-xs font-bold text-white tracking-tight truncate max-w-[150px]">
-          Modern Way Civil Solution
+          {organizationName || 'Modern Way Civil Solution'}
         </span>
       </div>
 

@@ -29,6 +29,7 @@ export default async function DashboardLayout({
       {/* Desktop Sidebar */}
       <Sidebar
         organizationName={session.organizationName}
+        organizationLogo={session.organizationLogo}
         userRole={session.role}
       />
 
@@ -38,6 +39,7 @@ export default async function DashboardLayout({
           userName={session.name}
           userEmail={session.email}
           organizationName={session.organizationName}
+          organizationLogo={session.organizationLogo}
           userRole={session.role}
         />
 

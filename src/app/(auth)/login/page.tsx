@@ -46,7 +46,13 @@ function LoginContent() {
   const [workerLoading, setWorkerLoading] = useState(false);
   const [workerError, setWorkerError] = useState('');
 
-  // Force dark theme on mount for the 3-portal selector page
+  // Public Branding State (Company Name & Logo)
+  const [branding, setBranding] = useState<{ name: string; logoUrl: string | null }>({
+    name: 'MODERN WAY CIVIL SOLUTION',
+    logoUrl: null,
+  });
+
+  // Force dark theme and fetch branding on mount
   useEffect(() => {
     document.documentElement.classList.add('dark');
     document.documentElement.classList.remove('light');
@@ -56,6 +62,18 @@ function LoginContent() {
       document.body.classList.remove('light');
       document.body.style.backgroundColor = '#090d16';
     }
+
+    fetch('/api/public/branding')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.name) {
+          setBranding({
+            name: data.name,
+            logoUrl: data.logoUrl || null,
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Sync initial portal from query param
@@ -169,14 +187,22 @@ function LoginContent() {
       {/* COMPACT BRAND HEADER                                            */}
       {/* --------------------------------------------------------------- */}
       <div className="text-center space-y-1.5 mb-6 sm:mb-8 max-w-lg relative z-10">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 mb-1">
-          <HardHat className="w-6 h-6 stroke-[2.2]" />
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 mb-1 overflow-hidden shrink-0">
+          {branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={branding.name}
+              className="h-full w-full object-contain p-0.5 rounded-lg"
+            />
+          ) : (
+            <HardHat className="w-6 h-6 stroke-[2.2]" />
+          )}
         </div>
-        <h1 className="text-lg sm:text-xl font-black tracking-wider text-white">
-          MODERN WAY CIVIL SOLUTION
+        <h1 className="text-lg sm:text-xl font-black tracking-wider text-white uppercase">
+          {branding.name}
         </h1>
         <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
-          Waterproofing, Epoxy Flooring & Labour Project Management System
+          Waterproofing, Epoxy Flooring &amp; Labour Project Management System
         </p>
       </div>
 

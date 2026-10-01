@@ -135,18 +135,31 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
       {/* Printable Letterhead Header */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 print:border-black print:bg-white print:text-black print:p-0">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800 pb-4 print:border-black">
-          <div>
-            <h2 className="text-xl font-black text-slate-100 print:text-black">
-              {data?.organization?.name || 'Modern Way Civil Solutions SaaS'}
-            </h2>
-            <p className="text-xs text-slate-400 print:text-gray-600 mt-0.5">
-              {data?.organization?.address || 'Site Office & Corporate Headquarters'}
-            </p>
-            {data?.organization?.gstNumber && (
-              <p className="text-xs font-mono text-amber-400 print:text-black mt-1">
-                GSTIN: <strong>{data?.organization?.gstNumber}</strong>
-              </p>
+          <div className="flex items-start gap-3.5">
+            {data?.organization?.logoUrl ? (
+              <img
+                src={data.organization.logoUrl}
+                alt={data.organization.name || 'Company Logo'}
+                className="h-12 w-12 object-contain rounded-lg border border-slate-700 print:border-black p-0.5 bg-white shrink-0"
+              />
+            ) : (
+              <div className="h-11 w-11 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center print:border-black shrink-0">
+                <Building2 className="w-5 h-5" />
+              </div>
             )}
+            <div>
+              <h2 className="text-xl font-black text-slate-100 print:text-black">
+                {data?.organization?.name || 'Modern Way Civil Solutions SaaS'}
+              </h2>
+              <p className="text-xs text-slate-400 print:text-gray-600 mt-0.5">
+                {data?.organization?.address || 'Site Office & Corporate Headquarters'}
+              </p>
+              {data?.organization?.gstNumber && (
+                <p className="text-xs font-mono text-amber-400 print:text-black mt-1">
+                  GSTIN: <strong>{data?.organization?.gstNumber}</strong>
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="sm:text-right">

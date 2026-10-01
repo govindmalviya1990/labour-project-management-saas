@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
     const org = await prisma.organization.findUnique({
       where: { id: orgId },
-      select: { name: true, mobile: true, email: true, address: true, gstNumber: true },
+      select: { name: true, mobile: true, email: true, address: true, gstNumber: true, logoUrl: true },
     });
 
     const dateFilter: any = {};

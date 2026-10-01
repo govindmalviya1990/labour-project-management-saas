@@ -11,7 +11,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "tsx tests/calculations.test.ts && tsx tests/partner-cashflow-e2e.test.ts && tsx tests/custom-purpose.test.ts && tsx tests/assistant-phase1.test.ts"
+    "test": "tsx tests/calculations.test.ts && tsx tests/partner-cashflow-e2e.test.ts && tsx tests/custom-purpose.test.ts && tsx tests/assistant-phase1.test.ts && tsx tests/ui-and-logo.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",

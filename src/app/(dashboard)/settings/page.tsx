@@ -13,7 +13,11 @@ import {
   Save,
   Trash2,
   Sparkles,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ReasonsSettings } from '@/components/settings/ReasonsSettings';
@@ -31,12 +35,94 @@ export default function SettingsPage() {
     assistantEnabled: true,
   });
 
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isRemovingLogo, setIsRemovingLogo] = useState(false);
   const [isClearingDemo, setIsClearingDemo] = useState(false);
   const [clearStatus, setClearStatus] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Client-side quick check
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File size exceeds 2 MB limit. Please select a smaller image.');
+      return;
+    }
+
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!allowed.includes(file.type) && !file.name.toLowerCase().endsWith('.svg')) {
+      setError('Invalid file type. Only PNG, JPG, WebP, and SVG files are allowed.');
+      return;
+    }
+
+    setError('');
+    setMessage('');
+    setIsUploadingLogo(true);
+
+    try {
+      const data = new FormData();
+      data.append('file', file);
+
+      const res = await fetch('/api/settings/organization/logo', {
+        method: 'POST',
+        body: data,
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Failed to upload logo.');
+        setIsUploadingLogo(false);
+        return;
+      }
+
+      setMessage('Company logo uploaded successfully!');
+      await fetchOrg();
+      router.refresh();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to upload logo.');
+    } finally {
+      setIsUploadingLogo(false);
+      // Reset input value so same file can be re-selected if needed
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!confirm('Are you sure you want to remove the company logo and revert to the default branding?')) {
+      return;
+    }
+
+    setError('');
+    setMessage('');
+    setIsRemovingLogo(true);
+
+    try {
+      const res = await fetch('/api/settings/organization/logo', {
+        method: 'DELETE',
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || 'Failed to remove logo.');
+        setIsRemovingLogo(false);
+        return;
+      }
+
+      setMessage('Company logo removed successfully!');
+      await fetchOrg();
+      router.refresh();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to remove logo.');
+    } finally {
+      setIsRemovingLogo(false);
+    }
+  };
 
   const fetchOrg = async () => {
     setIsLoading(true);
@@ -120,6 +206,84 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={handleSave} className="space-y-6">
+        {/* Company Official Logo */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-3 border-b border-slate-800">
+            <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-amber-400" /> Company Official Logo
+            </h2>
+            <span className="text-[11px] text-slate-400">
+              Displayed on Sidebar, Login Screen &amp; Printed Reports
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+            {/* Logo Preview */}
+            <div className="relative flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-2xl border-2 border-dashed border-slate-700 bg-slate-950 p-2 overflow-hidden shadow-inner shrink-0">
+              {org?.logoUrl ? (
+                <img
+                  src={org.logoUrl}
+                  alt="Company Logo Preview"
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="text-center text-slate-500">
+                  <Building2 className="w-8 h-8 mx-auto stroke-1 text-slate-600 mb-1" />
+                  <span className="text-[10px] font-semibold block uppercase tracking-wider">No Logo</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons & Guidance */}
+            <div className="flex-1 space-y-3 text-center sm:text-left">
+              <div className="flex flex-wrap items-center gap-2.5 justify-center sm:justify-start">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/20 disabled:opacity-50">
+                  {isUploadingLogo ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isUploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    disabled={isUploadingLogo || isRemovingLogo}
+                    className="hidden"
+                  />
+                </label>
+
+                {org?.logoUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogoRemove}
+                    disabled={isUploadingLogo || isRemovingLogo}
+                    className="text-xs text-rose-400 hover:text-rose-300 border-rose-500/30 hover:bg-rose-500/10 min-h-[36px]"
+                  >
+                    {isRemovingLogo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 text-rose-400" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-400" />
+                    )}
+                    <span>{isRemovingLogo ? 'Removing...' : 'Remove Logo'}</span>
+                  </Button>
+                )}
+              </div>
+
+              <div className="text-[11px] text-slate-400 leading-relaxed space-y-1">
+                <p>
+                  Supported formats: <strong className="text-slate-300">PNG, JPG/JPEG, WebP, SVG</strong> (Max 2 MB).
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  Stored securely in company database. Changes take effect across all portal screens immediately.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Company Information */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
           <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2 pb-3 border-b border-slate-800">

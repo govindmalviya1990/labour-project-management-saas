@@ -14,6 +14,7 @@ import {
   AlertCircle,
   HelpCircle,
 } from 'lucide-react';
+import { AssistantAvatar } from './AssistantAvatar';
 
 interface ChatMessage {
   id: string;
@@ -158,14 +159,12 @@ export function AssistantDrawer({
         onClick={onClose}
       />
 
-      {/* Slide-over Drawer */}
-      <div className="fixed inset-y-0 left-0 sm:left-auto sm:right-0 z-50 w-full sm:max-w-md bg-slate-900 border-r sm:border-r-0 sm:border-l border-slate-800 shadow-2xl flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-right duration-200">
+      {/* Slide-over Drawer from Right (Mobile: full-width right sheet, Desktop: right panel) */}
+      <div className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-md bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
         {/* Drawer Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20">
-              <Sparkles className="w-4 h-4" />
-            </div>
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
+          <div className="flex items-center gap-3">
+            <AssistantAvatar size={42} />
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-slate-100">Modern Way AI</h2>
@@ -174,7 +173,7 @@ export function AssistantDrawer({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Waterproofing Assistant • Hindi, Gujarati, English
+                Support &amp; Calculations Assistant • 24/7
               </p>
             </div>
           </div>
@@ -211,9 +210,7 @@ export function AssistantDrawer({
               className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {msg.role === 'assistant' && (
-                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <Bot className="w-4 h-4" />
-                </div>
+                <AssistantAvatar size={28} className="mt-0.5" />
               )}
 
               <div
@@ -256,9 +253,7 @@ export function AssistantDrawer({
 
           {isLoading && (
             <div className="flex gap-2.5 justify-start items-center text-xs text-slate-400">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                <Bot className="w-4 h-4" />
-              </div>
+              <AssistantAvatar size={28} isTyping={true} />
               <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
                 <span>Assistant soch raha hai...</span>

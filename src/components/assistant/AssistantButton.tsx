@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, MessageSquare } from 'lucide-react';
 import { AssistantDrawer } from './AssistantDrawer';
+import { AssistantAvatar } from './AssistantAvatar';
 
 export function AssistantButton({ userRole = 'PARTNER' }: { userRole?: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,26 +27,32 @@ export function AssistantButton({ userRole = 'PARTNER' }: { userRole?: string })
 
   return (
     <>
-      {/* Floating Trigger Button: Left-aligned to avoid clash with FAB and Mobile Bottom Nav */}
+      {/* 
+        Floating Trigger Button: 
+        Positioned on bottom-right vertically stacked directly above the Quick Action (+) FAB:
+        - Mobile: FAB is bottom-20 (80px) + h-14 (56px) + 14px gap = bottom-[150px], right-4
+        - Desktop: FAB is lg:bottom-8 (32px) + h-14 (56px) + 14px gap = lg:bottom-[102px], lg:right-8
+        - Clean vertical alignment, zero overlap, touch target 56x56px (min 48px)
+      */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
         aria-label="Open AI Assistant"
-        className="fixed bottom-20 left-4 lg:bottom-8 lg:left-8 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-slate-900/95 hover:bg-slate-800 text-amber-400 border border-amber-500/40 shadow-2xl shadow-amber-950/40 hover:scale-105 active:scale-95 transition-all text-xs font-bold backdrop-blur-xs group"
+        className="fixed bottom-[150px] right-4 lg:bottom-[102px] lg:right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 border-2 border-amber-500/60 shadow-2xl shadow-slate-950/80 hover:border-amber-400 hover:scale-105 active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-amber-500/30 group"
       >
-        <div className="relative">
-          <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span className="absolute -top-1 -right-1 flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-          </span>
-        </div>
-        <span className="hidden sm:inline text-slate-100 font-semibold group-hover:text-amber-300">
-          AI Assistant
+        <AssistantAvatar
+          size={50}
+          className="transition-transform group-hover:scale-105"
+        />
+
+        {/* Online / Active pulse dot indicator */}
+        <span className="absolute top-0 right-0 flex h-3.5 w-3.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 border-2 border-slate-950"></span>
         </span>
       </button>
 
-      {/* Slide-over Assistant Drawer */}
+      {/* Slide-over Assistant Drawer from Right */}
       <AssistantDrawer
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}

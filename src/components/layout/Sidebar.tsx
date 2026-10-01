@@ -35,9 +35,11 @@ interface NavItem {
 
 export function Sidebar({
   organizationName,
+  organizationLogo,
   userRole = 'OWNER',
 }: {
   organizationName?: string;
+  organizationLogo?: string | null;
   userRole?: string;
 }) {
   const pathname = usePathname();
@@ -402,14 +404,22 @@ export function Sidebar({
     <aside className="hidden lg:flex flex-col w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 h-screen sticky top-0 overflow-y-auto select-none transition-colors">
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20">
-          <HardHat className="w-5 h-5" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 font-bold shadow-md shadow-amber-500/20 overflow-hidden shrink-0">
+          {organizationLogo ? (
+            <img
+              src={organizationLogo}
+              alt={organizationName || 'Company Logo'}
+              className="h-full w-full object-contain p-0.5 rounded-lg"
+            />
+          ) : (
+            <HardHat className="w-5 h-5" />
+          )}
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug">
-            Modern Way Civil Solutions
+          <h1 className="text-sm font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug truncate">
+            {organizationName || 'Modern Way Civil Solutions'}
           </h1>
-          <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wider">
+          <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-500 uppercase tracking-wider truncate">
             Waterproofing &amp; Epoxy SaaS
           </p>
         </div>

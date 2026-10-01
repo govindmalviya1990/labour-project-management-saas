@@ -16,6 +16,7 @@ export interface UserSession {
   organizationId?: string;
   role?: string;
   organizationName?: string;
+  organizationLogo?: string | null;
   workerId?: string;
 }
 
@@ -80,6 +81,7 @@ export async function getSession(): Promise<UserSession | null> {
     organizationId: activeMembership?.organizationId,
     role,
     organizationName: activeMembership?.organization?.name,
+    organizationLogo: activeMembership?.organization?.logoUrl || null,
     workerId,
   };
 }
