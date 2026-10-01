@@ -17,6 +17,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/register') ||
     pathname.startsWith('/api/worker-portal') ||
+    pathname.startsWith('/api/public') ||
     pathname.includes('.')
   ) {
     return NextResponse.next();
