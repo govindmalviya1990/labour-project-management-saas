@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { FloatingActionButton } from '@/components/layout/FloatingActionButton';
+import { AssistantButton } from '@/components/assistant/AssistantButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,9 @@ export default async function DashboardLayout({
 
       {/* Mobile & Desktop Floating Quick Action Button */}
       <FloatingActionButton userRole={session.role} />
+
+      {/* In-App AI Assistant Trigger */}
+      <AssistantButton userRole={session.role} />
     </div>
   );
 }

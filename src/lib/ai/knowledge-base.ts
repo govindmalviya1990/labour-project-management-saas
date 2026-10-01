@@ -1,0 +1,176 @@
+export interface KnowledgeDoc {
+  id: string;
+  title: string;
+  keywords: string[];
+  pageUrl: string;
+  pageName: string;
+  summary: string;
+  steps: string[];
+}
+
+export const KNOWLEDGE_BASE: KnowledgeDoc[] = [
+  {
+    id: 'money_in',
+    title: 'Client Payment Receive Karna (Money In)',
+    keywords: ['money in', 'receive money', 'client payment', 'paisa aaya', 'paise aana', 'advance payment', 'incoming cash', 'પૈસા આવ્યા'],
+    pageUrl: '/cash-book',
+    pageName: 'Cash Book',
+    summary: 'Jab client se project ya waterproofing site ke liye cash, UPI ya bank transfer se paisa aata hai, to Cash Book me "Receive Money" ki entry ki jaati hai.',
+    steps: [
+      'Cash Book page par jaiye ya screen ke bottom-right speed-dial button par click karein.',
+      '"+ Receive Money" button dabayein.',
+      'Project aur client ka naam select karein.',
+      'Aaya hua amount (₹), payment date aur mode (Cash / UPI / Bank) enter karein.',
+      '"Add Money to Cash Book" par click karein. Ye paisa seedha aapke wallet me add ho jayega.',
+    ],
+  },
+  {
+    id: 'give_money',
+    title: 'Paisa Dena (Give Money / Fund Transfer)',
+    keywords: ['give money', 'fund transfer', 'supervisor advance', 'worker payout', 'paisa diya', 'paise dena', 'labour payment', 'પૈસા આપ્યા'],
+    pageUrl: '/cash-book',
+    pageName: 'Cash Book',
+    summary: 'Partner jab supervisor ko petty cash deta hai, ya worker ko direct salary/advance deta hai, to "Give Money" use hota hai. Worker ko dene par Worker Khata me payment sync hoti hai bina kisi double-counting ke.',
+    steps: [
+      'Cash Book page par "+ Give Money" button dabayein.',
+      'Transfer Category chunein (👷 To Supervisor / 🔨 To Worker / 🤝 Partner to Partner / 💼 Partner Drawing).',
+      'Recipient person ya worker select karein.',
+      'Amount (₹), date aur payment method enter karein.',
+      'Purpose dropdown me reason select karein (e.g. Worker Advance, Petty Cash, ya naya "+ Add New Reason").',
+      '"Debit Cash Book" dabayein. Aapke wallet se paisa debit hoga aur recipient ke hisaab me credit ho jayega.',
+    ],
+  },
+  {
+    id: 'daily_expense',
+    title: 'Daily Site Expense (Chay-Nasta, Petrol, Grocery)',
+    keywords: ['expense', 'kharch', 'chay', 'nasta', 'petrol', 'travel', 'grocery', 'ration', 'daily expense', 'ખર્ચ'],
+    pageUrl: '/finance/expenses',
+    pageName: 'Daily Expenses',
+    summary: 'Rozana site par hone wale chhote-mote kharche (chay-nasta, petrol, mess grocery, auto fare, rent) yahan record hote hain.',
+    steps: [
+      'Sidebar se "Daily Expenses" par jaiye ya Cash Book me "+ Daily Expense" button dabayein.',
+      'Kharch ka description likhein (e.g. "Diesel for generator" ya "Site chay nasta").',
+      'Amount (₹) aur Category chunein (ya "+ Add New Reason" se naya reason banayein).',
+      'Project aur site select karein taaki project cost me track ho.',
+      'Payment mode (Cash/UPI) select karke "Save Expense" par click karein.',
+    ],
+  },
+  {
+    id: 'goods_purchase',
+    title: '1-Click Goods Purchase (Stock + Cash Ek Sath)',
+    keywords: ['goods purchase', 'buy goods', 'material purchase', 'dr fixit', 'chemical', 'stock inward', 'saman kharida', 'માલ ખરીદી'],
+    pageUrl: '/cash-book',
+    pageName: 'Cash Book (Goods Purchase)',
+    summary: 'Waterproofing chemicals ya material (Dr. Fixit PU 270i, Cipoxy primer, brushes) khareedne par ek hi click me Site Stock badhta hai aur Cash Book se kharcha debit hota hai.',
+    steps: [
+      'Cash Book me "+ Buy Goods" button par click karein.',
+      'Material (Dr. Fixit, Bitumen, Epoxy) select karein aur Project/Site chunein.',
+      'Quantity (bags/litres) aur purchase rate per unit enter karein (Total amount auto-calculate hoga).',
+      'Supplier ka naam aur Bill/Challan no. daalein.',
+      '"Record Purchase & Debit Cash" par click karein. Stock turant increase hoga aur kharcha project cost me jud jayega.',
+    ],
+  },
+  {
+    id: 'daily_closing',
+    title: 'Din Ka Hisaab (Daily Closing & Day Lock)',
+    keywords: ['din ka hisaab', 'daily closing', 'closing cash', 'day lock', 'hisaab verify', 'cash verification', 'દિન નો હિસાબ'],
+    pageUrl: '/cash-book',
+    pageName: 'Cash Book (Din Ka Hisaab)',
+    summary: 'Roz shaam ya raat ko partner/supervisor apna physical cash count karke system se match karta hai aur din ko lock karta hai.',
+    steps: [
+      'Cash Book page par upar right side me "Din Ka Hisaab" button dabayein.',
+      'Date select karein (by default aaj ki date rehti hai).',
+      'System expected cash balance check karein (Opening + Inflow - Outflow).',
+      'Apne paas bacha physical cash "Actual Physical Cash" box me likhein.',
+      'Agar koi fark ho to Discrepancy (Surplus/Shortage) show hogi; remarks likhein.',
+      '"Verify & Lock Din Ka Hisaab" par click karein. Us din ki entries lock ho jayengi.',
+    ],
+  },
+  {
+    id: 'attendance',
+    title: 'Labour Attendance (Haziri Lagana)',
+    keywords: ['attendance', 'haziri', 'attendance mark', 'present', 'absent', 'overtime', 'half day', 'હાજરી'],
+    pageUrl: '/attendance',
+    pageName: 'Attendance',
+    summary: 'Site par workers ki rozana haziri mark karein. Full Day, Half Day, Overtime hours aur site mapping handle hoti hai.',
+    steps: [
+      'Sidebar me "Attendance" par click karein.',
+      'Project aur date select karein.',
+      'Workers ki list me har worker ke aage Present (P), Half Day (HD), Absent (A) ya Overtime (OT) mark karein.',
+      'Overtime hours likhein agar worker ne extra kaam kiya ho.',
+      '"Save Attendance" dabayein. Automatically wages calculate ho jayengi.',
+    ],
+  },
+  {
+    id: 'work_record',
+    title: 'Daily Work Recording (Kaam Ka Nap/Measurement)',
+    keywords: ['work record', 'kaam ka nap', 'measurement', 'sqft', 'sqmt', 'daily work', 'કામ માપણી'],
+    pageUrl: '/work',
+    pageName: 'Work Progress',
+    summary: 'Waterproofing ka kitna area complete hua (Terrace, podium, bathroom in Sq.Ft. ya Sq.Mt.) record karein.',
+    steps: [
+      'Sidebar se "Work" page par jaiye.',
+      '"+ Record Work" par click karein.',
+      'Project, site/tower aur activity select karein (e.g. PU Coating, Primer coat).',
+      'Completed quantity aur unit daalein.',
+      'Save karein. Progress aur cost per sq.ft. automatically update ho jayega.',
+    ],
+  },
+  {
+    id: 'salary',
+    title: 'Salary & Wage Payouts (Mazduri Hisaab)',
+    keywords: ['salary', 'wage', 'mazduri', 'labour salary', 'pay sheet', 'salary record', 'પગાર'],
+    pageUrl: '/salary',
+    pageName: 'Salary Sheet',
+    summary: 'Attendance aur daily wage rate ke base par workers ki gross salary, total advance deducted, aur net payable amount calculate hota hai.',
+    steps: [
+      'Sidebar me "Salary" page par click karein.',
+      'Month/period aur project filter karein.',
+      'Har worker ke total days worked, gross salary aur already paid advance check karein.',
+      'Direct payout dene ke liye "Pay Salary" par click karein.',
+    ],
+  },
+  {
+    id: 'worker_khata',
+    title: 'Worker Khata (Passbook & Ledger)',
+    keywords: ['khata', 'worker khata', 'passbook', 'worker balance', 'advance remaining', 'ખાતા'],
+    pageUrl: '/khata',
+    pageName: 'Worker Khata',
+    summary: 'Har worker ka individual khata jisme unki kamayi hui mazduri (credits), liye gaye advances (debits), aur baqi bacha payable amount show hota hai.',
+    steps: [
+      'Sidebar me "Worker Khata" par click karein.',
+      'Worker ka naam search karein aur click karein.',
+      'Unka poora chronological ledger (date-wise wage + cash payments) open hoga.',
+      'Upar status dikhega: FULLY_PAID ya PENDING DUES.',
+      'Print ya PDF export se worker ko receipt/passbook de sakte hain.',
+    ],
+  },
+  {
+    id: 'reports',
+    title: 'Reports & Statements (Financial & Stock)',
+    keywords: ['report', 'reports', 'statement', 'cash book report', 'pdf download', 'excel export', 'statement', 'રિપોર્ટ'],
+    pageUrl: '/reports',
+    pageName: 'Reports & Statements',
+    summary: 'Cash Book statement, Partner-wise Ledger, Material Stock status, aur Project P&L report PDF aur Excel me download karein.',
+    steps: [
+      'Sidebar me "Reports" section par jaiye.',
+      'Report type select karein (e.g. "Cash Book & Partner Statements" ya "Project Cost Analysis").',
+      'Date range aur partner/project filter karein.',
+      '"Generate Statement" dabayein aur PDF / CSV format me download karein.',
+    ],
+  },
+  {
+    id: 'custom_reasons',
+    title: 'Custom Reasons & Categories (Hamesha Ke Liye Save)',
+    keywords: ['custom reason', 'add reason', 'naya reason', 'purpose add', 'rename reason', 'delete reason', 'નવા કારણ'],
+    pageUrl: '/settings',
+    pageName: 'Settings (Reasons)',
+    summary: 'Give Money ya Daily Expense form me apne manpasand reasons (e.g. Dinner, Tool Rent) add karein jo hamesha ke liye save rehte hain.',
+    steps: [
+      'Give Money ya Expense form kholne par Purpose dropdown ke end me "+ Add New Reason" par click karein.',
+      'Naam likhein (e.g. "Dinner") aur "Save" dabayein. Ye database me save hokar auto-select ho jayega.',
+      'Purane reasons ko rename ya soft-delete karne ke liye "Settings" page par jaiye.',
+      '"Custom Reasons & Categories" section me Rename (pencil) ya Delete (trash) button use karein (sirf Owner aur Partner).',
+    ],
+  },
+];

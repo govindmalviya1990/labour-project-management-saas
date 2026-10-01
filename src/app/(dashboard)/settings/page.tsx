@@ -12,6 +12,7 @@ import {
   Server,
   Save,
   Trash2,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +28,7 @@ export default function SettingsPage() {
     gstNumber: '',
     currency: 'INR',
     timezone: 'Asia/Kolkata',
+    assistantEnabled: true,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +53,7 @@ export default function SettingsPage() {
           gstNumber: data.organization.gstNumber || '',
           currency: data.organization.currency || 'INR',
           timezone: data.organization.timezone || 'Asia/Kolkata',
+          assistantEnabled: data.organization.assistantEnabled ?? true,
         });
       }
     } catch (e) {
@@ -220,6 +223,42 @@ export default function SettingsPage() {
                 <option value="UTC">UTC (Coordinated Universal Time)</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* In-App AI Assistant Settings (Owner Controlled) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <h2 className="text-sm font-bold text-slate-200">
+                In-App AI Assistant (Text &amp; Voice)
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              Owner Controlled
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-slate-200 block">
+                Enable AI Assistant for Team
+              </span>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Provides instant answers, quick reports, and speech recognition to partners and supervisors.
+              </p>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.assistantEnabled}
+                onChange={(e) => setFormData({ ...formData, assistantEnabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
           </div>
         </div>
 

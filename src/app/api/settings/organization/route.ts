@@ -14,6 +14,7 @@ const updateOrgSchema = z.object({
   gstNumber: z.string().optional().nullable(),
   currency: z.string().default('INR'),
   timezone: z.string().default('Asia/Kolkata'),
+  assistantEnabled: z.boolean().optional(),
 });
 
 export async function GET(req: Request) {
@@ -76,6 +77,7 @@ export async function PUT(req: Request) {
     if (data.email) updateData.email = data.email;
     if (data.address !== undefined) updateData.address = data.address || null;
     if (data.gstNumber !== undefined) updateData.gstNumber = data.gstNumber || null;
+    if (data.assistantEnabled !== undefined) updateData.assistantEnabled = data.assistantEnabled;
 
     const updated = await prisma.organization.update({
       where: { id: orgId },
