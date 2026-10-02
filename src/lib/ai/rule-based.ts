@@ -7,12 +7,15 @@ export interface RuleBasedResult {
   matched: boolean;
   content: string;
   card?: {
-    type: 'SUMMARY' | 'PARTNERS' | 'EXPENSES' | 'KNOWLEDGE' | 'WARNING';
+    type: 'SUMMARY' | 'PARTNERS' | 'EXPENSES' | 'KNOWLEDGE' | 'WARNING' | 'CONFIRMATION';
     title: string;
     data?: any;
+    draft?: any;
     linkUrl?: string;
     linkLabel?: string;
   };
+  options?: any[];
+  field?: string;
 }
 
 /**
@@ -121,7 +124,208 @@ export async function matchRuleBased(
     };
   }
 
-  // 2. Knowledge Base Questions (How-to / Guide / Steps)
+  // 1b. Guardrail: Role changes and Day Hisaab Lock/Unlock
+  if (
+    lower.includes('role change') ||
+    lower.includes('role badal') ||
+    lower.includes('hisaab lock') ||
+    lower.includes('hisaab unlock') ||
+    lower.includes('din lock') ||
+    lower.includes('din unlock')
+  ) {
+    return {
+      matched: true,
+      content: 'सुरक्षा नियम: Role बदलना या दिन का हिसाब लॉक/અનલૉક करना चैटबॉट से अलाउड नहीं है। कृपया संबंधित पेज से मैन्युअली करें।',
+      card: {
+        type: 'WARNING',
+        title: 'Action Not Allowed via Assistant',
+        linkUrl: lower.includes('role') ? '/users' : '/cash-book',
+        linkLabel: lower.includes('role') ? 'Manage Users' : 'Open Cash Book',
+      },
+    };
+  }
+
+  // =========================================================
+  // DRAFT ENTRY PATTERNS (Draft-Only: Never Mutates Database)
+  // =========================================================
+  const targetDateStr = parseRelativeDate(lower).startDate || new Date().toISOString().split('T')[0];
+
+  // 2a. Give Money Draft: "Ramesh ko 500 Dinner ke liye diye" / "Sonu ko 2000 advance diye"
+  const transferMatch =
+    raw.match(/(?:aaj\s+)?(.+?)\s+ko\s+(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(.*?)\s*(?:(?:ke\s+liye)|(?:for))?\s*(?:diye|aapya|bheje|paid|transfer|diyo)/i) ||
+    raw.match(/(?:aaj\s+)?(.+?)\s+ko\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(?:diye|aapya)/i);
+
+  if (transferMatch) {
+    const toName = transferMatch[1].trim();
+    const amount = parseFloat(transferMatch[2]);
+    let rawPurpose = transferMatch[3]?.trim().replace(/(?:ke\s+liye|for)$/i, '').trim();
+    if (rawPurpose && rawPurpose.toLowerCase() === 'dinner') rawPurpose = 'Dinner';
+    if (rawPurpose && rawPurpose.toLowerCase() === 'advance') rawPurpose = 'Worker Advance';
+    if (rawPurpose && rawPurpose.toLowerCase() === 'petrol') rawPurpose = 'Petrol';
+    if (rawPurpose && rawPurpose.toLowerCase().includes('chay')) rawPurpose = 'Chay-Nasta';
+    const purpose = rawPurpose && rawPurpose.length > 1 ? rawPurpose : 'Site Daily Expenses & Petty Cash';
+
+    const draftRes = await executeTool(
+      'draftFundTransfer',
+      { toName, amount, purpose, date: targetDateStr },
+      ctx
+    );
+
+    if (draftRes.isAmbiguous) {
+      return {
+        matched: true,
+        content: draftRes.message,
+        options: draftRes.options,
+        field: draftRes.field,
+      };
+    }
+
+    if (draftRes.error) {
+      return {
+        matched: true,
+        content: draftRes.error,
+      };
+    }
+
+    if (draftRes.card) {
+      return {
+        matched: true,
+        content: draftRes.message,
+        card: draftRes.card,
+      };
+    }
+  }
+
+  // 2b. Goods Purchase Draft: "10 bag cement 3800 mein kharide"
+  const goodsMatch = lower.match(
+    /(\d+)\s*(bag|kg|ltr|drum|nos)?\s*([a-zA-Z0-9\s]+?)\s*(\d+(?:\.\d+)?)\s*(?:me|mein|rupaye|rs|₹)?\s*(?:kharide|kharida|purchase|liya)/i
+  );
+  if (goodsMatch) {
+    const quantity = parseInt(goodsMatch[1], 10);
+    const unit = goodsMatch[2] || 'Bag';
+    const materialName = goodsMatch[3].trim();
+    const totalAmount = parseFloat(goodsMatch[4]);
+
+    const draftRes = await executeTool(
+      'draftGoodsPurchase',
+      { materialName, quantity, unit, totalAmount, date: targetDateStr },
+      ctx
+    );
+
+    if (draftRes.card) {
+      return {
+        matched: true,
+        content: draftRes.message,
+        card: draftRes.card,
+      };
+    }
+  }
+
+  // 2c. Daily Expense Draft: "Aaj chay-nasta 300 laga", "Petrol 400 kharch hua"
+  const isQuestion = lower.includes('kitna') || lower.includes('how much') || lower.includes('dikhao') || lower.includes('ketlo') || lower.includes('ketla');
+  if (!isQuestion) {
+    const expMatch =
+      lower.match(/(chay[-\s]?nasta|petrol|dinner|lunch|food|travel|grocery|auto|diesel|tea|snack)\s*(?:me|ka)?\s*(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(?:laga|kharch|hua|spent)?/i) ||
+      lower.match(/(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(?:ka\s+)?(chay[-\s]?nasta|petrol|dinner|lunch|food|travel|grocery|auto|diesel|tea|snack)\s*(?:laga|kharch|hua|spent)?/i);
+
+    if (expMatch) {
+      let category = '';
+      let amount = 0;
+      if (isNaN(parseFloat(expMatch[1]))) {
+        category = expMatch[1].trim();
+        amount = parseFloat(expMatch[2]);
+      } else {
+        amount = parseFloat(expMatch[1]);
+        category = expMatch[2].trim();
+      }
+
+      // Format category label nicely
+      if (category.toLowerCase().includes('chay')) category = 'Chay-Nasta';
+      else if (category.toLowerCase().includes('petrol')) category = 'Petrol';
+      else if (category.toLowerCase().includes('dinner')) category = 'Dinner';
+      else if (category.toLowerCase().includes('lunch')) category = 'Lunch';
+
+      if (amount > 0) {
+        const draftRes = await executeTool('draftExpense', { category, amount, date: targetDateStr }, ctx);
+        if (draftRes.card) {
+          return {
+            matched: true,
+            content: draftRes.message,
+            card: draftRes.card,
+          };
+        }
+      }
+    }
+  }
+
+  // 2d. Attendance Draft: "Aaj Ramesh present, Suresh half day"
+  if (
+    (lower.includes('present') || lower.includes('half day') || lower.includes('absent')) &&
+    (lower.includes('aaj') || lower.includes('attendance') || lower.includes('haziri') || lower.includes('હાજર'))
+  ) {
+    const chunks = lower.replace(/^(?:aaj\s+|today\s+)/i, '').split(/[,;\n]|(?:\s+aur\s+)|\sand\s/);
+    const records: Array<{ workerName: string; status: 'PRESENT' | 'HALF_DAY' | 'ABSENT' }> = [];
+
+    for (const chunk of chunks) {
+      const trimmed = chunk.trim();
+      if (!trimmed) continue;
+      let status: 'PRESENT' | 'HALF_DAY' | 'ABSENT' = 'PRESENT';
+      if (trimmed.includes('half day') || trimmed.includes('halfday')) status = 'HALF_DAY';
+      else if (trimmed.includes('absent') || trimmed.includes('gain')) status = 'ABSENT';
+      else if (trimmed.includes('present') || trimmed.includes('hajar') || trimmed.includes('હાજર')) status = 'PRESENT';
+
+      const name = trimmed.replace(/\b(?:present|half day|halfday|absent|hajar|હાજર)\b/gi, '').trim();
+      if (name && name.length >= 2) {
+        records.push({ workerName: name, status });
+      }
+    }
+
+    if (records.length > 0) {
+      const draftRes = await executeTool('draftAttendance', { records, date: targetDateStr }, ctx);
+      if (draftRes.card) {
+        return {
+          matched: true,
+          content: draftRes.message,
+          card: draftRes.card,
+        };
+      }
+    }
+  }
+
+  // 2e. Bank Transfers: "Bank se 20000 cash nikala", "Cash 20000 bank me jama"
+  const bankWithdrawMatch = lower.match(/(?:bank\s+se)\s*(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(?:cash)?\s*(?:nikal|withdr)/i) ||
+    lower.match(/(\d+(?:\.\d+)?)\s*(?:cash)?\s*(?:bank\s+se\s+nikal)/i);
+  if (bankWithdrawMatch) {
+    const amount = parseFloat(bankWithdrawMatch[1]);
+    if (amount > 0) {
+      const draftRes = await executeTool('draftBankWithdrawal', { amount, date: targetDateStr }, ctx);
+      if (draftRes.card) {
+        return {
+          matched: true,
+          content: draftRes.message,
+          card: draftRes.card,
+        };
+      }
+    }
+  }
+
+  const bankDepositMatch = lower.match(/(?:cash\s+)?(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(?:bank\s+(?:me|mein)\s+jama)/i) ||
+    lower.match(/(?:bank\s+(?:me|mein))\s*(\d+(?:\.\d+)?)\s*(?:jama|deposit)/i);
+  if (bankDepositMatch) {
+    const amount = parseFloat(bankDepositMatch[1]);
+    if (amount > 0) {
+      const draftRes = await executeTool('draftBankDeposit', { amount, date: targetDateStr }, ctx);
+      if (draftRes.card) {
+        return {
+          matched: true,
+          content: draftRes.message,
+          card: draftRes.card,
+        };
+      }
+    }
+  }
+
+  // 3. Knowledge Base Questions (How-to / Guide / Steps)
   const isInstructionQuery =
     lower.includes('kaise') ||
     lower.includes('how to') ||

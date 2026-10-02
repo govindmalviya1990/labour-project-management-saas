@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/db/prisma';
 import { defaultLlmProvider } from '@/lib/ai/gemini-adapter';
-import { READ_ONLY_TOOL_DEFINITIONS, executeTool } from '@/lib/ai/tools';
+import { ALL_ASSISTANT_TOOL_DEFINITIONS, executeTool } from '@/lib/ai/tools';
 import { matchRuleBased } from '@/lib/ai/rule-based';
 import { ToolExecutionContext, LlmMessage } from '@/lib/ai/types';
 
@@ -105,6 +105,8 @@ export async function POST(req: Request) {
       return NextResponse.json({
         answer: ruleResult.content,
         card: ruleResult.card,
+        options: ruleResult.options,
+        field: ruleResult.field,
         source: 'RULE_BASED',
       });
     }
@@ -155,7 +157,7 @@ CRITICAL RULES:
     const firstLlmResponse = await defaultLlmProvider.generateResponse({
       systemInstruction,
       messages: formattedMessages,
-      tools: READ_ONLY_TOOL_DEFINITIONS,
+      tools: ALL_ASSISTANT_TOOL_DEFINITIONS,
       temperature: 0.2,
       maxTokens: 800,
     });
@@ -173,7 +175,25 @@ CRITICAL RULES:
       const { name, arguments: args } = firstLlmResponse.functionCall;
       const toolOutput = await executeTool(name, args, ctx);
 
-      // Second turn: feed tool output back to Gemini
+      // If the tool generated an interactive card (e.g. Draft Confirmation Card or Ambiguity)
+      if (toolOutput.card) {
+        return NextResponse.json({
+          answer: toolOutput.message || 'Draft taiyaar hai. Kripya verify karke Save karein.',
+          card: toolOutput.card,
+          source: 'GEMINI_TOOL',
+        });
+      }
+
+      if (toolOutput.isAmbiguous) {
+        return NextResponse.json({
+          answer: toolOutput.message,
+          options: toolOutput.options,
+          field: toolOutput.field,
+          source: 'GEMINI_TOOL',
+        });
+      }
+
+      // Second turn: feed read-only query output back to Gemini
       const secondTurnMessages: LlmMessage[] = [
         ...formattedMessages,
         {

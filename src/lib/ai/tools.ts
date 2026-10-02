@@ -7,6 +7,15 @@ import {
 } from '@/lib/calculations';
 import { getStartOfDayUTC } from '@/lib/auth/day-lock';
 import { normalizeRole } from '@/lib/auth/roles';
+import {
+  matchWorker,
+  matchUser,
+  matchProject,
+  matchMaterial,
+  matchBankAccount,
+  getOrgFormOptions,
+} from '@/lib/assistant/matcher';
+import { DraftConfirmationPayload } from '@/lib/assistant/draft-types';
 
 // -------------------------------------------------------------
 // Read-Only Tool Declarations for LLM
@@ -143,6 +152,246 @@ export const READ_ONLY_TOOL_DEFINITIONS: LlmToolDefinition[] = [
 ];
 
 // -------------------------------------------------------------
+// Write Tool Declarations (Draft-Only: Never Mutates Database)
+// -------------------------------------------------------------
+
+export const WRITE_TOOL_DEFINITIONS: LlmToolDefinition[] = [
+  {
+    name: 'draftFundTransfer',
+    description: 'Create a draft for giving money / cash to a worker, supervisor, or partner ("Give Money"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        toName: {
+          type: 'string',
+          description: 'Name of the worker, supervisor, or partner receiving the cash (e.g. Ramesh, Sonu).',
+        },
+        amount: {
+          type: 'number',
+          description: 'Amount of money given in INR.',
+        },
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format (defaults to today).',
+        },
+        purpose: {
+          type: 'string',
+          description: 'Purpose or reason (e.g. Dinner, Advance, Petrol, Chay-Nasta, Petty Cash, Site Daily Expenses).',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional remarks or description.',
+        },
+      },
+      required: ['toName', 'amount'],
+    },
+  },
+  {
+    name: 'draftExpense',
+    description: 'Create a draft for a daily site or operational expense ("Daily Expense"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Category or reason (e.g. Chay-Nasta, Petrol, Dinner, Labour Food, Travel, etc.)',
+        },
+        amount: {
+          type: 'number',
+          description: 'Amount in INR.',
+        },
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format (defaults to today).',
+        },
+        projectName: {
+          type: 'string',
+          description: 'Optional project name if expense was spent on a specific site.',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional description.',
+        },
+      },
+      required: ['amount'],
+    },
+  },
+  {
+    name: 'draftMoneyIn',
+    description: 'Create a draft for incoming client project payment ("Money In" / "Paisa Aaya"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        projectName: {
+          type: 'string',
+          description: 'Name of the client project.',
+        },
+        amount: {
+          type: 'number',
+          description: 'Amount received in INR.',
+        },
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format (defaults to today).',
+        },
+        receivedIn: {
+          type: 'string',
+          enum: ['WALLET', 'BANK'],
+          description: 'WALLET (partner cash wallet) or BANK (bank account).',
+        },
+        bankName: {
+          type: 'string',
+          description: 'Bank account name if received in bank.',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional remarks.',
+        },
+      },
+      required: ['amount'],
+    },
+  },
+  {
+    name: 'draftGoodsPurchase',
+    description: 'Create a draft for purchasing waterproofing materials or goods ("Goods Purchase"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        materialName: {
+          type: 'string',
+          description: 'Material name (e.g. Cement, Dr Fixit PU 270i, Cipoxy, Bitumen, etc.).',
+        },
+        quantity: {
+          type: 'number',
+          description: 'Quantity of material purchased.',
+        },
+        unit: {
+          type: 'string',
+          description: 'Unit of measurement (e.g. Bag, Kg, Ltr, Drum).',
+        },
+        rate: {
+          type: 'number',
+          description: 'Rate per unit in INR.',
+        },
+        totalAmount: {
+          type: 'number',
+          description: 'Total purchase amount in INR.',
+        },
+        supplierName: {
+          type: 'string',
+          description: 'Supplier or vendor name.',
+        },
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format.',
+        },
+        notes: {
+          type: 'string',
+          description: 'Optional notes.',
+        },
+      },
+      required: ['materialName'],
+    },
+  },
+  {
+    name: 'draftAttendance',
+    description: 'Create a draft for marking worker attendance ("Attendance"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        records: {
+          type: 'array',
+          description: 'List of worker attendance records',
+          items: {
+            type: 'object',
+            properties: {
+              workerName: { type: 'string', description: 'Worker name.' },
+              status: { type: 'string', enum: ['PRESENT', 'HALF_DAY', 'ABSENT'], description: 'Attendance status.' },
+              overtimeHours: { type: 'number', description: 'Overtime hours if any.' },
+            },
+          },
+        },
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format (defaults to today).',
+        },
+        projectName: {
+          type: 'string',
+          description: 'Optional project name.',
+        },
+      },
+      required: ['records'],
+    },
+  },
+  {
+    name: 'draftWork',
+    description: 'Create a draft for work output / measurement record ("Work Record"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        workerName: { type: 'string', description: 'Worker name.' },
+        projectName: { type: 'string', description: 'Project name.' },
+        workItem: { type: 'string', description: 'Description of work done (e.g. 200 sqft waterproofing).' },
+        quantity: { type: 'number', description: 'Quantity of work done.' },
+        unit: { type: 'string', description: 'Unit (sqft, rft, etc).' },
+        rate: { type: 'number', description: 'Rate per unit.' },
+        totalAmount: { type: 'number', description: 'Total work amount.' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format.' },
+      },
+      required: ['workerName', 'workItem'],
+    },
+  },
+  {
+    name: 'draftWorkerPayment',
+    description: 'Create a draft for paying salary wages or advance to a worker. Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        workerName: { type: 'string', description: 'Worker name.' },
+        amount: { type: 'number', description: 'Payment amount in INR.' },
+        type: { type: 'string', enum: ['SALARY', 'ADVANCE'], description: 'Payout type.' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format.' },
+        notes: { type: 'string', description: 'Optional remarks.' },
+      },
+      required: ['workerName', 'amount'],
+    },
+  },
+  {
+    name: 'draftBankDeposit',
+    description: 'Create a draft for depositing physical cash into a bank account ("Cash Bank mein Jama"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        bankName: { type: 'string', description: 'Bank account name.' },
+        amount: { type: 'number', description: 'Amount in INR.' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format.' },
+        notes: { type: 'string', description: 'Optional remarks.' },
+      },
+      required: ['amount'],
+    },
+  },
+  {
+    name: 'draftBankWithdrawal',
+    description: 'Create a draft for withdrawing cash from bank into partner physical wallet ("Bank se Cash Nikala"). Does NOT save to database yet.',
+    parameters: {
+      type: 'object',
+      properties: {
+        bankName: { type: 'string', description: 'Bank account name.' },
+        amount: { type: 'number', description: 'Amount in INR.' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD format.' },
+        notes: { type: 'string', description: 'Optional remarks.' },
+      },
+      required: ['amount'],
+    },
+  },
+];
+
+export const ALL_ASSISTANT_TOOL_DEFINITIONS: LlmToolDefinition[] = [
+  ...READ_ONLY_TOOL_DEFINITIONS,
+  ...WRITE_TOOL_DEFINITIONS,
+];
+
+// -------------------------------------------------------------
 // Tool Implementations (Strict Role-Enforced Server Logic)
 // -------------------------------------------------------------
 
@@ -166,10 +415,29 @@ export async function executeTool(
       const dayStart = getStartOfDayUTC(targetDate);
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
 
-      const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true, name: true, email: true },
-      });
+      let targetUser: any = null;
+      try {
+        targetUser = await prisma.user.findUnique({
+          where: { id: targetUserId },
+          select: { id: true, name: true, email: true },
+        });
+      } catch (e) {
+        return {
+          user: ctx.userName,
+          date: dateStr,
+          cashInHand: 0,
+          formattedCashInHand: '₹0',
+          today: {
+            openingBalance: 0,
+            moneyIn: 0,
+            moneyOut: 0,
+            closingBalance: 0,
+            discrepancy: 0,
+            isVerified: false,
+            verifiedAt: null,
+          },
+        };
+      }
 
       if (!targetUser) {
         return { error: 'User not found' };
@@ -649,6 +917,471 @@ export async function executeTool(
         formattedTotal: formatINR(totalPendingReceivable),
         projectsCount: pendingReceivables.length,
         pendingProjects: pendingReceivables.slice(0, 10),
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 9. draftFundTransfer (Give Money: Partner to Worker/User)
+    // ---------------------------------------------------------
+    case 'draftFundTransfer': {
+      const amount = Number(args.amount);
+      if (!amount || amount <= 0) {
+        return { error: 'Kitna amount transfer karna hai? Kripya amount batayein.' };
+      }
+
+      const toName = args.toName ? String(args.toName).trim() : '';
+      if (!toName) {
+        return { error: 'Kisko paisa dena hai? Kripya naam batayein (worker, supervisor ya partner).' };
+      }
+
+      const workerMatch = await matchWorker(toName, ctx.organizationId);
+      let receiverId: string | undefined;
+      let receiverName = toName;
+      let receiverType: 'WORKER' | 'USER' = 'WORKER';
+
+      if (workerMatch.status === 'AMBIGUOUS') {
+        return {
+          isAmbiguous: true,
+          field: 'toName',
+          message: `Mujhe "${toName}" naam ke ek se zyada worker mile. Kripya sahi worker chunein:`,
+          options: workerMatch.options,
+        };
+      } else if (workerMatch.status === 'EXACT' && workerMatch.match) {
+        receiverId = workerMatch.match.id;
+        receiverName = workerMatch.match.name;
+        receiverType = 'WORKER';
+      } else {
+        const userMatch = await matchUser(toName, ctx.organizationId);
+        if (userMatch.status === 'AMBIGUOUS') {
+          return {
+            isAmbiguous: true,
+            field: 'toName',
+            message: `Mujhe "${toName}" naam ke ek se zyada team members mile:`,
+            options: userMatch.options,
+          };
+        } else if (userMatch.status === 'EXACT' && userMatch.match) {
+          receiverId = userMatch.match.id;
+          receiverName = userMatch.match.name;
+          receiverType = 'USER';
+        } else {
+          return {
+            error: `"${toName}" naam ka koi worker ya partner nahi mila. Kripya sahi naam batayein.`,
+          };
+        }
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const purpose = args.purpose || 'Site Daily Expenses & Petty Cash';
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'FUND_TRANSFER',
+        title: 'Give Money Draft (Paisa Diya)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount,
+        receiverId,
+        receiverName,
+        receiverType,
+        purpose,
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `${receiverName} ko ₹${amount} (${purpose}) dene ka draft taiyaar hai. Kripya neeche card me verify karke Save karein.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Give Money Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 10. draftExpense (Daily Site or Operational Expense)
+    // ---------------------------------------------------------
+    case 'draftExpense': {
+      const amount = Number(args.amount);
+      if (!amount || amount <= 0) {
+        return { error: 'Kharch ka amount batayein (e.g. ₹300).' };
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const category = args.category || 'Site Expense';
+      let projectId: string | undefined;
+      let projectName: string | undefined;
+
+      if (args.projectName) {
+        const pMatch = await matchProject(args.projectName, ctx.organizationId);
+        if (pMatch.status === 'AMBIGUOUS') {
+          return {
+            isAmbiguous: true,
+            field: 'projectName',
+            message: `Mujhe "${args.projectName}" se milte-julte multiple projects mile. Kripya project chunein:`,
+            options: pMatch.options,
+          };
+        } else if (pMatch.status === 'EXACT' && pMatch.match) {
+          projectId = pMatch.match.id;
+          projectName = pMatch.match.name;
+        }
+      }
+
+      const options = await getOrgFormOptions(ctx.organizationId);
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'EXPENSE',
+        title: 'Daily Expense Draft (Kharch)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount,
+        purpose: category,
+        projectId,
+        projectName,
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `₹${amount} (${category}) kharch ka draft taiyaar hai. Kripya neeche card me check karke Save karein.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Expense Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 11. draftMoneyIn (Client Received Payment)
+    // ---------------------------------------------------------
+    case 'draftMoneyIn': {
+      const amount = Number(args.amount);
+      if (!amount || amount <= 0) {
+        return { error: 'Paisa aaya (Money In) ka amount batayein.' };
+      }
+
+      let projectId: string | undefined;
+      let projectName = args.projectName || '';
+      if (args.projectName) {
+        const pMatch = await matchProject(args.projectName, ctx.organizationId);
+        if (pMatch.status === 'AMBIGUOUS') {
+          return {
+            isAmbiguous: true,
+            field: 'projectName',
+            message: `Mujhe ek se zyada project mile. Kripya sahi project chunein:`,
+            options: pMatch.options,
+          };
+        } else if (pMatch.status === 'EXACT' && pMatch.match) {
+          projectId = pMatch.match.id;
+          projectName = pMatch.match.name;
+        }
+      }
+
+      const receivedIn = args.receivedIn === 'BANK' ? 'BANK' : 'WALLET';
+      let bankAccountId: string | undefined;
+      let bankAccountName: string | undefined;
+
+      if (receivedIn === 'BANK' && args.bankName) {
+        const bMatch = await matchBankAccount(args.bankName, ctx.organizationId);
+        if (bMatch.status === 'EXACT' && bMatch.match) {
+          bankAccountId = bMatch.match.id;
+          bankAccountName = `${bMatch.match.bankName} - ${bMatch.match.name}`;
+        }
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'MONEY_IN',
+        title: 'Money In Draft (Client se Paisa Aaya)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount,
+        projectId,
+        projectName,
+        receivedIn,
+        bankAccountId,
+        bankAccountName,
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `₹${amount} Money In entry ka draft ban gaya hai (${receivedIn === 'BANK' ? 'Bank Account' : 'Partner Cash Wallet'}).`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Money In Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 12. draftGoodsPurchase (Materials Purchase)
+    // ---------------------------------------------------------
+    case 'draftGoodsPurchase': {
+      const materialName = args.materialName ? String(args.materialName).trim() : 'Material';
+      const qty = Number(args.quantity) || 1;
+      const rate = Number(args.rate) || 0;
+      const totalAmount = Number(args.totalAmount) || (qty * rate) || 0;
+
+      let materialId: string | undefined;
+      const matMatch = await matchMaterial(materialName, ctx.organizationId);
+      if (matMatch.status === 'EXACT' && matMatch.match) {
+        materialId = matMatch.match.id;
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'GOODS_PURCHASE',
+        title: 'Goods Purchase Draft (Material Kharida)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount: totalAmount,
+        materialId,
+        materialName,
+        quantity: qty,
+        unit: args.unit || matMatch.match?.unit || 'Bag',
+        rate: rate || (totalAmount > 0 && qty > 0 ? totalAmount / qty : 0),
+        supplierName: args.supplierName || 'Cash Purchase',
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `${qty} ${draft.unit} ${materialName} (₹${totalAmount}) ka Goods Purchase draft taiyaar hai.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Goods Purchase Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 13. draftAttendance (Worker Daily Attendance)
+    // ---------------------------------------------------------
+    case 'draftAttendance': {
+      const records = Array.isArray(args.records) ? args.records : [];
+      if (records.length === 0) {
+        return { error: 'Attendance ke liye workers ke naam batayein (e.g. Ramesh present, Suresh half day).' };
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const mappedRecords = [];
+      for (const r of records) {
+        const wMatch = await matchWorker(r.workerName, ctx.organizationId);
+        mappedRecords.push({
+          workerId: wMatch.match?.id,
+          workerName: wMatch.match?.name || r.workerName,
+          status: (r.status as 'PRESENT' | 'HALF_DAY' | 'ABSENT') || 'PRESENT',
+          overtimeHours: Number(r.overtimeHours) || 0,
+        });
+      }
+
+      const options = await getOrgFormOptions(ctx.organizationId);
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'ATTENDANCE',
+        title: 'Attendance Draft (Haziri)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        attendanceRecords: mappedRecords,
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `${mappedRecords.length} workers ki attendance ka draft ban gaya hai.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Attendance Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 14. draftWork (Work Done / Measurement Record)
+    // ---------------------------------------------------------
+    case 'draftWork': {
+      const wName = args.workerName ? String(args.workerName).trim() : '';
+      const wMatch = await matchWorker(wName, ctx.organizationId);
+      if (wMatch.status === 'AMBIGUOUS') {
+        return {
+          isAmbiguous: true,
+          field: 'workerName',
+          message: `Mujhe "${wName}" naam ke ek se zyada worker mile:`,
+          options: wMatch.options,
+        };
+      }
+
+      const qty = Number(args.quantity) || 1;
+      const rate = Number(args.rate) || 0;
+      const totalAmount = Number(args.totalAmount) || (qty * rate) || 0;
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'WORK_RECORD',
+        title: 'Work Record Draft (Kaam ka Hisaab)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount: totalAmount,
+        receiverId: wMatch.match?.id,
+        receiverName: wMatch.match?.name || wName,
+        workItem: args.workItem || 'Waterproofing Work',
+        quantity: qty,
+        unit: args.unit || 'sqft',
+        rate: rate || (totalAmount > 0 && qty > 0 ? totalAmount / qty : 0),
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `${draft.receiverName} ke kaam (${qty} ${draft.unit}) ka draft taiyaar hai.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Work Record Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 15. draftWorkerPayment (Khata / Salary Payout)
+    // ---------------------------------------------------------
+    case 'draftWorkerPayment': {
+      const amount = Number(args.amount);
+      if (!amount || amount <= 0) {
+        return { error: 'Payment ka amount batayein.' };
+      }
+
+      const wName = args.workerName ? String(args.workerName).trim() : '';
+      const wMatch = await matchWorker(wName, ctx.organizationId);
+      if (wMatch.status === 'AMBIGUOUS') {
+        return {
+          isAmbiguous: true,
+          field: 'workerName',
+          message: `Mujhe "${wName}" naam ke ek se zyada worker mile:`,
+          options: wMatch.options,
+        };
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: 'WORKER_PAYMENT',
+        title: 'Worker Payment Draft (Khata Payout)',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount,
+        receiverId: wMatch.match?.id,
+        receiverName: wMatch.match?.name || wName,
+        purpose: args.type === 'ADVANCE' ? 'Worker Advance' : 'Salary Payout',
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: `${draft.receiverName} ko ₹${amount} (${draft.purpose}) dene ka draft taiyaar hai.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: 'Worker Payment Confirmation',
+          draft,
+        },
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 16. draftBankDeposit & draftBankWithdrawal
+    // ---------------------------------------------------------
+    case 'draftBankDeposit':
+    case 'draftBankWithdrawal': {
+      const amount = Number(args.amount);
+      if (!amount || amount <= 0) {
+        return { error: 'Bank transfer ka amount batayein.' };
+      }
+
+      const isWithdrawal = toolName === 'draftBankWithdrawal';
+      let bankAccountId: string | undefined;
+      let bankAccountName = args.bankName || 'Company Bank Account';
+
+      if (args.bankName) {
+        const bMatch = await matchBankAccount(args.bankName, ctx.organizationId);
+        if (bMatch.status === 'EXACT' && bMatch.match) {
+          bankAccountId = bMatch.match.id;
+          bankAccountName = `${bMatch.match.bankName} - ${bMatch.match.name}`;
+        }
+      }
+
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const options = await getOrgFormOptions(ctx.organizationId);
+
+      const draft: DraftConfirmationPayload = {
+        draftId: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        draftType: isWithdrawal ? 'BANK_WITHDRAWAL' : 'BANK_DEPOSIT',
+        title: isWithdrawal ? 'Bank se Cash Nikala Draft' : 'Cash Bank mein Jama Draft',
+        badgeText: 'Draft - Not Saved',
+        status: 'PENDING',
+        senderUserId: ctx.userId,
+        senderUserName: ctx.userName,
+        date: dateStr,
+        amount,
+        bankAccountId,
+        bankAccountName,
+        purpose: isWithdrawal ? 'Bank se Cash Nikala' : 'Cash Bank mein Jama',
+        notes: args.notes || '',
+        options,
+      };
+
+      return {
+        status: 'DRAFT_CREATED',
+        message: isWithdrawal
+          ? `Bank se ₹${amount} cash nikalne ka draft taiyaar hai.`
+          : `Bank me ₹${amount} cash jama karne ka draft taiyaar hai.`,
+        card: {
+          type: 'CONFIRMATION',
+          title: draft.title,
+          draft,
+        },
       };
     }
 
