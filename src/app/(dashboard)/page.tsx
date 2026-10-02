@@ -29,6 +29,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatINR } from '@/lib/calculations';
+import { ExpenseCharts } from '@/components/charts/ExpenseCharts';
+import { OverallMoneyPositionSection } from '@/components/finance/OverallMoneyPositionSection';
 import {
   ResponsiveContainer,
   BarChart,
@@ -508,6 +510,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Overall Money Position (All Partners Cash + Supervisors Cash + Bank Balances) */}
+      <OverallMoneyPositionSection />
+
       {/* Aaj Ka Hisaab (Connected Cash Flow & Partner Wallet) */}
       {data?.aajKaHisaab && (
         <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-amber-500/30 shadow-xl space-y-4">
@@ -743,6 +748,13 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Expense Analytics Charts (Round Donut + Pillar Bar) */}
+      <ExpenseCharts
+        title="Expense Analytics & Breakdown"
+        subtitle="Category-wise Round Donut & Partner-wise Pillar distribution (Single source of truth)"
+        initialDateRange="THIS_MONTH"
+      />
     </div>
   );
 }

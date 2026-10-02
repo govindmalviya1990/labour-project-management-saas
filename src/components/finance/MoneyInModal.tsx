@@ -18,6 +18,14 @@ interface PartnerOption {
   name: string;
 }
 
+interface BankAccountOption {
+  id: string;
+  name: string;
+  bankName: string;
+  accountLast4?: string | null;
+  balance?: number;
+}
+
 interface MoneyInModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,9 +43,12 @@ export function MoneyInModal({
 }: MoneyInModalProps) {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [partners, setPartners] = useState<PartnerOption[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState('');
   const [receivedById, setReceivedById] = useState('');
+  const [receivedIn, setReceivedIn] = useState<'WALLET' | 'BANK'>('WALLET');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
   const [clientName, setClientName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
@@ -61,9 +72,10 @@ export function MoneyInModal({
   const fetchDependencies = async () => {
     setLoadingData(true);
     try {
-      const [projRes, partRes] = await Promise.all([
+      const [projRes, partRes, bankRes] = await Promise.all([
         fetch('/api/projects'),
         isOwnerOrManager ? fetch('/api/partners') : Promise.resolve(null),
+        fetch('/api/finance/bank-accounts'),
       ]);
 
       if (projRes.ok) {
@@ -77,6 +89,11 @@ export function MoneyInModal({
       if (partRes && partRes.ok) {
         const pData = await partRes.json();
         setPartners(pData.partners || []);
+      }
+
+      if (bankRes && bankRes.ok) {
+        const bData = await bankRes.json();
+        setBankAccounts(bData.bankAccounts || []);
       }
     } catch (err) {
       console.error('Failed to load modal dependencies:', err);
@@ -104,6 +121,11 @@ export function MoneyInModal({
       return;
     }
 
+    if (receivedIn === 'BANK' && !selectedBankAccountId) {
+      setError('Please select which Bank Account received this payment');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -115,10 +137,12 @@ export function MoneyInModal({
           projectId: selectedProjectId,
           siteId: selectedSiteId || null,
           receivedById: receivedById || undefined,
+          receivedIn,
+          bankAccountId: receivedIn === 'BANK' ? selectedBankAccountId : null,
           clientName: clientName.trim(),
           amount: parsedAmount,
           date,
-          paymentMethod,
+          paymentMethod: receivedIn === 'BANK' ? (paymentMethod === 'CASH' ? 'BANK' : paymentMethod) : paymentMethod,
           purpose,
           reference: reference.trim() || null,
           notes: notes.trim() || null,
@@ -135,6 +159,8 @@ export function MoneyInModal({
       setAmount('');
       setReference('');
       setNotes('');
+      setSelectedBankAccountId('');
+      setReceivedIn('WALLET');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -230,6 +256,41 @@ export function MoneyInModal({
               placeholder="e.g. 50000"
               required
             />
+          </div>
+
+          {/* Received In Destination */}
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Received In (Paisa Kaha Aaya) <span className="text-rose-400">*</span>
+            </label>
+            <select
+              value={receivedIn === 'BANK' ? selectedBankAccountId : 'WALLET'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'WALLET') {
+                  setReceivedIn('WALLET');
+                  setSelectedBankAccountId('');
+                  setPaymentMethod('CASH');
+                } else {
+                  setReceivedIn('BANK');
+                  setSelectedBankAccountId(val);
+                  setPaymentMethod('BANK');
+                }
+              }}
+              className="w-full h-10 px-3 text-sm rounded-lg bg-slate-950 border border-slate-800 text-slate-200 focus:outline-none focus:border-amber-500"
+            >
+              <option value="WALLET">👤 Partner Cash Wallet (Physical Cash in Hand)</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  🏦 {b.bankName} - {b.name} {b.accountLast4 ? `(***${b.accountLast4})` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {receivedIn === 'BANK'
+                ? '⚡ Direct Bank Credit: Paisa Bank Account balance mein deposit hoga. Partner cash-in-hand wallet par asar nahi padega.'
+                : '💼 Cash In Hand: Paisa partner ke physical cash book/wallet balance mein credit hoga.'}
+            </p>
           </div>
 
           {/* Date */}

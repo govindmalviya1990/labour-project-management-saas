@@ -41,6 +41,7 @@ export function SearchablePurposeSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const newReasonInputRef = useRef<HTMLInputElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch reasons from backend
   const fetchReasons = async () => {
@@ -95,6 +96,7 @@ export function SearchablePurposeSelect({
     if (isAddingNew) {
       setTimeout(() => {
         newReasonInputRef.current?.focus();
+        newReasonInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 50);
     }
   }, [isAddingNew]);
@@ -107,8 +109,7 @@ export function SearchablePurposeSelect({
     setAddError('');
   };
 
-  const handleSaveNewReason = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveNewReason = async () => {
     setAddError('');
     const trimmed = newReasonName.trim();
 
@@ -140,14 +141,13 @@ export function SearchablePurposeSelect({
       setIsOpen(false);
       setSearch('');
     } catch (err: any) {
-      setAddError(err.message || 'Error saving reason');
+      setAddError(err?.message || 'Error saving reason');
     } finally {
       setSavingNew(false);
     }
   };
 
   // Find display text for currently selected value
-  // Checks by exact match or normalized matching
   const selectedItem = reasons.find(
     (r) =>
       r.name.toLowerCase() === (value || '').toLowerCase() ||
@@ -169,32 +169,36 @@ export function SearchablePurposeSelect({
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-          {label} {required && <span className="text-rose-400">*</span>}
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          {label} {required && <span className="text-rose-500">*</span>}
         </label>
       )}
 
       {/* Main Trigger Button with Large Mobile Touch Target */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full min-h-[44px] h-11 sm:h-10 px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 flex items-center justify-between text-left text-sm focus:outline-none focus:border-amber-500 hover:border-slate-600 transition-colors"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className="w-full min-h-[44px] h-11 sm:h-10 px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 flex items-center justify-between text-left text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/40 hover:border-slate-400 dark:hover:border-slate-600 transition-colors shadow-xs"
       >
-        <span className={`truncate ${!value ? 'text-slate-500' : 'text-slate-100 font-medium'}`}>
+        <span className={`truncate ${!value ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100 font-medium'}`}>
           {displayText}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 ml-2 shrink-0 transition-transform ${
+          className={`w-4 h-4 text-slate-500 dark:text-slate-400 ml-2 shrink-0 transition-transform ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu - Positioned with high z-index and overflow protection */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute z-[70] left-0 right-0 mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           {/* Search Box */}
-          <div className="p-2 border-b border-slate-800 bg-slate-950 flex items-center gap-2">
+          <div className="p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center gap-2">
             <Search className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
             <input
               ref={searchInputRef}
@@ -202,13 +206,29 @@ export function SearchablePurposeSelect({
               placeholder="Search or type reason..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent text-sm text-slate-200 placeholder-slate-500 focus:outline-none h-8 px-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (filteredReasons.length > 0) {
+                    handleSelect(filteredReasons[0]);
+                  } else {
+                    setIsAddingNew(true);
+                    setNewReasonName(search.trim());
+                  }
+                }
+              }}
+              className="w-full bg-transparent text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none h-8 px-1"
             />
             {search && (
               <button
                 type="button"
-                onClick={() => setSearch('')}
-                className="text-slate-400 hover:text-slate-200 p-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSearch('');
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -216,14 +236,17 @@ export function SearchablePurposeSelect({
           </div>
 
           {/* Options List with High-Touch Target Items */}
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-800/50 p-1">
+          <div
+            ref={listContainerRef}
+            className="max-h-56 sm:max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/50 p-1"
+          >
             {loading && reasons.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+              <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
                 <span>Loading reasons...</span>
               </div>
             ) : filteredReasons.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400">
+              <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
                 No matching reason found
               </div>
             ) : (
@@ -241,61 +264,70 @@ export function SearchablePurposeSelect({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => handleSelect(item)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSelect(item);
+                    }}
                     className={`w-full min-h-[44px] px-3.5 py-2.5 text-left text-sm rounded-lg flex items-center justify-between transition-colors ${
                       isSelected
-                        ? 'bg-amber-500/20 text-amber-300 font-semibold'
-                        : 'text-slate-200 hover:bg-slate-800/80 active:bg-slate-700'
+                        ? 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold'
+                        : 'text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700'
                     }`}
                   >
                     <div className="flex items-center gap-2 truncate">
                       <span className="truncate">{item.name}</span>
                       {item.isSystem && (
-                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
                           System
                         </span>
                       )}
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-amber-400 shrink-0 ml-2" />}
+                    {isSelected && <Check className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 ml-2" />}
                   </button>
                 );
               })
             )}
           </div>
 
-          {/* Bottom Section: "+ Add New Reason" or Inline Add Input */}
-          <div className="p-2 border-t border-slate-800 bg-slate-950/80">
+          {/* Sticky Bottom Section: "+ Add New Reason" or Inline Add Input (NO NESTED FORM) */}
+          <div className="sticky bottom-0 p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-xs z-10">
             {!isAddingNew ? (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   setIsAddingNew(true);
                   setNewReasonName(search.trim());
                   setAddError('');
                 }}
-                className="w-full min-h-[44px] px-3 py-2 text-sm font-semibold rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center gap-2 transition-colors active:scale-[0.98]"
+                className="w-full min-h-[48px] px-3 py-2.5 text-sm font-bold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 active:scale-[0.98] text-amber-700 dark:text-amber-400 border border-amber-500/40 flex items-center justify-center gap-2 transition-all shadow-xs"
               >
-                <Plus className="w-4 h-4 shrink-0" />
+                <Plus className="w-4 h-4 shrink-0 stroke-[2.5]" />
                 <span>+ Add New Reason</span>
               </button>
             ) : (
-              <form onSubmit={handleSaveNewReason} className="space-y-2 p-1">
-                <div className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+              /* NON-FORM CONTAINER to prevent parent form submission */
+              <div className="space-y-2 p-1">
+                <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                   <span>Add New Reason ({type === 'TRANSFER' ? 'Give Money' : 'Expense'})</span>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setIsAddingNew(false);
                       setAddError('');
                     }}
-                    className="text-slate-400 hover:text-slate-200"
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {addError && (
-                  <div className="flex items-center gap-1.5 p-2 bg-rose-500/10 border border-rose-500/30 rounded text-rose-400 text-xs">
+                  <div className="flex items-center gap-1.5 p-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded text-rose-600 dark:text-rose-400 text-xs">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>{addError}</span>
                   </div>
@@ -311,22 +343,38 @@ export function SearchablePurposeSelect({
                     placeholder="e.g. Dinner, Tool Rent..."
                     value={newReasonName}
                     onChange={(e) => setNewReasonName(e.target.value)}
-                    className="flex-1 min-h-[40px] px-3 text-sm rounded-lg bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSaveNewReason();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsAddingNew(false);
+                      }
+                    }}
+                    className="flex-1 min-h-[44px] px-3 text-sm rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                   />
                   <button
-                    type="submit"
-                    disabled={savingNew}
-                    className="min-h-[40px] px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 shrink-0 transition-colors disabled:opacity-50"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSaveNewReason();
+                    }}
+                    disabled={savingNew || !newReasonName.trim()}
+                    className="min-h-[44px] px-4 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
                   >
                     {savingNew ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Check className="w-3.5 h-3.5" />
+                      <Check className="w-4 h-4 stroke-[2.5]" />
                     )}
-                    Save
+                    <span>Save</span>
                   </button>
                 </div>
-              </form>
+              </div>
             )}
           </div>
         </div>

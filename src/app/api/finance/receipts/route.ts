@@ -97,6 +97,8 @@ export async function POST(req: Request) {
       amount,
       date,
       paymentMethod = 'CASH',
+      receivedIn = 'WALLET', // 'WALLET' or 'BANK'
+      bankAccountId,
       purpose = 'RUNNING_BILL',
       reference,
       notes,
@@ -109,26 +111,38 @@ export async function POST(req: Request) {
       );
     }
 
-    const receiptDate = new Date(date);
-    const receivedById = (isOwnerOrManager && inputReceivedById) ? inputReceivedById : session.userId;
-
-    // Check Day Lock on date
-    const lockCheck = await verifyDayLock({
-      organizationId: orgId,
-      userId: receivedById,
-      date: receiptDate,
-      actorUserId: session.userId,
-      actorRole: session.role,
-      entityType: 'ProjectReceipt',
-      entityId: 'NEW',
-      action: 'UPDATE',
-    });
-
-    if (lockCheck.locked) {
-      return NextResponse.json({ error: lockCheck.message }, { status: 403 });
+    if (receivedIn === 'BANK' && !bankAccountId) {
+      return NextResponse.json(
+        { error: 'Bank account is required when Money In is received in Bank' },
+        { status: 400 }
+      );
     }
 
-    // Atomic transaction: create receipt & update project receivedAmount
+    const receiptDate = new Date(date);
+    const receivedById = (isOwnerOrManager && inputReceivedById) ? inputReceivedById : session.userId;
+    const isBank = receivedIn === 'BANK' && Boolean(bankAccountId);
+
+    // Check Day Lock on date if crediting partner wallet
+    if (!isBank) {
+      const lockCheck = await verifyDayLock({
+        organizationId: orgId,
+        userId: receivedById,
+        date: receiptDate,
+        actorUserId: session.userId,
+        actorRole: session.role,
+        entityType: 'ProjectReceipt',
+        entityId: 'NEW',
+        action: 'UPDATE',
+      });
+
+      if (lockCheck.locked) {
+        return NextResponse.json({ error: lockCheck.message }, { status: 403 });
+      }
+    }
+
+    const parsedAmount = Math.max(0, parseFloat(amount));
+
+    // Atomic transaction: create receipt, bank transaction (if bank), & update project receivedAmount
     const result = await prisma.$transaction(async (tx) => {
       const receipt = await tx.projectReceipt.create({
         data: {
@@ -137,9 +151,11 @@ export async function POST(req: Request) {
           siteId: siteId || null,
           receivedById,
           clientName: clientName.trim(),
-          amount: parseFloat(amount),
+          amount: parsedAmount,
           date: receiptDate,
-          paymentMethod,
+          paymentMethod: isBank ? (paymentMethod === 'CASH' ? 'BANK' : paymentMethod) : paymentMethod,
+          receivedIn: isBank ? 'BANK' : 'WALLET',
+          bankAccountId: isBank ? bankAccountId : null,
           purpose,
           reference: reference?.trim() || null,
           notes: notes?.trim() || null,
@@ -148,8 +164,27 @@ export async function POST(req: Request) {
           project: { select: { id: true, name: true, projectCode: true } },
           site: { select: { id: true, name: true } },
           receivedBy: { select: { id: true, name: true } },
+          bankAccount: { select: { id: true, name: true, bankName: true } },
         },
       });
+
+      // If deposited directly in Bank, create linked BankTransaction
+      if (isBank) {
+        await tx.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId,
+            type: 'RECEIPT',
+            amount: parsedAmount,
+            date: receiptDate,
+            partnerId: receivedById,
+            projectId,
+            reference: reference?.trim() || receipt.id,
+            notes: notes?.trim() || `Client receipt from ${clientName.trim()}`,
+            createdById: session.userId,
+          },
+        });
+      }
 
       // Recalculate project received amount
       const allActiveReceipts = await tx.projectReceipt.aggregate({

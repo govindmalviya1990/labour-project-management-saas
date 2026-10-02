@@ -110,13 +110,15 @@ html[data-theme="light"] thead:not(.print-container thead),
 html[data-theme="light"] thead tr:not(.print-container thead tr),
 html[data-theme="light"] thead th:not(.print-container thead th) {
   background-color: #f8fafc !important;
-  color: #475569 !important;
+  color: #334155 !important;
+  font-weight: 700 !important;
   border-color: #e2e8f0 !important;
 }
 
 html.light tbody tr:not(.print-container tbody tr),
 html[data-theme="light"] tbody tr:not(.print-container tbody tr) {
   background-color: #ffffff !important;
+  color: #1e293b !important;
 }
 
 html.light tbody tr:hover:not(.print-container tbody tr),
@@ -124,64 +126,38 @@ html[data-theme="light"] tbody tr:hover:not(.print-container tbody tr) {
   background-color: #f8fafc !important;
 }
 
-html.light .text-white:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
-html.light .text-slate-100:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
-html.light .text-slate-200:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-white:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-slate-100:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *),
-html[data-theme="light"] .text-slate-200:not(.print-container *):not(.portal-auth-page *):not([class*="bg-"] *):not(button *) {
+/* Light Mode High-Contrast Typography */
+html.light .text-white:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *),
+html.light .text-slate-100:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *),
+html.light .text-slate-200:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *),
+html[data-theme="light"] .text-white:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *),
+html[data-theme="light"] .text-slate-100:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *),
+html[data-theme="light"] .text-slate-200:not(.print-container *):not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-amber-600 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *):not(button.bg-blue-600 *):not(button.bg-slate-900 *):not(button.bg-slate-950 *):not(.bg-amber-500 *) {
   color: #0f172a !important;
 }
 
-html.light .text-slate-300:not(.portal-auth-page *),
-html[data-theme="light"] .text-slate-300:not(.portal-auth-page *) {
+html.light .text-slate-300:not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *),
+html[data-theme="light"] .text-slate-300:not(.portal-auth-page *):not(button.bg-amber-500 *):not(button.bg-rose-500 *):not(button.bg-emerald-500 *) {
   color: #1e293b !important;
 }
 
-/* ==========================================================================
-   PORTAL LOGIN DASHBOARD (Strictly Dark Aesthetic - immune to light overrides)
-   ========================================================================== */
-html.light .portal-auth-page,
-html[data-theme="light"] .portal-auth-page,
-.portal-auth-page {
-  background-color: #0b0f17 !important;
-  color: #f8fafc !important;
+html.light .text-slate-400:not(.portal-auth-page *),
+html[data-theme="light"] .text-slate-400:not(.portal-auth-page *) {
+  color: #475569 !important;
 }
 
-html.light .portal-auth-page h1,
-html.light .portal-auth-page h2,
-html.light .portal-auth-page h3,
-html[data-theme="light"] .portal-auth-page h1,
-html[data-theme="light"] .portal-auth-page h2,
-html[data-theme="light"] .portal-auth-page h3,
-.portal-auth-page h1,
-.portal-auth-page h2,
-.portal-auth-page h3 {
-  color: #ffffff !important;
-}
-
-html.light .portal-auth-page p,
-html[data-theme="light"] .portal-auth-page p,
-.portal-auth-page p {
-  color: #94a3b8 !important;
-}
-
-html.light .text-slate-400,
-html.light .text-slate-500,
-html.light .text-slate-600,
-html[data-theme="light"] .text-slate-400,
-html[data-theme="light"] .text-slate-500,
-html[data-theme="light"] .text-slate-600 {
+html.light .text-slate-500:not(.portal-auth-page *),
+html[data-theme="light"] .text-slate-500:not(.portal-auth-page *) {
   color: #64748b !important;
 }
 
-/* Form Controls in Light Mode */
-html.light input,
-html.light textarea,
-html.light select,
-html[data-theme="light"] input,
-html[data-theme="light"] textarea,
-html[data-theme="light"] select {
+/* Form Controls in Light Mode (inputs, selects, textareas) */
+html.light input:not([type="checkbox"]):not([type="radio"]):not(.portal-auth-page input),
+html.light textarea:not(.portal-auth-page textarea),
+html.light select:not(.portal-auth-page select),
+html[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not(.portal-auth-page input),
+html[data-theme="light"] textarea:not(.portal-auth-page textarea),
+html[data-theme="light"] select:not(.portal-auth-page select) {
   background-color: #ffffff !important;
   border-color: #cbd5e1 !important;
   color: #0f172a !important;
@@ -197,7 +173,7 @@ html.light input::placeholder,
 html.light textarea::placeholder,
 html[data-theme="light"] input::placeholder,
 html[data-theme="light"] textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 
 /* Buttons in Light Mode */
@@ -220,6 +196,51 @@ html[data-theme="light"] button.border-slate-700,
 html[data-theme="light"] button.border-slate-800 {
   border-color: #cbd5e1 !important;
   color: #334155 !important;
+}
+
+/* Light Mode Badges - High Contrast */
+html.light [class*="bg-amber-500/10"],
+html.light [class*="bg-amber-500/15"],
+html.light [class*="bg-amber-500/20"],
+html[data-theme="light"] [class*="bg-amber-500/10"],
+html[data-theme="light"] [class*="bg-amber-500/15"],
+html[data-theme="light"] [class*="bg-amber-500/20"] {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+html.light [class*="bg-emerald-500/10"],
+html.light [class*="bg-emerald-500/15"],
+html.light [class*="bg-emerald-500/20"],
+html[data-theme="light"] [class*="bg-emerald-500/10"],
+html[data-theme="light"] [class*="bg-emerald-500/15"],
+html[data-theme="light"] [class*="bg-emerald-500/20"] {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html.light [class*="bg-rose-500/10"],
+html.light [class*="bg-rose-500/15"],
+html.light [class*="bg-rose-500/20"],
+html[data-theme="light"] [class*="bg-rose-500/10"],
+html[data-theme="light"] [class*="bg-rose-500/15"],
+html[data-theme="light"] [class*="bg-rose-500/20"] {
+  background-color: #ffe4e6 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+}
+
+html.light [class*="bg-blue-500/10"],
+html.light [class*="bg-blue-500/15"],
+html.light [class*="bg-blue-500/20"],
+html[data-theme="light"] [class*="bg-blue-500/10"],
+html[data-theme="light"] [class*="bg-blue-500/15"],
+html[data-theme="light"] [class*="bg-blue-500/20"] {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #bfdbfe !important;
 }
 
 

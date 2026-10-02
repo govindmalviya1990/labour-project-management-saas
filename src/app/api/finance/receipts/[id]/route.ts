@@ -128,12 +128,31 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       return NextResponse.json({ error: lockCheck.message }, { status: 403 });
     }
 
-    await prisma.projectReceipt.update({
-      where: { id: params.id },
-      data: {
-        deletedAt: new Date(),
-        deletedById: session.userId,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.projectReceipt.update({
+        where: { id: params.id },
+        data: {
+          deletedAt: new Date(),
+          deletedById: session.userId,
+        },
+      });
+
+      // If this receipt was linked to a bank account, soft delete the bank transaction as well
+      if (receipt.bankAccountId || receipt.receivedIn === 'BANK') {
+        await tx.bankTransaction.updateMany({
+          where: {
+            organizationId: orgId,
+            OR: [
+              { reference: receipt.id },
+              ...(receipt.reference ? [{ reference: receipt.reference }] : []),
+            ],
+            deletedAt: null,
+          },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
+      }
     });
 
     return NextResponse.json({

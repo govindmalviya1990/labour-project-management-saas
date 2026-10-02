@@ -28,6 +28,10 @@ import { FundTransferModal } from '@/components/finance/FundTransferModal';
 import { GoodsPurchaseModal } from '@/components/finance/GoodsPurchaseModal';
 import { ExpenseFormModal } from '@/components/finance/ExpenseFormModal';
 import { DailyClosingModal } from '@/components/finance/DailyClosingModal';
+import { ExpenseCharts } from '@/components/charts/ExpenseCharts';
+import { OverallMoneyPositionSection } from '@/components/finance/OverallMoneyPositionSection';
+import { BankCashTransferModal } from '@/components/finance/BankCashTransferModal';
+import { BankAccountManageModal } from '@/components/finance/BankAccountManageModal';
 
 interface TransactionItem {
   id: string;
@@ -101,6 +105,8 @@ export default function CashBookPage() {
   const [isPurchaseOpen, setIsPurchaseOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isClosingOpen, setIsClosingOpen] = useState(false);
+  const [isBankTransferOpen, setIsBankTransferOpen] = useState(false);
+  const [isManageBanksOpen, setIsManageBanksOpen] = useState(false);
 
   // 1. Load current user session
   useEffect(() => {
@@ -504,7 +510,28 @@ export default function CashBookPage() {
           + Daily Expense (Chay/Petrol)
         </Button>
 
-        {/* 5. Daily Closing */}
+        {/* 5. Bank ⇄ Cash Transfer */}
+        <Button
+          onClick={() => setIsBankTransferOpen(true)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs h-9 flex items-center gap-1.5 shadow-md shadow-indigo-950"
+        >
+          <ArrowDownLeft className="w-4 h-4" />
+          + Bank ⇄ Cash
+        </Button>
+
+        {/* 6. Bank Accounts (Owner / Manager) */}
+        {isOwnerOrManager && (
+          <Button
+            variant="outline"
+            onClick={() => setIsManageBanksOpen(true)}
+            className="text-xs h-9 flex items-center gap-1.5 text-blue-400 border-blue-500/30 hover:bg-blue-950/20"
+          >
+            <Building className="w-3.5 h-3.5 text-blue-400" />
+            Bank Accounts
+          </Button>
+        )}
+
+        {/* 7. Daily Closing */}
         <Button
           variant="outline"
           onClick={() => setIsClosingOpen(true)}
@@ -514,6 +541,16 @@ export default function CashBookPage() {
           Din Ka Hisaab
         </Button>
       </div>
+
+      {/* Overall Money Position (Grand Total = Partners Cash + Supervisors Cash + Bank Balances) */}
+      <OverallMoneyPositionSection />
+
+      {/* Expense Charts (Round Donut + Pillar Bar) */}
+      <ExpenseCharts
+        title="Cash Book Expense Analytics"
+        subtitle="Category-wise Round Donut & Partner-wise Pillar distribution (Single source of truth)"
+        initialDateRange="TODAY"
+      />
 
       {/* Tabs & Ledger Statement Table */}
       <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
@@ -794,6 +831,20 @@ export default function CashBookPage() {
         existingActualCash={closing?.actualCash}
         existingNotes={closing?.notes}
         isAlreadyVerified={isVerified}
+      />
+
+      <BankCashTransferModal
+        isOpen={isBankTransferOpen}
+        onClose={() => setIsBankTransferOpen(false)}
+        onSuccess={fetchWallet}
+        defaultDate={selectedDate}
+        isOwnerOrManager={isOwnerOrManager}
+      />
+
+      <BankAccountManageModal
+        isOpen={isManageBanksOpen}
+        onClose={() => setIsManageBanksOpen(false)}
+        onUpdated={fetchWallet}
       />
     </div>
   );

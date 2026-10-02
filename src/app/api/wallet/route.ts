@@ -33,9 +33,21 @@ export async function GET(req: Request) {
     }
 
     // 1. Overall Lifetime Derived Balance
-    const [moneyInAgg, transfersInAgg, transfersOutAgg, expensesAgg] = await Promise.all([
+    const [
+      moneyInAgg,
+      transfersInAgg,
+      transfersOutAgg,
+      expensesAgg,
+      bankWithdrawalsAgg,
+      bankDepositsAgg,
+    ] = await Promise.all([
       prisma.projectReceipt.aggregate({
-        where: { organizationId: orgId, receivedById: targetUserId, deletedAt: null },
+        where: {
+          organizationId: orgId,
+          receivedById: targetUserId,
+          deletedAt: null,
+          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
+        },
         _sum: { amount: true },
       }),
       prisma.fundTransfer.aggregate({
@@ -50,18 +62,42 @@ export async function GET(req: Request) {
         where: { organizationId: orgId, walletOwnerId: targetUserId, deletedAt: null },
         _sum: { amount: true },
       }),
+      // Bank se Cash Nikala -> Partner Wallet Credit
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_TO_PARTNER',
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
+      // Cash Bank mein Jama -> Partner Wallet Debit
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_FROM_PARTNER',
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
     ]);
 
     const totalMoneyIn = moneyInAgg._sum.amount || 0;
     const totalTransfersIn = transfersInAgg._sum.amount || 0;
     const totalTransfersOut = transfersOutAgg._sum.amount || 0;
     const totalExpenses = expensesAgg._sum.amount || 0;
+    const totalBankWithdrawals = bankWithdrawalsAgg._sum.amount || 0;
+    const totalBankDeposits = bankDepositsAgg._sum.amount || 0;
 
     const lifetimeWallet = calculateWalletBalance({
       totalMoneyIn,
       totalTransfersIn,
       totalTransfersOut,
       totalExpenses,
+      totalBankWithdrawals,
+      totalBankDeposits,
     });
 
     // 2. Day-specific Cash Flow (Din Ka Hisaab)
@@ -70,9 +106,22 @@ export async function GET(req: Request) {
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     // Prior days aggregate for derived opening balance
-    const [priorMoneyIn, priorTransfersIn, priorTransfersOut, priorExpenses] = await Promise.all([
+    const [
+      priorMoneyIn,
+      priorTransfersIn,
+      priorTransfersOut,
+      priorExpenses,
+      priorBankWithdrawals,
+      priorBankDeposits,
+    ] = await Promise.all([
       prisma.projectReceipt.aggregate({
-        where: { organizationId: orgId, receivedById: targetUserId, date: { lt: dayStart }, deletedAt: null },
+        where: {
+          organizationId: orgId,
+          receivedById: targetUserId,
+          date: { lt: dayStart },
+          deletedAt: null,
+          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
+        },
         _sum: { amount: true },
       }),
       prisma.fundTransfer.aggregate({
@@ -87,6 +136,26 @@ export async function GET(req: Request) {
         where: { organizationId: orgId, walletOwnerId: targetUserId, date: { lt: dayStart }, deletedAt: null },
         _sum: { amount: true },
       }),
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_TO_PARTNER',
+          date: { lt: dayStart },
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_FROM_PARTNER',
+          date: { lt: dayStart },
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
     ]);
 
     const priorWallet = calculateWalletBalance({
@@ -94,17 +163,27 @@ export async function GET(req: Request) {
       totalTransfersIn: priorTransfersIn._sum.amount || 0,
       totalTransfersOut: priorTransfersOut._sum.amount || 0,
       totalExpenses: priorExpenses._sum.amount || 0,
+      totalBankWithdrawals: priorBankWithdrawals._sum.amount || 0,
+      totalBankDeposits: priorBankDeposits._sum.amount || 0,
     });
     const openingBalance = priorWallet.balance;
 
     // Today's movements
-    const [todayMoneyIn, todayTransfersIn, todayTransfersOut, todayExpenses] = await Promise.all([
+    const [
+      todayMoneyIn,
+      todayTransfersIn,
+      todayTransfersOut,
+      todayExpenses,
+      todayBankWithdrawals,
+      todayBankDeposits,
+    ] = await Promise.all([
       prisma.projectReceipt.aggregate({
         where: {
           organizationId: orgId,
           receivedById: targetUserId,
           date: { gte: dayStart, lte: dayEnd },
           deletedAt: null,
+          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
         },
         _sum: { amount: true },
       }),
@@ -135,6 +214,26 @@ export async function GET(req: Request) {
         },
         _sum: { amount: true },
       }),
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_TO_PARTNER',
+          date: { gte: dayStart, lte: dayEnd },
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
+      prisma.bankTransaction.aggregate({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: 'TRANSFER_FROM_PARTNER',
+          date: { gte: dayStart, lte: dayEnd },
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
     ]);
 
     // Check DailyClosing record for this day
@@ -148,21 +247,22 @@ export async function GET(req: Request) {
 
     const dailyCashFlow = calculateDailyCashFlow({
       openingBalance,
-      moneyInToday: todayMoneyIn._sum.amount || 0,
+      moneyInToday: (todayMoneyIn._sum.amount || 0) + (todayBankWithdrawals._sum.amount || 0),
       transfersInToday: todayTransfersIn._sum.amount || 0,
-      transfersOutToday: todayTransfersOut._sum.amount || 0,
+      transfersOutToday: (todayTransfersOut._sum.amount || 0) + (todayBankDeposits._sum.amount || 0),
       expensesToday: todayExpenses._sum.amount || 0,
       actualPhysicalCash: dailyClosing?.actualCash ?? null,
     });
 
     // 3. Transactions for the selected day or recent (limit 50)
-    const [receipts, transfersSent, transfersReceived, expenses] = await Promise.all([
+    const [receipts, transfersSent, transfersReceived, expenses, bankMovements] = await Promise.all([
       prisma.projectReceipt.findMany({
         where: {
           organizationId: orgId,
           receivedById: targetUserId,
           ...(dateParam ? { date: { gte: dayStart, lte: dayEnd } } : {}),
           deletedAt: null,
+          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
         },
         include: {
           project: { select: { id: true, name: true, projectCode: true } },
@@ -216,6 +316,20 @@ export async function GET(req: Request) {
           materialReceipt: {
             select: { id: true, material: { select: { name: true, unit: true } }, quantity: true, purchaseRate: true },
           },
+        },
+        orderBy: { date: 'desc' },
+        take: 30,
+      }),
+      prisma.bankTransaction.findMany({
+        where: {
+          organizationId: orgId,
+          partnerId: targetUserId,
+          type: { in: ['TRANSFER_TO_PARTNER', 'TRANSFER_FROM_PARTNER'] },
+          ...(dateParam ? { date: { gte: dayStart, lte: dayEnd } } : {}),
+          deletedAt: null,
+        },
+        include: {
+          bankAccount: { select: { id: true, name: true, bankName: true } },
         },
         orderBy: { date: 'desc' },
         take: 30,
@@ -290,6 +404,24 @@ export async function GET(req: Request) {
         notes: e.notes,
         raw: e,
       })),
+      ...bankMovements.map((bm) => ({
+        id: bm.id,
+        type: bm.type === 'TRANSFER_TO_PARTNER' ? 'TRANSFER_IN' : 'TRANSFER_OUT',
+        direction: (bm.type === 'TRANSFER_TO_PARTNER' ? 'IN' : 'OUT') as 'IN' | 'OUT',
+        amount: bm.amount,
+        date: bm.date,
+        description: bm.type === 'TRANSFER_TO_PARTNER'
+          ? `Bank se Cash Nikala (${bm.bankAccount?.name || 'Bank'})`
+          : `Cash Bank mein Jama (${bm.bankAccount?.name || 'Bank'})`,
+        category: 'Bank Cash Transfer',
+        partyName: bm.bankAccount?.bankName || 'Bank',
+        projectName: 'Internal Movement',
+        siteName: bm.bankAccount?.name,
+        paymentMethod: 'BANK',
+        reference: bm.reference,
+        notes: bm.notes,
+        raw: bm,
+      })),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // If summaryAll is requested by Owner, compute partner overview comparison
@@ -306,9 +438,14 @@ export async function GET(req: Request) {
 
       allPartnersSummary = await Promise.all(
         partnerUsers.map(async (u: any) => {
-          const [mIn, tIn, tOut, exp] = await Promise.all([
+          const [mIn, tIn, tOut, exp, bWith, bDep] = await Promise.all([
             prisma.projectReceipt.aggregate({
-              where: { organizationId: orgId, receivedById: u.id, deletedAt: null },
+              where: {
+                organizationId: orgId,
+                receivedById: u.id,
+                deletedAt: null,
+                OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
+              },
               _sum: { amount: true },
             }),
             prisma.fundTransfer.aggregate({
@@ -323,6 +460,14 @@ export async function GET(req: Request) {
               where: { organizationId: orgId, walletOwnerId: u.id, deletedAt: null },
               _sum: { amount: true },
             }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
+              _sum: { amount: true },
+            }),
           ]);
 
           const pWallet = calculateWalletBalance({
@@ -330,6 +475,8 @@ export async function GET(req: Request) {
             totalTransfersIn: tIn._sum.amount || 0,
             totalTransfersOut: tOut._sum.amount || 0,
             totalExpenses: exp._sum.amount || 0,
+            totalBankWithdrawals: bWith._sum.amount || 0,
+            totalBankDeposits: bDep._sum.amount || 0,
           });
 
           return {

@@ -357,31 +357,36 @@ export function calculateProductivity(input: ProductivityInput): ProductivityRes
 // =============================================================
 
 export interface WalletTransactionInput {
-  totalMoneyIn: number;       // Project receipts / client payments received by user
-  totalTransfersIn: number;   // Funds received from other partners/users
-  totalTransfersOut: number;  // Funds sent to supervisors, workers, or other partners
-  totalExpenses: number;      // Expenses debited from user's wallet
+  totalMoneyIn: number;          // Project receipts / client payments received by user
+  totalTransfersIn: number;      // Funds received from other partners/users
+  totalTransfersOut: number;     // Funds sent to supervisors, workers, or other partners
+  totalExpenses: number;         // Expenses debited from user's wallet
+  totalBankWithdrawals?: number; // Cash withdrawn from bank into partner wallet ("Bank se Cash Nikala")
+  totalBankDeposits?: number;    // Cash deposited from partner wallet into bank ("Cash Bank mein Jama")
 }
 
 export interface WalletBalanceResult {
-  totalCredits: number;       // totalMoneyIn + totalTransfersIn
-  totalDebits: number;        // totalTransfersOut + totalExpenses
+  totalCredits: number;       // totalMoneyIn + totalTransfersIn + totalBankWithdrawals
+  totalDebits: number;        // totalTransfersOut + totalExpenses + totalBankDeposits
   balance: number;            // totalCredits - totalDebits
 }
 
 /**
  * Formula:
- * Balance = (Money In + Transfers In) - (Transfers Out + Wallet Expenses)
+ * Balance = (Money In + Transfers In + Bank Withdrawals) - (Transfers Out + Wallet Expenses + Bank Deposits)
  * All entries strictly exclude deletedAt != null records.
  */
 export function calculateWalletBalance(input: WalletTransactionInput): WalletBalanceResult {
   const moneyIn = Math.max(0, input.totalMoneyIn || 0);
   const transfersIn = Math.max(0, input.totalTransfersIn || 0);
+  const bankWithdrawals = Math.max(0, input.totalBankWithdrawals || 0);
+
   const transfersOut = Math.max(0, input.totalTransfersOut || 0);
   const expenses = Math.max(0, input.totalExpenses || 0);
+  const bankDeposits = Math.max(0, input.totalBankDeposits || 0);
 
-  const totalCredits = Math.round((moneyIn + transfersIn) * 100) / 100;
-  const totalDebits = Math.round((transfersOut + expenses) * 100) / 100;
+  const totalCredits = Math.round((moneyIn + transfersIn + bankWithdrawals) * 100) / 100;
+  const totalDebits = Math.round((transfersOut + expenses + bankDeposits) * 100) / 100;
   const balance = Math.round((totalCredits - totalDebits) * 100) / 100;
 
   return {
@@ -460,5 +465,142 @@ export function calculateProjectReceivables(projectValue: number, totalReceived:
     totalReceived: received,
     pendingReceivable: pending,
     receivedPercentage,
+  };
+}
+
+// =============================================================
+// 9. BANK ACCOUNT & OVERALL MONEY POSITION CALCULATIONS
+// Single Source of Truth: derived dynamically, never stored!
+// =============================================================
+
+export interface BankTransactionInput {
+  openingBalance: number;
+  totalDeposits?: number;
+  totalReceipts?: number;
+  totalTransfersFromPartner?: number; // Cash deposited from partner ("Cash Bank mein Jama")
+  totalWithdrawals?: number;
+  totalPayments?: number;
+  totalTransfersToPartner?: number;   // Cash withdrawn by partner ("Bank se Cash Nikala")
+}
+
+export interface BankBalanceResult {
+  openingBalance: number;
+  totalInflow: number;   // totalDeposits + totalReceipts + totalTransfersFromPartner
+  totalOutflow: number;  // totalWithdrawals + totalPayments + totalTransfersToPartner
+  balance: number;       // openingBalance + totalInflow - totalOutflow
+}
+
+/**
+ * Derives bank account balance at runtime. Never stores balance in DB!
+ * Balance = Opening + (Deposits + Receipts + TransfersFromPartner) - (Withdrawals + Payments + TransfersToPartner)
+ * Strictly filters deletedAt === null.
+ */
+export function calculateBankBalance(input: BankTransactionInput): BankBalanceResult {
+  const opening = input.openingBalance || 0;
+  const deposits = Math.max(0, input.totalDeposits || 0);
+  const receipts = Math.max(0, input.totalReceipts || 0);
+  const transfersFromPartner = Math.max(0, input.totalTransfersFromPartner || 0);
+
+  const withdrawals = Math.max(0, input.totalWithdrawals || 0);
+  const payments = Math.max(0, input.totalPayments || 0);
+  const transfersToPartner = Math.max(0, input.totalTransfersToPartner || 0);
+
+  const totalInflow = Math.round((deposits + receipts + transfersFromPartner) * 100) / 100;
+  const totalOutflow = Math.round((withdrawals + payments + transfersToPartner) * 100) / 100;
+  const balance = Math.round((opening + totalInflow - totalOutflow) * 100) / 100;
+
+  return {
+    openingBalance: Math.round(opening * 100) / 100,
+    totalInflow,
+    totalOutflow,
+    balance,
+  };
+}
+
+export interface WalletEntityItem {
+  id: string;
+  name: string;
+  balance: number;
+}
+
+export interface BankEntityItem {
+  id: string;
+  name: string;
+  bankName: string;
+  accountLast4?: string | null;
+  balance: number;
+}
+
+export interface OverallMoneyPositionInput {
+  partnerWallets: WalletEntityItem[];
+  supervisorWallets?: WalletEntityItem[];
+  bankBalances: BankEntityItem[];
+  totalReceived?: number;
+  totalExpenses?: number;
+}
+
+export interface OverallMoneyPositionResult {
+  totalPartnersCash: number;
+  totalSupervisorsCash: number;
+  totalBankBalance: number;
+  totalMoney: number; // Sab Partners ka Cash + Supervisors ka Cash + Bank Balance(s)
+  breakdown: {
+    partnerWallets: (WalletEntityItem & { percentage: number })[];
+    supervisorWallets: (WalletEntityItem & { percentage: number })[];
+    bankBalances: (BankEntityItem & { percentage: number })[];
+  };
+  totalReceived: number;
+  totalExpenses: number;
+  totalRemaining: number;
+}
+
+/**
+ * Calculates Single Source of Truth for Overall Money Position:
+ * Total Money = Sum(All Partners Cash) + Sum(All Supervisors Cash) + Sum(Bank Balances)
+ */
+export function calculateOverallMoneyPosition(input: OverallMoneyPositionInput): OverallMoneyPositionResult {
+  const partnerWallets = input.partnerWallets || [];
+  const supervisorWallets = input.supervisorWallets || [];
+  const bankBalances = input.bankBalances || [];
+
+  const totalPartnersCash = Math.round(
+    partnerWallets.reduce((sum, p) => sum + (p.balance || 0), 0) * 100
+  ) / 100;
+
+  const totalSupervisorsCash = Math.round(
+    supervisorWallets.reduce((sum, s) => sum + (s.balance || 0), 0) * 100
+  ) / 100;
+
+  const totalBankBalance = Math.round(
+    bankBalances.reduce((sum, b) => sum + (b.balance || 0), 0) * 100
+  ) / 100;
+
+  const totalMoney = Math.round((totalPartnersCash + totalSupervisorsCash + totalBankBalance) * 100) / 100;
+
+  const calcPct = (amount: number) =>
+    totalMoney > 0 ? Number(((amount / totalMoney) * 100).toFixed(1)) : 0;
+
+  return {
+    totalPartnersCash,
+    totalSupervisorsCash,
+    totalBankBalance,
+    totalMoney,
+    breakdown: {
+      partnerWallets: partnerWallets.map((p) => ({
+        ...p,
+        percentage: calcPct(p.balance),
+      })),
+      supervisorWallets: supervisorWallets.map((s) => ({
+        ...s,
+        percentage: calcPct(s.balance),
+      })),
+      bankBalances: bankBalances.map((b) => ({
+        ...b,
+        percentage: calcPct(b.balance),
+      })),
+    },
+    totalReceived: Math.round((input.totalReceived || 0) * 100) / 100,
+    totalExpenses: Math.round((input.totalExpenses || 0) * 100) / 100,
+    totalRemaining: totalMoney,
   };
 }
