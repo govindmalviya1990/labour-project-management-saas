@@ -27,12 +27,12 @@ export function parseRelativeDate(text: string): { startDate?: string; endDate?:
   const todayStr = now.toISOString().split('T')[0];
 
   // Today
-  if (lower.includes('aaj') || lower.includes('today') || lower.includes('આજ')) {
+  if (lower.includes('aaj') || lower.includes('aaje') || lower.includes('today') || lower.includes('આજ') || lower.includes('આજે')) {
     return { startDate: todayStr, endDate: todayStr, label: 'Aaj (Today)' };
   }
 
   // Yesterday
-  if (lower.includes('kal') || lower.includes('yesterday') || lower.includes('ગઈકાલે')) {
+  if (lower.includes('kal') || lower.includes('kale') || lower.includes('yesterday') || lower.includes('ગઈકાલે') || lower.includes('કાલે')) {
     const yest = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const yestStr = yest.toISOString().split('T')[0];
     return { startDate: yestStr, endDate: yestStr, label: 'Kal (Yesterday)' };
@@ -150,15 +150,28 @@ export async function matchRuleBased(
   // =========================================================
   const targetDateStr = parseRelativeDate(lower).startDate || new Date().toISOString().split('T')[0];
 
-  // 2a. Give Money Draft: "Ramesh ko 500 Dinner ke liye diye" / "Sonu ko 2000 advance diye"
+  // 2a. Give Money Draft: "Ramesh ko 500 Dinner ke liye diye" / "Ramesh ne 500 Dinner mate aapya" / "Paid 500 to Ramesh for Dinner"
   const transferMatch =
-    raw.match(/(?:aaj\s+)?(.+?)\s+ko\s+(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(.*?)\s*(?:(?:ke\s+liye)|(?:for))?\s*(?:diye|aapya|bheje|paid|transfer|diyo)/i) ||
-    raw.match(/(?:aaj\s+)?(.+?)\s+ko\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(?:diye|aapya)/i);
+    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(.*?)\s*(?:(?:ke\s+liye)|(?:mate)|(?:for))?\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo)/i) ||
+    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo)/i) ||
+    raw.match(/(?:paid|given|transferred|send)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s+to\s+(.+?)(?:\s+(?:for|as)\s+(.*?))?$/i);
 
   if (transferMatch) {
-    const toName = transferMatch[1].trim();
-    const amount = parseFloat(transferMatch[2]);
-    let rawPurpose = transferMatch[3]?.trim().replace(/(?:ke\s+liye|for)$/i, '').trim();
+    let toName = '';
+    let amount = 0;
+    let rawPurpose = '';
+
+    // Check if English order: "Paid 500 to Ramesh for Dinner"
+    if (/^(?:paid|given|transferred|send)/i.test(transferMatch[0])) {
+      amount = parseFloat(transferMatch[1]);
+      toName = transferMatch[2]?.trim() || '';
+      rawPurpose = transferMatch[3]?.trim() || '';
+    } else {
+      toName = transferMatch[1].trim();
+      amount = parseFloat(transferMatch[2]);
+      rawPurpose = transferMatch[3]?.trim().replace(/(?:ke\s+liye|mate|for)$/i, '').trim();
+    }
+
     if (rawPurpose && rawPurpose.toLowerCase() === 'dinner') rawPurpose = 'Dinner';
     if (rawPurpose && rawPurpose.toLowerCase() === 'advance') rawPurpose = 'Worker Advance';
     if (rawPurpose && rawPurpose.toLowerCase() === 'petrol') rawPurpose = 'Petrol';

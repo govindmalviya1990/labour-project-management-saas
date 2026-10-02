@@ -13,9 +13,17 @@ import {
   ShieldCheck,
   AlertCircle,
   HelpCircle,
+  Mic,
+  MicOff,
+  Languages,
 } from 'lucide-react';
 import { AssistantAvatar } from './AssistantAvatar';
 import { ConfirmationCard } from './ConfirmationCard';
+import {
+  useSpeechRecognition,
+  SUPPORTED_VOICE_LANGUAGES,
+  VoiceLanguage,
+} from '@/hooks/useSpeechRecognition';
 
 interface ChatMessage {
   id: string;
@@ -55,7 +63,7 @@ export function AssistantDrawer({
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Namaste! Main Modern Way Civil Solutions ka AI Assistant hoon. Aap mujhse daily hisaab, partner cash, worker khata, stock ya application features ke baare me poochh sakte hain (Hindi, Hinglish, Gujarati ya English).',
+      content: 'Namaste! Main Modern Way Civil Solutions ka AI Assistant hoon. Aap bolkar (mic) ya type karke daily hisaab, partner cash, worker khata, ya direct entry draft kar sakte hain (Hindi, Hinglish, Gujarati ya English).',
       source: 'SYSTEM',
     },
   ]);
@@ -65,6 +73,25 @@ export function AssistantDrawer({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    language: speechLang,
+    setLanguage: setSpeechLang,
+    interimTranscript,
+    errorMessage: speechError,
+    toggleListening,
+    clearError: clearSpeechError,
+  } = useSpeechRecognition({
+    onFinalTranscript: (finalText) => {
+      // Put directly into editable input box (do NOT send immediately, allow review/edit)
+      setInput((prev) => (prev ? `${prev} ${finalText}`.trim() : finalText));
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    },
+  });
 
   useEffect(() => {
     // Check assistant status on mount
@@ -295,8 +322,85 @@ export function AssistantDrawer({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Footer Input Box */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/90">
+        {/* Footer Input Box & Voice Controls */}
+        <div className="p-3 border-t border-slate-800 bg-slate-950/95 backdrop-blur-md">
+          {/* Language Selector Bar & Speech Status */}
+          <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+            <div className="flex items-center gap-1.5">
+              <Languages className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                Bhasha:
+              </span>
+              <div className="inline-flex rounded-lg bg-slate-900 border border-slate-800 p-0.5 shadow-inner">
+                {SUPPORTED_VOICE_LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => setSpeechLang(lang.code)}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all ${
+                      speechLang === lang.code
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {lang.shortLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Helper text */}
+            <span className="text-[10px] text-slate-400 hidden sm:inline">
+              Mic dabayein aur bolein
+            </span>
+          </div>
+
+          {/* Active Listening Visual Banner */}
+          {isListening && (
+            <div className="flex items-center justify-between px-3 py-2 mb-2 rounded-xl bg-red-950/40 border border-red-500/40 text-red-200 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2 text-xs truncate mr-2">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                </span>
+                <span className="font-semibold text-red-300 shrink-0">
+                  Sun raha hoon ({SUPPORTED_VOICE_LANGUAGES.find((l) => l.code === speechLang)?.shortLabel})...
+                </span>
+                {interimTranscript && (
+                  <span className="text-slate-300 italic truncate text-[11px]">
+                    &ldquo;{interimTranscript}&rdquo;
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={toggleListening}
+                className="text-[11px] font-bold text-red-400 hover:text-red-300 underline shrink-0 cursor-pointer"
+              >
+                Rokein
+              </button>
+            </div>
+          )}
+
+          {/* Speech Error Banner (Permission Denied, No Speech, etc.) */}
+          {speechError && (
+            <div className="flex items-center justify-between px-3 py-1.5 mb-2 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs animate-in fade-in">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="text-[11px] leading-tight">{speechError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={clearSpeechError}
+                className="text-slate-400 hover:text-slate-200 ml-2 p-0.5"
+                title="Dismiss"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {/* Form with Mic Button, Text Input, and Send */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -304,20 +408,62 @@ export function AssistantDrawer({
             }}
             className="flex items-center gap-2"
           >
+            {/* Mic Button (Voice Input) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isSpeechSupported) return;
+                if (!isListening) {
+                  // Prevent mobile virtual keyboard from opening on tap
+                  inputRef.current?.blur();
+                }
+                toggleListening();
+              }}
+              disabled={!isSpeechSupported}
+              title={
+                isSpeechSupported
+                  ? isListening
+                    ? 'Sunna band karein'
+                    : 'Bolkar likhein (Voice Input)'
+                  : 'Aapke browser me voice input support nahi hai'
+              }
+              className={`min-h-[44px] min-w-[44px] sm:min-h-[42px] sm:min-w-[42px] px-2.5 rounded-xl flex items-center justify-center transition-all ${
+                !isSpeechSupported
+                  ? 'opacity-40 cursor-not-allowed bg-slate-900 border border-slate-800 text-slate-500'
+                  : isListening
+                  ? 'bg-red-500/20 text-red-400 border border-red-500 shadow-lg shadow-red-500/20 animate-pulse'
+                  : 'bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 border border-slate-700/80 hover:text-amber-400'
+              }`}
+            >
+              {isListening ? (
+                <Mic className="w-4 h-4 text-red-400 animate-bounce" />
+              ) : isSpeechSupported ? (
+                <Mic className="w-4 h-4" />
+              ) : (
+                <MicOff className="w-4 h-4 text-slate-500" />
+              )}
+            </button>
+
+            {/* Editable Text Input */}
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Kuch bhi poochhein (e.g. Aaj ka kharch)..."
+              placeholder={
+                isListening
+                  ? '🎙️ Boliye, sun raha hoon...'
+                  : 'Poochhein ya bolein (e.g. Ramesh ko 500 diye)...'
+              }
               disabled={isLoading}
-              className="flex-1 min-h-[42px] px-3.5 text-xs rounded-xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+              className="flex-1 min-h-[44px] sm:min-h-[42px] px-3.5 text-xs rounded-xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 disabled:opacity-50"
             />
 
+            {/* Send Button */}
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="min-h-[42px] px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="min-h-[44px] min-w-[44px] sm:min-h-[42px] sm:min-w-[42px] px-3.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-bold text-xs flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -326,9 +472,11 @@ export function AssistantDrawer({
               )}
             </button>
           </form>
-          <div className="text-[10px] text-slate-500 text-center mt-2 flex items-center justify-center gap-1">
+
+          {/* Micro Footer status */}
+          <div className="text-[10px] text-slate-500 text-center mt-2 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3 h-3 text-emerald-500" />
-            <span>Role-Scoped • Single Source of Truth • Free-Tier Safe</span>
+            <span>Voice &amp; Text • Draft + Confirm • Safe Entries</span>
           </div>
         </div>
       </div>
