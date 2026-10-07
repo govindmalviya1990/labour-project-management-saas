@@ -167,7 +167,7 @@ export function UsageFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site (कंपनी से साइट पर सामग्री भेजें)'}
+      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site'}
       description="Dispatch material from company godown stock to construction project site. Dispatched stock is deducted from total company inventory."
       size="lg"
     >
@@ -182,7 +182,7 @@ export function UsageFormModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Destination Site / Project (किस साइट पर भेज रहे हैं) *
+              Destination Site / Project *
             </label>
             <select
               value={formData.projectId}
@@ -199,7 +199,7 @@ export function UsageFormModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Dispatch Date (भेजने की तारीख) *
+              Dispatch Date *
             </label>
             <Input
               type="date"
@@ -212,7 +212,7 @@ export function UsageFormModal({
 
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Material to Send (कंपनी स्टॉक से सामग्री चुनें) *
+            Material to Send *
           </label>
           <select
             value={formData.materialId}

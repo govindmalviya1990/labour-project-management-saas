@@ -308,7 +308,7 @@ export function MaterialFormModal({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Company Stock (कंपनी गोदाम का स्टॉक)
+              Company Stock (Godown Inventory)
             </label>
             <Input
               type="number"

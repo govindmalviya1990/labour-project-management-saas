@@ -275,10 +275,10 @@ export function StockReportModal({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-black text-slate-100 flex items-center gap-2">
-                Site-Wise Material Stock Report (साइट-वार स्टॉक रिपोर्ट)
+                Site-Wise Material Stock Report
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                किस कंस्ट्रक्शन साइट पर कौन सा मटेरियल कितनी मात्रा और वैल्यू में मौजूद है
+                Real-time stock levels, quantities, and valuation across all project sites
               </p>
             </div>
           </div>
@@ -374,7 +374,7 @@ export function StockReportModal({
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
-              Site-Wise Breakdown (साइट के अनुसार)
+              Site-Wise Breakdown
             </button>
             <button
               onClick={() => setViewMode('material')}
@@ -385,7 +385,7 @@ export function StockReportModal({
               }`}
             >
               <Package className="w-3.5 h-3.5" />
-              Material-Wise Distribution (मटेरियल के अनुसार)
+              Material-Wise Distribution
             </button>
           </div>
 
@@ -552,12 +552,12 @@ export function StockReportModal({
                                 {item.availableStock > 0 ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                     <CheckCircle2 className="w-3 h-3" />
-                                    उपलब्ध (In Stock)
+                                    In Stock
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                                     <Clock className="w-3 h-3 animate-pulse" />
-                                    पहुँच रहा है (In-Transit)
+                                    In-Transit
                                   </span>
                                 )}
                               </td>
@@ -584,7 +584,7 @@ export function StockReportModal({
                       <th className="py-3 px-3 text-right">Company Total Stock</th>
                       <th className="py-3 px-3 text-right text-emerald-400 font-bold">Godown In-Hand Stock</th>
                       <th className="py-3 px-3 text-right text-sky-400 font-bold">Total on Sites</th>
-                      <th className="py-3 px-4">Breakdown by Site (किस साइट पर कितना)</th>
+                      <th className="py-3 px-4">Breakdown by Site</th>
                       <th className="py-3 px-3 text-right">Godown Value</th>
                     </tr>
                   </thead>

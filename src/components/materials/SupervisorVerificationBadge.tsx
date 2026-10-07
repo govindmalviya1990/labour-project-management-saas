@@ -26,7 +26,7 @@ export function SupervisorVerificationBadge({
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
         <Clock className="w-3 h-3 animate-pulse" />
-        वेरीफिकेशन बाकी (Pending)
+        Pending Verification
       </span>
     );
   }
@@ -41,7 +41,7 @@ export function SupervisorVerificationBadge({
       <div className="flex flex-col gap-0.5 text-left">
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 w-fit">
           <CheckCircle2 className="w-2.5 h-2.5" />
-          वेरीफाइड
+          Verified
         </span>
         <div className="text-[11px] font-semibold text-slate-200 flex items-center gap-1 mt-0.5">
           <User className="w-3 h-3 text-emerald-400 shrink-0" />
@@ -57,7 +57,7 @@ export function SupervisorVerificationBadge({
       <div className="flex items-center justify-between gap-1.5">
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
           <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-          साइट पर प्राप्त (Approved)
+          Received & Approved
         </span>
         {onViewDetails && (
           <button
@@ -66,7 +66,7 @@ export function SupervisorVerificationBadge({
             className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-0.5 font-medium hover:underline"
             title="View Verification Details"
           >
-            <FileText className="w-3 h-3" /> विवरण
+            <FileText className="w-3 h-3" /> Details
           </button>
         )}
       </div>

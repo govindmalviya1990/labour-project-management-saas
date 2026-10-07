@@ -105,7 +105,7 @@ export default function SendMaterialPage() {
           </div>
           <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2.5">
             <Send className="w-7 h-7 text-sky-400" />
-            Send Material to Site (कंपनी से साइट पर सामग्री भेजें)
+            Send Material to Site
           </h1>
           <p className="text-sm text-slate-400">
             Dispatch inventory from company godown to construction sites. Stock is deducted from total company inventory.

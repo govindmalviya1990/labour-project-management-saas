@@ -321,7 +321,7 @@ export async function GET(req: Request) {
           ? 'Weekly Aggregated Expense Statement'
           : type === 'monthly-expense'
           ? 'Monthly Site Expense & Overhead Audit'
-          : 'Construction & Site Expense Report (खर्च रिपोर्ट)';
+          : 'Construction & Site Expense Report';
 
       return NextResponse.json({
         reportType: title,

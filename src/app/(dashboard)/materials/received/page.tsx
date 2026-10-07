@@ -197,7 +197,7 @@ export default function MaterialReceivedPage() {
           </div>
           <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2.5">
             <Truck className="w-7 h-7 text-emerald-400" />
-            Receive Material at Site (साइट पर सामग्री रिसीव और अप्रूव करें)
+            Receive Material at Site
           </h1>
           <p className="text-sm text-slate-400">
             Site supervisor checks dispatched materials arriving at construction sites and approves inward receipts.
@@ -214,7 +214,7 @@ export default function MaterialReceivedPage() {
             className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-semibold"
           >
             <Plus className="w-4 h-4 mr-1.5" />
-            + Direct Site Receipt (लोकल वेंडर खरीद)
+            + Direct Site Receipt (Local Vendor)
           </Button>
         </div>
       </div>
@@ -396,7 +396,7 @@ export default function MaterialReceivedPage() {
                       <td className="py-3 px-3 text-center">
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                           <Clock className="w-3 h-3 animate-pulse" />
-                          वेरीफिकेशन बाकी
+                          Verification Pending
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -406,7 +406,7 @@ export default function MaterialReceivedPage() {
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 shadow-md shadow-emerald-950/40"
                         >
                           <FileCheck className="w-3.5 h-3.5 mr-1.5" />
-                          Verify & Approve (चेक करके अप्रूव करें)
+                          Verify & Approve
                         </Button>
                       </td>
                     </tr>
@@ -424,10 +424,10 @@ export default function MaterialReceivedPage() {
           <div className="p-3.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
               <CheckCircle2 className="w-4 h-4" />
-              Verified & Received Materials at Site (साइट पर प्राप्त सामग्री)
+              Verified & Received Materials at Site
             </div>
             <span className="text-[11px] text-slate-500">
-              Supervisor dwara approve ki gayi ya direct deliver hui samagri
+              Materials verified by supervisor or delivered directly to site
             </span>
           </div>
 
@@ -439,7 +439,7 @@ export default function MaterialReceivedPage() {
                   <th className="py-3 px-3">Site / Project</th>
                   <th className="py-3 px-3">Material</th>
                   <th className="py-3 px-3 text-right">Received Quantity</th>
-                  <th className="py-3 px-4">Verified By (चेक करने वाला सुपरवाइज़र)</th>
+                  <th className="py-3 px-4">Verified By</th>
                   <th className="py-3 px-4">Delivery & Verification Remarks</th>
                   <th className="py-3 px-3 text-center">Status</th>
                 </tr>
@@ -493,7 +493,7 @@ export default function MaterialReceivedPage() {
                         <td className="py-3 px-3 text-center">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                             <CheckCircle2 className="w-3 h-3" />
-                            साइट पर प्राप्त (Approved)
+                            Received & Approved
                           </span>
                         </td>
                       </tr>
@@ -556,7 +556,7 @@ export default function MaterialReceivedPage() {
             setVerifyModalOpen(false);
             setSelectedDispatch(null);
           }}
-          title="Verify & Receive Material at Site (साइट पर चेक और अप्रूव करें)"
+          title="Verify & Receive Material at Site"
           description="Confirm physical arrival of material dispatched from company stock to this construction site."
           size="md"
         >

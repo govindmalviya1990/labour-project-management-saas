@@ -118,10 +118,10 @@ export function extractVerificationInfo(notes?: string | null, fallbackUser?: an
 
 function normalizeRoleLabel(rawRole: string): string {
   const r = rawRole.toUpperCase().trim();
-  if (r === 'SITE_SUPERVISOR') return 'Site Supervisor (सुपरवाइज़र)';
-  if (r === 'OWNER') return 'Owner / Admin (मालिक)';
-  if (r === 'PARTNER') return 'Partner (साझेदार)';
-  if (r === 'MANAGER') return 'Project Manager (मैनेजर)';
-  if (r === 'ACCOUNTANT') return 'Accountant (मुनीम)';
+  if (r === 'SITE_SUPERVISOR') return 'Site Supervisor';
+  if (r === 'OWNER') return 'Owner / Admin';
+  if (r === 'PARTNER') return 'Project Partner';
+  if (r === 'MANAGER') return 'Project Manager';
+  if (r === 'ACCOUNTANT') return 'Accountant';
   return rawRole;
 }

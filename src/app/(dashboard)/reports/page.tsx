@@ -40,7 +40,7 @@ const REPORTS = [
   },
   {
     id: 'expense',
-    title: 'Expense Report (खर्च रिपोर्ट)',
+    title: 'Expense Report',
     href: '/reports/expense',
     description: 'Daily, Weekly, Monthly & Custom Date site expenditure with complete category-wise breakdown.',
     icon: <Receipt className="w-6 h-6 text-purple-400" />,

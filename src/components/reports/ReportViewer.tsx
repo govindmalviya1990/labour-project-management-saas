@@ -13,11 +13,6 @@ import {
   ArrowLeft,
   CalendarDays,
   PieChart,
-  Layers,
-  CheckCircle2,
-  Filter,
-  DollarSign,
-  Tag,
   Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -38,63 +33,55 @@ const getCategoryDetails = (cat: string) => {
   const upper = String(cat || '').toUpperCase();
   if (upper.includes('MATERIAL') || upper.includes('GOODS')) {
     return {
-      title: 'सामग्री / सामान',
-      enTitle: 'Material & Goods',
+      title: 'Material & Goods',
       badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
       barColor: 'bg-blue-500',
     };
   }
   if (upper.includes('LABOUR')) {
     return {
-      title: 'मजदूर / लेबर खर्च',
-      enTitle: 'Labour & Mistry',
+      title: 'Labour & Workers',
       badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
       barColor: 'bg-amber-500',
     };
   }
   if (upper.includes('PETROL') || upper.includes('FUEL') || upper.includes('TRAVEL') || upper.includes('TRANSPORT')) {
     return {
-      title: 'डीजल / पेट्रोल / सफर',
-      enTitle: 'Fuel & Transport',
+      title: 'Fuel & Transport',
       badgeColor: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
       barColor: 'bg-orange-500',
     };
   }
   if (upper.includes('CHAY') || upper.includes('NASTA') || upper.includes('FOOD') || upper.includes('GROCERY')) {
     return {
-      title: 'चाय / नाश्ता / भोजन',
-      enTitle: 'Tea, Snacks & Food',
+      title: 'Food, Tea & Snacks',
       badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
       barColor: 'bg-emerald-500',
     };
   }
   if (upper.includes('TOOL') || upper.includes('EQUIPMENT')) {
     return {
-      title: 'टूल्स / औजार / मशीन',
-      enTitle: 'Tools & Equipment',
+      title: 'Tools & Equipment',
       badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
       barColor: 'bg-purple-500',
     };
   }
   if (upper.includes('RENT')) {
     return {
-      title: 'साइट किराया / रेंट',
-      enTitle: 'Rent & Leases',
+      title: 'Site Rent & Leases',
       badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
       barColor: 'bg-cyan-500',
     };
   }
   if (upper.includes('RECHARGE') || upper.includes('BILL') || upper.includes('UTILITIES')) {
     return {
-      title: 'मोबाइल / बिजली बिल',
-      enTitle: 'Utilities & Bills',
+      title: 'Utilities & Bills',
       badgeColor: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
       barColor: 'bg-teal-500',
     };
   }
   return {
     title: upper.replace(/_/g, ' '),
-    enTitle: 'Miscellaneous / Other',
     badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
     barColor: 'bg-slate-400',
   };
@@ -366,7 +353,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-amber-500" />
-              अवधि चुनें (Select Period):
+              Select Period:
             </span>
           </div>
 
@@ -380,7 +367,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              📅 दैनिक / आज (Daily)
+              📅 Daily (Today)
             </button>
 
             <button
@@ -392,7 +379,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              📊 साप्ताहिक (Weekly)
+              📊 Weekly (7 Days)
             </button>
 
             <button
@@ -404,7 +391,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              🗓️ मासिक (Monthly)
+              🗓️ Monthly (This Month)
             </button>
 
             <button
@@ -416,7 +403,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              📆 कस्टम तारीख (Custom Date)
+              📆 Custom Date Range
             </button>
 
             <button
@@ -428,7 +415,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              पूरा रिकॉर्ड (All Time)
+              All Time
             </button>
           </div>
         </div>
@@ -509,11 +496,11 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
         {/* Active Filter Pill Badge */}
         {(startDate || endDate || selectedProjectId !== 'ALL' || (isExpenseReport && selectedCategory !== 'ALL')) && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
-            <span className="text-slate-500 font-medium">सक्रिय फिल्टर (Active Filters):</span>
+            <span className="text-slate-500 font-medium">Active Filters:</span>
             {startDate && endDate && (
               <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono text-[11px] flex items-center gap-1">
                 <CalendarDays className="w-3 h-3" />
-                {startDate === endDate ? `आज: ${startDate}` : `${startDate} से ${endDate}`}
+                {startDate === endDate ? `Today: ${startDate}` : `${startDate} to ${endDate}`}
               </span>
             )}
             {selectedProjectId !== 'ALL' && (
@@ -558,10 +545,10 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             <div>
               <h2 className="text-base font-bold text-slate-100 print:text-black flex items-center gap-2">
                 <PieChart className="w-5 h-5 text-amber-500" />
-                कैटेगरी अनुसार कुल खर्च विवरण (Category-Wise Expense Breakdown)
+                Category-Wise Expense Breakdown
               </h2>
               <p className="text-xs text-slate-400 print:text-gray-600 mt-0.5">
-                प्रत्येक मद में कितना खर्च हुआ, प्रतिशत एवं कुल वाउचर्स (Click any category to filter table)
+                Total expenditure distribution, percentage share, and voucher count (Click any category to filter table)
               </p>
             </div>
             {selectedCategory !== 'ALL' && (
@@ -570,14 +557,14 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                 onClick={() => setSelectedCategory('ALL')}
                 className="text-xs font-semibold px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 print:hidden w-fit"
               >
-                सभी कैटेगरी दिखाएं (Show All)
+                Show All Categories
               </button>
             )}
           </div>
 
           {expenseCategories.length === 0 ? (
             <div className="text-center py-6 text-slate-500 text-xs">
-              इस समयावधि में कोई खर्च रिकॉर्ड दर्ज नहीं है। (No expense logs recorded for this period.)
+              No expense records found for this period.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -614,7 +601,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                         ₹{Number(item.totalAmount || 0).toLocaleString('en-IN')}
                       </div>
                       <div className="text-[11px] text-slate-400 print:text-gray-600">
-                        {item.count} {item.count === 1 ? 'पर्ची' : 'पर्चियां'}
+                        {item.count} {item.count === 1 ? 'voucher' : 'vouchers'}
                       </div>
                     </div>
 
@@ -638,13 +625,13 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
         {isExpenseReport && selectedCategory !== 'ALL' && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs print:hidden">
             <span className="text-amber-400 font-medium">
-              फिल्टर सक्रिय: <strong>{selectedCategory}</strong> ({rows.length} रिकॉर्ड्स)
+              Active Filter: <strong>{selectedCategory}</strong> ({rows.length} records)
             </span>
             <button
               onClick={() => setSelectedCategory('ALL')}
               className="text-slate-400 hover:text-white underline text-[11px]"
             >
-              फ़िल्टर हटाएं (Remove Filter)
+              Clear Category Filter
             </button>
           </div>
         )}

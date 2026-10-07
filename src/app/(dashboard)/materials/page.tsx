@@ -305,7 +305,7 @@ export default function MaterialsPage() {
             className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-950/40 px-4 py-2.5 h-auto flex items-center gap-2 border border-emerald-400/30"
           >
             <BarChart3 className="w-4 h-4 text-emerald-100" />
-            View Stock Report (साइट-वार स्टॉक रिपोर्ट देखें)
+            View Stock Report
           </Button>
         </div>
       </div>
@@ -408,7 +408,7 @@ export default function MaterialsPage() {
           className="px-4 py-2.5 text-sm font-bold rounded-t-lg transition flex items-center gap-2 text-emerald-400 hover:text-emerald-300 hover:bg-slate-900/60 ml-auto border border-b-0 border-emerald-500/20"
         >
           <BarChart3 className="w-4 h-4 text-emerald-400" />
-          Stock Report (स्टॉक रिपोर्ट देखें)
+          Stock Report
         </button>
       </div>
 
@@ -607,7 +607,7 @@ export default function MaterialsPage() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            title="Add Stock (+ नया स्टॉक जोड़ें)"
+                            title="Add Stock"
                             onClick={() => handleOpenAddStock(m)}
                             className="px-2 py-1 text-[11px] font-bold bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 rounded transition flex items-center gap-1 shrink-0"
                           >
@@ -720,7 +720,7 @@ export default function MaterialsPage() {
                           <td className="py-3 px-3 text-center">
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                               <Clock className="w-3 h-3 animate-pulse" />
-                              वेरीफिकेशन बाकी
+                              Verification Pending
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right">
@@ -730,7 +730,7 @@ export default function MaterialsPage() {
                               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7 px-2.5 shadow-sm"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                              Verify & Approve (चेक करके अप्रूव करें)
+                              Verify & Approve
                             </Button>
                           </td>
                         </tr>
@@ -1098,7 +1098,7 @@ export default function MaterialsPage() {
             setVerifyModalOpen(false);
             setSelectedDispatch(null);
           }}
-          title="Verify & Receive Material at Site (साइट पर चेक और अप्रूव करें)"
+          title="Verify & Receive Material at Site"
           description="Confirm physical arrival of material dispatched from company stock to this construction site."
           size="md"
         >
