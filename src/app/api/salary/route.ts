@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
 
     const orgId = auth.session.organizationId;
@@ -30,8 +30,8 @@ export async function GET(req: Request) {
     const dateFilter =
       startDate && endDate
         ? {
-            gte: startDate,
-            lte: endDate,
+            gte: new Date(`${startDate}T00:00:00.000Z`),
+            lte: new Date(`${endDate}T23:59:59.999Z`),
           }
         : undefined;
 

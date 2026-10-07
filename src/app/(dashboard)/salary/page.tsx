@@ -74,7 +74,10 @@ export default function SalaryPayrollPage() {
         url += `&projectId=${selectedProjectId}`;
       }
       const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to load salary payroll sheet');
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson.error || 'Failed to load salary payroll sheet');
+      }
       const json = await res.json();
       setData(json);
     } catch (err: any) {

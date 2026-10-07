@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -49,7 +49,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;

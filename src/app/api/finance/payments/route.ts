@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    // Only OWNER, MANAGER, ACCOUNTANT, and LABOUR (for own records) can view payments
+    // Only OWNER, PARTNER, MANAGER, ACCOUNTANT, and LABOUR (for own records) can view payments
     // SUPERVISOR is strictly forbidden
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT', 'LABOUR']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT', 'LABOUR']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -72,9 +72,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    // Only OWNER, MANAGER, and ACCOUNTANT can record payments
+    // Only OWNER, PARTNER, MANAGER, and ACCOUNTANT can record payments
     // SUPERVISOR and LABOUR are strictly forbidden
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const orgId = auth.session.organizationId;
 
