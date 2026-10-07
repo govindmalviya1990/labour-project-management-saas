@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Trash2,
   RefreshCw,
+  RotateCcw,
   TrendingUp,
   TrendingDown,
   Building,
@@ -107,6 +108,7 @@ export default function CashBookPage() {
   const [isClosingOpen, setIsClosingOpen] = useState(false);
   const [isBankTransferOpen, setIsBankTransferOpen] = useState(false);
   const [isManageBanksOpen, setIsManageBanksOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // 1. Load current user session
   useEffect(() => {
@@ -319,6 +321,43 @@ export default function CashBookPage() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </Button>
+
+          {isOwnerOrManager && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isResetting}
+              onClick={async () => {
+                const confirmed = confirm(
+                  'Kripya confirm karein:\n\nKya aap sach me Cash Book ka saara hisaab clear karke fresh hisaab shuru karna chahte hain?\n\n- Saari Money In, Partner Transfers, Daily Expenses, Day Closings aur Bank Cash Movement delete ho jayengi.\n- Wallet balance ₹0 ho jayega.\n- Projects aur Workers delete nahi honge.\n\nProceed karein?'
+                );
+                if (!confirmed) return;
+
+                setIsResetting(true);
+                setError(null);
+                setStatusMessage(null);
+                try {
+                  const res = await fetch('/api/finance/reset-cash-book', { method: 'POST' });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    setError(data.error || 'Failed to reset Cash Book');
+                    return;
+                  }
+                  setStatusMessage(data.message || 'Cash Book successfully reset to ₹0!');
+                  await fetchWallet();
+                } catch (err: any) {
+                  setError(err.message || 'Error resetting Cash Book');
+                } finally {
+                  setIsResetting(false);
+                }
+              }}
+              className="text-xs h-9 text-rose-500 border-rose-500/30 hover:bg-rose-500/10 font-bold"
+              title="Reset Cash Book Transactions to ₹0"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${isResetting ? 'animate-spin' : ''}`} />
+              {isResetting ? 'Resetting...' : 'Reset Cash Book'}
+            </Button>
+          )}
         </div>
       </div>
 

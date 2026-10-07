@@ -16,7 +16,11 @@ import {
   Upload,
   Image as ImageIcon,
   Loader2,
+  Wallet,
+  RotateCcw,
+  ArrowRight,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -42,6 +46,9 @@ export default function SettingsPage() {
   const [isRemovingLogo, setIsRemovingLogo] = useState(false);
   const [isClearingDemo, setIsClearingDemo] = useState(false);
   const [clearStatus, setClearStatus] = useState('');
+  const [isResettingCashBook, setIsResettingCashBook] = useState(false);
+  const [cashBookResetStatus, setCashBookResetStatus] = useState('');
+  const [cashBookResetDetails, setCashBookResetDetails] = useState<any>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -475,6 +482,77 @@ export default function SettingsPage() {
 
       {/* Custom Reasons Management */}
       <ReasonsSettings />
+
+      {/* Cash Book Reset Section */}
+      <div className="bg-amber-950/20 border border-amber-500/30 rounded-xl p-5 space-y-4 mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-amber-400" /> Reset Cash Book (Clear All Cash Transactions)
+            </h2>
+            <p className="text-xs text-amber-200/70 mt-1 max-w-xl">
+              Cash Book ki saari purani entries (Money In, Partner Transfers, Daily Expenses, Day Closings aur Bank Transactions) ko clear karke wallet balances ₹0 set karein taaki aap fresh hisaab shuru kar sakein. Aapke Projects, Workers, Material Catalog aur Login Accounts bilkul surakshit rahenge.
+            </p>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Link
+              href="/cash-book"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+            >
+              <span>View Cash Book</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+            </Link>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isResettingCashBook}
+              onClick={async () => {
+                const confirmed = confirm(
+                  'Kripya confirm karein:\n\nKya aap sach me Cash Book ka saara hisaab clear karna chahte hain?\n\n- Saari Money In, Partner Transfers, Daily Expenses, Day Closings aur Bank Cash Movement delete ho jayengi.\n- Wallet balance ₹0 ho jayega taaki aap naye sire se fresh hisaab daal sakein.\n- Projects, Workers aur Users delete nahi honge.\n\nProceed karein?'
+                );
+                if (!confirmed) return;
+
+                setIsResettingCashBook(true);
+                setCashBookResetStatus('');
+                setCashBookResetDetails(null);
+                try {
+                  const res = await fetch('/api/finance/reset-cash-book', { method: 'POST' });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    alert(data.error || 'Failed to reset Cash Book');
+                    return;
+                  }
+                  setCashBookResetStatus(data.message || 'Cash Book successfully reset!');
+                  setCashBookResetDetails(data.cleared);
+                  fetchOrg();
+                } catch (e: any) {
+                  alert(e.message || 'Error occurred while resetting Cash Book');
+                } finally {
+                  setIsResettingCashBook(false);
+                }
+              }}
+              className="border-amber-500/40 text-amber-400 hover:bg-amber-500/20 text-xs font-bold"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${isResettingCashBook ? 'animate-spin' : ''}`} />
+              {isResettingCashBook ? 'Clearing Cash Book...' : 'Reset Cash Book (₹0 Balance)'}
+            </Button>
+          </div>
+        </div>
+
+        {cashBookResetStatus && (
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{cashBookResetStatus}</span>
+            </div>
+            {cashBookResetDetails && (
+              <span className="text-[11px] text-emerald-300/80">
+                Cleared: {cashBookResetDetails.receipts || 0} Receipts, {cashBookResetDetails.transfers || 0} Transfers, {cashBookResetDetails.expenses || 0} Expenses, {cashBookResetDetails.closings || 0} Closings, {cashBookResetDetails.bankTransactions || 0} Bank Txs
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Danger Zone: Wipe All Demo Data */}
       <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-5 space-y-3 mt-6">
