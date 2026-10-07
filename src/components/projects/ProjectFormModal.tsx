@@ -106,7 +106,7 @@ export function ProjectFormModal({
         targetUnit: 'sq.ft.',
         targetQuantity: 0,
         notes: '',
-        initialSiteName: 'Main Site',
+        initialSiteName: '',
       });
     }
     setError('');
@@ -244,14 +244,6 @@ export function ProjectFormModal({
               value={formData.fullAddress}
               onChange={(e) => setFormData({ ...formData, fullAddress: e.target.value })}
             />
-            {!initialData && (
-              <Input
-                label="Initial Site Name"
-                placeholder="e.g. Tower A or Main Block"
-                value={formData.initialSiteName}
-                onChange={(e) => setFormData({ ...formData, initialSiteName: e.target.value })}
-              />
-            )}
           </div>
         </div>
 
