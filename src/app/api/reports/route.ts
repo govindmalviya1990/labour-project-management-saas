@@ -28,7 +28,12 @@ export async function GET(req: Request) {
     if (startDate && endDate) {
       dateFilter.gte = new Date(startDate);
       dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
+    } else if (startDate) {
+      dateFilter.gte = new Date(startDate);
+    } else if (endDate) {
+      dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
     }
+    const hasDateFilter = Boolean(startDate || endDate);
 
     // 1. LABOUR REPORT
     if (type === 'labour') {
@@ -251,32 +256,62 @@ export async function GET(req: Request) {
       });
     }
 
-    // 5, 6, 7. EXPENSE REPORTS (Daily, Weekly, Monthly)
-    if (type === 'daily-expense' || type === 'weekly-expense' || type === 'monthly-expense') {
+    // 5, 6, 7. EXPENSE REPORTS (Daily, Weekly, Monthly, All Expense)
+    if (type === 'daily-expense' || type === 'weekly-expense' || type === 'monthly-expense' || type === 'expense') {
       const expenses = await prisma.expense.findMany({
         where: {
           organizationId: orgId,
           deletedAt: null,
           ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
-          ...(startDate && endDate ? { date: dateFilter } : {}),
+          ...(hasDateFilter ? { date: dateFilter } : {}),
         },
         include: {
           project: { select: { name: true, projectCode: true } },
+          site: { select: { name: true } },
         },
         orderBy: { date: 'desc' },
       });
 
+      const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+      // Compute Category-Wise Expense Breakdown
+      const categoryMap: Record<string, { totalAmount: number; count: number; percentage: number }> = {};
+      expenses.forEach((e) => {
+        const cat = e.category || 'MISCELLANEOUS';
+        if (!categoryMap[cat]) {
+          categoryMap[cat] = { totalAmount: 0, count: 0, percentage: 0 };
+        }
+        categoryMap[cat].totalAmount += e.amount;
+        categoryMap[cat].count += 1;
+      });
+
+      Object.keys(categoryMap).forEach((cat) => {
+        categoryMap[cat].percentage = totalAmount > 0
+          ? Math.round((categoryMap[cat].totalAmount / totalAmount) * 1000) / 10
+          : 0;
+      });
+
+      const categoryBreakdown = Object.entries(categoryMap)
+        .map(([category, stats]) => ({
+          category,
+          totalAmount: stats.totalAmount,
+          count: stats.count,
+          percentage: stats.percentage,
+        }))
+        .sort((a, b) => b.totalAmount - a.totalAmount);
+
       const data = expenses.map((e) => ({
         id: e.id,
         date: e.date,
-        projectName: e.project?.name,
+        projectName: e.project?.name || 'General HQ / Office',
+        siteName: e.site?.name || '—',
         category: e.category,
         description: e.description,
         amount: e.amount,
-        paidBy: e.paidBy,
+        paidBy: e.paidBy || '—',
         paymentMethod: e.paymentMethod,
-        vendorName: e.vendorName,
-        notes: e.notes,
+        vendorName: e.vendorName || '—',
+        notes: e.notes || '',
       }));
 
       const title =
@@ -284,15 +319,19 @@ export async function GET(req: Request) {
           ? 'Daily Construction Site Expense Report'
           : type === 'weekly-expense'
           ? 'Weekly Aggregated Expense Statement'
-          : 'Monthly Site Expense & Overhead Audit';
+          : type === 'monthly-expense'
+          ? 'Monthly Site Expense & Overhead Audit'
+          : 'Construction & Site Expense Report (खर्च रिपोर्ट)';
 
       return NextResponse.json({
         reportType: title,
         organization: org,
         summary: {
           totalTransactions: expenses.length,
-          totalAmount: expenses.reduce((sum, e) => sum + e.amount, 0),
+          totalAmount,
+          categories: categoryMap,
         },
+        categoryBreakdown,
         data,
       });
     }
@@ -311,6 +350,7 @@ export async function GET(req: Request) {
               organizationId: orgId,
               deletedAt: null,
               ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
           usages: {
@@ -318,6 +358,7 @@ export async function GET(req: Request) {
               organizationId: orgId,
               deletedAt: null,
               ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
           transfers: {
@@ -326,6 +367,7 @@ export async function GET(req: Request) {
               ...(projectId && projectId !== 'ALL'
                 ? { OR: [{ sourceProjectId: projectId }, { destinationProjectId: projectId }] }
                 : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
         },
@@ -470,9 +512,9 @@ export async function GET(req: Request) {
           ...(workerId && workerId !== 'ALL' ? { id: workerId } : {}),
         },
         include: {
-          attendance: { where: { organizationId: orgId } },
-          allowances: { where: { organizationId: orgId } },
-          payments: { where: { organizationId: orgId } },
+          attendance: { where: { organizationId: orgId, ...(hasDateFilter ? { date: dateFilter } : {}) } },
+          allowances: { where: { organizationId: orgId, ...(hasDateFilter ? { date: dateFilter } : {}) } },
+          payments: { where: { organizationId: orgId, ...(hasDateFilter ? { date: dateFilter } : {}) } },
         },
         orderBy: { name: 'asc' },
       });

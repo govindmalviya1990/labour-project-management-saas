@@ -1,5 +1,5 @@
 import { ReportViewer } from '@/components/reports/ReportViewer';
 
 export default function WeeklyExpenseReportPage() {
-  return <ReportViewer reportType="weekly-expense" defaultTitle="Weekly Construction Expense Statement" />;
+  return <ReportViewer reportType="expense" defaultTitle="Construction & Site Expense Report (खर्च रिपोर्ट)" />;
 }

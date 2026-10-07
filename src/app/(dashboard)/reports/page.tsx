@@ -39,45 +39,12 @@ const REPORTS = [
     tag: 'Daily Muster',
   },
   {
-    id: 'productivity',
-    title: 'Productivity Report',
-    href: '/reports/productivity',
-    description: 'Worker output efficiency, days worked, average quantity achieved per day and effective unit cost.',
-    icon: <Zap className="w-6 h-6 text-sky-400" />,
-    tag: 'Efficiency',
-  },
-  {
-    id: 'work',
-    title: 'Work Report',
-    href: '/reports/work',
-    description: 'Daily completed work logs, piece-rate measurements, brass/sq.ft/cum quantities and work values.',
-    icon: <Hammer className="w-6 h-6 text-indigo-400" />,
-    tag: 'Site Work',
-  },
-
-  {
-    id: 'daily-expense',
-    title: 'Daily Expense Report',
-    href: '/reports/daily-expense',
-    description: 'Day-to-day petty cash, site expenses, vendor receipts, supervisor vouchers and payments.',
+    id: 'expense',
+    title: 'Expense Report (खर्च रिपोर्ट)',
+    href: '/reports/expense',
+    description: 'Daily, Weekly, Monthly & Custom Date site expenditure with complete category-wise breakdown.',
     icon: <Receipt className="w-6 h-6 text-purple-400" />,
-    tag: 'Cashflow',
-  },
-  {
-    id: 'weekly-expense',
-    title: 'Weekly Expense Report',
-    href: '/reports/weekly-expense',
-    description: 'Aggregated 7-day expenditure sheets grouped by category (Fuel, Food, Tools, Hardware).',
-    icon: <Calendar className="w-6 h-6 text-blue-400" />,
-    tag: 'Weekly Review',
-  },
-  {
-    id: 'monthly-expense',
-    title: 'Monthly Expense Report',
-    href: '/reports/monthly-expense',
-    description: 'Monthly project expense ledger, site operations audit and overhead spending breakdowns.',
-    icon: <Layers className="w-6 h-6 text-pink-400" />,
-    tag: 'Monthly Audit',
+    tag: 'Site Expenses',
   },
   {
     id: 'material',
@@ -103,22 +70,6 @@ const REPORTS = [
     icon: <BookOpen className="w-6 h-6 text-sky-400" />,
     tag: 'Ledger',
   },
-  {
-    id: 'project-cost',
-    title: 'Project Cost Report',
-    href: '/reports/project-cost',
-    description: 'Cost breakdown: actual labour + actual material + site expenses vs budget, and cost per sq.ft.',
-    icon: <Building2 className="w-6 h-6 text-indigo-400" />,
-    tag: 'Project Control',
-  },
-  {
-    id: 'profit-loss',
-    title: 'Profit / Loss Report',
-    href: '/reports/profit-loss',
-    description: 'Contracted project value vs total actual project costs, net profit projection and margin percentages.',
-    icon: <TrendingUp className="w-6 h-6 text-emerald-400" />,
-    tag: 'Financial Audit',
-  },
 ];
 
 export default function ReportsHubPage() {
@@ -130,7 +81,7 @@ export default function ReportsHubPage() {
           Construction Reports & Export Center
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Access all 12 operational, payroll, material, and financial audit reports with 1-click Print/PDF and CSV downloads
+          Access verified operational, payroll, material, and site expense audit reports with 1-click Print/PDF and CSV downloads
         </p>
       </div>
 

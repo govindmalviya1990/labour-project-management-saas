@@ -166,10 +166,9 @@ export function Sidebar({
           title: 'Reports',
           icon: <FileBarChart className="w-4 h-4 text-cyan-400" />,
           children: [
-            { title: 'Daily Expense', href: '/reports/daily-expense' },
+            { title: 'Expense Report', href: '/reports/expense' },
             { title: 'Salary Report', href: '/reports/salary' },
             { title: 'Khata Report', href: '/reports/khata' },
-            { title: 'Project Cost', href: '/reports/project-cost' },
           ],
         },
         {
@@ -217,13 +216,9 @@ export function Sidebar({
           title: 'Financial Reports',
           icon: <FileBarChart className="w-4 h-4" />,
           children: [
-            { title: 'Daily Expense', href: '/reports/daily-expense' },
-            { title: 'Weekly Expense', href: '/reports/weekly-expense' },
-            { title: 'Monthly Expense', href: '/reports/monthly-expense' },
+            { title: 'Expense Report', href: '/reports/expense' },
             { title: 'Salary Report', href: '/reports/salary' },
             { title: 'Khata Report', href: '/reports/khata' },
-            { title: 'Project Cost', href: '/reports/project-cost' },
-            { title: 'Profit / Loss', href: '/reports/profit-loss' },
           ],
         },
         {
@@ -284,16 +279,10 @@ export function Sidebar({
         children: [
           { title: 'Labour Report', href: '/reports/labour' },
           { title: 'Attendance Report', href: '/reports/attendance' },
-          { title: 'Productivity Report', href: '/reports/productivity' },
-          { title: 'Work Report', href: '/reports/work' },
-          { title: 'Daily Expense', href: '/reports/daily-expense' },
-          { title: 'Weekly Expense', href: '/reports/weekly-expense' },
-          { title: 'Monthly Expense', href: '/reports/monthly-expense' },
+          { title: 'Expense Report', href: '/reports/expense' },
           { title: 'Material Report', href: '/reports/material' },
           { title: 'Salary Report', href: '/reports/salary' },
           { title: 'Khata Report', href: '/reports/khata' },
-          { title: 'Project Cost', href: '/reports/project-cost' },
-          { title: 'Profit / Loss', href: '/reports/profit-loss' },
         ],
       },
       {

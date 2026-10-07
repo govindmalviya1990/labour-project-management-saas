@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import {
   Printer,
@@ -11,14 +11,94 @@ import {
   RefreshCw,
   Search,
   ArrowLeft,
+  CalendarDays,
+  PieChart,
+  Layers,
+  CheckCircle2,
+  Filter,
+  DollarSign,
+  Tag,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { formatINR } from '@/lib/calculations';
 
 interface ReportViewerProps {
   reportType: string;
   defaultTitle: string;
 }
+
+const formatDateToISO = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCategoryDetails = (cat: string) => {
+  const upper = String(cat || '').toUpperCase();
+  if (upper.includes('MATERIAL') || upper.includes('GOODS')) {
+    return {
+      title: 'सामग्री / सामान',
+      enTitle: 'Material & Goods',
+      badgeColor: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+      barColor: 'bg-blue-500',
+    };
+  }
+  if (upper.includes('LABOUR')) {
+    return {
+      title: 'मजदूर / लेबर खर्च',
+      enTitle: 'Labour & Mistry',
+      badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+      barColor: 'bg-amber-500',
+    };
+  }
+  if (upper.includes('PETROL') || upper.includes('FUEL') || upper.includes('TRAVEL') || upper.includes('TRANSPORT')) {
+    return {
+      title: 'डीजल / पेट्रोल / सफर',
+      enTitle: 'Fuel & Transport',
+      badgeColor: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+      barColor: 'bg-orange-500',
+    };
+  }
+  if (upper.includes('CHAY') || upper.includes('NASTA') || upper.includes('FOOD') || upper.includes('GROCERY')) {
+    return {
+      title: 'चाय / नाश्ता / भोजन',
+      enTitle: 'Tea, Snacks & Food',
+      badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+      barColor: 'bg-emerald-500',
+    };
+  }
+  if (upper.includes('TOOL') || upper.includes('EQUIPMENT')) {
+    return {
+      title: 'टूल्स / औजार / मशीन',
+      enTitle: 'Tools & Equipment',
+      badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+      barColor: 'bg-purple-500',
+    };
+  }
+  if (upper.includes('RENT')) {
+    return {
+      title: 'साइट किराया / रेंट',
+      enTitle: 'Rent & Leases',
+      badgeColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+      barColor: 'bg-cyan-500',
+    };
+  }
+  if (upper.includes('RECHARGE') || upper.includes('BILL') || upper.includes('UTILITIES')) {
+    return {
+      title: 'मोबाइल / बिजली बिल',
+      enTitle: 'Utilities & Bills',
+      badgeColor: 'bg-teal-500/10 text-teal-400 border-teal-500/30',
+      barColor: 'bg-teal-500',
+    };
+  }
+  return {
+    title: upper.replace(/_/g, ' '),
+    enTitle: 'Miscellaneous / Other',
+    badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
+    barColor: 'bg-slate-400',
+  };
+};
 
 export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
   const [data, setData] = useState<any>(null);
@@ -26,8 +106,19 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [activePeriod, setActivePeriod] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'custom'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const startDateInputRef = useRef<HTMLInputElement>(null);
+  const endDateInputRef = useRef<HTMLInputElement>(null);
+
+  const isExpenseReport =
+    reportType === 'daily-expense' ||
+    reportType === 'weekly-expense' ||
+    reportType === 'monthly-expense' ||
+    reportType === 'expense';
 
   const fetchReport = async () => {
     setIsLoading(true);
@@ -62,6 +153,43 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
     fetchReport();
   }, [reportType, selectedProjectId, startDate, endDate]);
 
+  const handleSelectPeriod = (period: 'all' | 'daily' | 'weekly' | 'monthly' | 'custom') => {
+    setActivePeriod(period);
+    const today = new Date();
+    if (period === 'daily') {
+      const isoToday = formatDateToISO(today);
+      setStartDate(isoToday);
+      setEndDate(isoToday);
+    } else if (period === 'weekly') {
+      const lastWeek = new Date();
+      lastWeek.setDate(today.getDate() - 6);
+      setStartDate(formatDateToISO(lastWeek));
+      setEndDate(formatDateToISO(today));
+    } else if (period === 'monthly') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      setStartDate(formatDateToISO(firstDay));
+      setEndDate(formatDateToISO(today));
+    } else if (period === 'all') {
+      setStartDate('');
+      setEndDate('');
+    } else if (period === 'custom') {
+      setTimeout(() => {
+        if (startDateInputRef.current) {
+          try {
+            (startDateInputRef.current as any).showPicker?.();
+          } catch {}
+          startDateInputRef.current.focus();
+        }
+      }, 50);
+    }
+  };
+
+  const handleCustomDateChange = (newStart: string, newEnd: string) => {
+    setStartDate(newStart);
+    setEndDate(newEnd);
+    setActivePeriod('custom');
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -85,7 +213,35 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
     document.body.removeChild(link);
   };
 
+  // Category breakdown for Expense reports
+  const expenseCategories = useMemo(() => {
+    if (!isExpenseReport || !data?.data) return [];
+    if (data.categoryBreakdown && Array.isArray(data.categoryBreakdown) && data.categoryBreakdown.length > 0) {
+      return data.categoryBreakdown;
+    }
+    const map: Record<string, { totalAmount: number; count: number; percentage: number }> = {};
+    const total = data.data.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+    data.data.forEach((r: any) => {
+      const cat = r.category || 'MISCELLANEOUS';
+      if (!map[cat]) map[cat] = { totalAmount: 0, count: 0, percentage: 0 };
+      map[cat].totalAmount += Number(r.amount) || 0;
+      map[cat].count += 1;
+    });
+    return Object.entries(map)
+      .map(([category, stats]) => ({
+        category,
+        totalAmount: stats.totalAmount,
+        count: stats.count,
+        percentage: total > 0 ? Math.round((stats.totalAmount / total) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [isExpenseReport, data]);
+
+  // Filtered rows
   const rows = (data?.data || []).filter((r: any) => {
+    if (isExpenseReport && selectedCategory !== 'ALL') {
+      if (r.category !== selectedCategory) return false;
+    }
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return Object.values(r).some((v) => String(v).toLowerCase().includes(q));
@@ -95,7 +251,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
 
   return (
     <div className="space-y-6 pb-20 print:p-0 print:space-y-4">
-      {/* Non-print Back Navigation & Controls */}
+      {/* Top Header & Actions (Hidden during print) */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -108,7 +264,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             {data?.reportType || defaultTitle}
           </h1>
           <p className="text-sm text-slate-400">
-            Official verifiable audit and operations report with multi-format export
+            Official verifiable audit and operations report with Daily, Weekly, Monthly & Custom Date filters
           </p>
         </div>
 
@@ -172,84 +328,327 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             <p className="text-[11px] text-slate-400 print:text-gray-600">
               Site Scope: {selectedProjectId === 'ALL' ? 'All Organization Projects' : projects.find((p) => p.id === selectedProjectId)?.name}
             </p>
+            {(startDate || endDate) && (
+              <p className="text-[11px] text-amber-400 print:text-black font-semibold mt-0.5">
+                Period: {startDate ? new Date(startDate).toLocaleDateString('en-IN') : 'Start'} to {endDate ? new Date(endDate).toLocaleDateString('en-IN') : 'Current'}
+              </p>
+            )}
           </div>
         </div>
 
         {/* Dynamic Summary Cards */}
         {data?.summary && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-            {Object.entries(data.summary).map(([key, val]: any) => (
-              <div key={key} className="bg-slate-950 p-3 rounded-lg border border-slate-800 print:border-gray-300 print:bg-gray-50">
-                <span className="text-[10px] uppercase font-bold text-slate-400 print:text-gray-500 tracking-wider">
-                  {key.replace(/([A-Z])/g, ' $1').trim()}
-                </span>
-                <div className="text-lg font-black text-slate-100 print:text-black mt-0.5">
-                  {typeof val === 'number' && key.toLowerCase().includes('amount') || key.toLowerCase().includes('wage') || key.toLowerCase().includes('cost') || key.toLowerCase().includes('payable') || key.toLowerCase().includes('profit') || key.toLowerCase().includes('salary') || key.toLowerCase().includes('debit') || key.toLowerCase().includes('credit')
-                    ? `₹${Number(val).toLocaleString('en-IN')}`
-                    : typeof val === 'number'
-                    ? val.toLocaleString('en-IN')
-                    : val}
+            {Object.entries(data.summary)
+              .filter(([key, val]) => key !== 'categories' && typeof val !== 'object')
+              .map(([key, val]: any) => (
+                <div key={key} className="bg-slate-950 p-3 rounded-lg border border-slate-800 print:border-gray-300 print:bg-gray-50">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 print:text-gray-500 tracking-wider">
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                  </span>
+                  <div className="text-lg font-black text-slate-100 print:text-black mt-0.5">
+                    {typeof val === 'number' && (key.toLowerCase().includes('amount') || key.toLowerCase().includes('wage') || key.toLowerCase().includes('cost') || key.toLowerCase().includes('payable') || key.toLowerCase().includes('profit') || key.toLowerCase().includes('salary') || key.toLowerCase().includes('debit') || key.toLowerCase().includes('credit'))
+                      ? `₹${Number(val).toLocaleString('en-IN')}`
+                      : typeof val === 'number'
+                      ? val.toLocaleString('en-IN')
+                      : val}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
 
-      {/* Filter Toolbar (Hidden during print) */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800 print:hidden">
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="w-full sm:w-56">
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-amber-500"
-            >
-              <option value="ALL">🏢 All Project Sites</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.projectCode})</option>
-              ))}
-            </select>
-          </div>
-
+      {/* FILTER & DATE CONTROLS BAR (Hidden during print) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 print:hidden">
+        {/* Row 1: Quick Time-Period Selector Buttons */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-amber-500"
-              placeholder="From Date"
-            />
-            <span className="text-slate-500 text-xs">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-amber-500"
-              placeholder="To Date"
-            />
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              अवधि चुनें (Select Period):
+            </span>
           </div>
 
-          <div className="relative w-full sm:w-56">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Filter in report..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-amber-500"
-            />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleSelectPeriod('daily')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activePeriod === 'daily'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              📅 दैनिक / आज (Daily)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPeriod('weekly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activePeriod === 'weekly'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              📊 साप्ताहिक (Weekly)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPeriod('monthly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activePeriod === 'monthly'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              🗓️ मासिक (Monthly)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPeriod('custom')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activePeriod === 'custom'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              📆 कस्टम तारीख (Custom Date)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSelectPeriod('all')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition ${
+                activePeriod === 'all'
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              पूरा रिकॉर्ड (All Time)
+            </button>
           </div>
         </div>
 
-        <Button size="sm" variant="ghost" onClick={fetchReport} className="text-xs text-slate-400 hover:text-slate-100">
-          <RefreshCw className="w-3.5 h-3.5 mr-1" />
-          Refresh
-        </Button>
+        {/* Row 2: Calendar Pickers, Site Selector, Search, & Refresh */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Site / Project Dropdown */}
+            <div className="w-full sm:w-56">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:ring-1 focus:ring-amber-500"
+              >
+                <option value="ALL">🏢 All Project Sites</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.projectCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Calendar Range Inputs */}
+            <div className={`flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border transition ${
+              activePeriod === 'custom' ? 'border-amber-500/80 ring-1 ring-amber-500/30' : 'border-slate-800'
+            }`}>
+              <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold text-slate-500">From:</span>
+                <input
+                  ref={startDateInputRef}
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
+                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer"
+                  placeholder="Start Date"
+                />
+                <span className="text-slate-600 text-xs">to</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500">To:</span>
+                <input
+                  ref={endDateInputRef}
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
+                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer"
+                  placeholder="End Date"
+                />
+              </div>
+            </div>
+
+            {/* In-table search filter */}
+            <div className="relative w-full sm:w-52">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search in table..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={fetchReport}
+              className="text-xs text-slate-400 hover:text-slate-100"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Active Filter Pill Badge */}
+        {(startDate || endDate || selectedProjectId !== 'ALL' || (isExpenseReport && selectedCategory !== 'ALL')) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
+            <span className="text-slate-500 font-medium">सक्रिय फिल्टर (Active Filters):</span>
+            {startDate && endDate && (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono text-[11px] flex items-center gap-1">
+                <CalendarDays className="w-3 h-3" />
+                {startDate === endDate ? `आज: ${startDate}` : `${startDate} से ${endDate}`}
+              </span>
+            )}
+            {selectedProjectId !== 'ALL' && (
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px]">
+                Site: {projects.find((p) => p.id === selectedProjectId)?.name || selectedProjectId}
+              </span>
+            )}
+            {isExpenseReport && selectedCategory !== 'ALL' && (
+              <span className="px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[11px] flex items-center gap-1.5">
+                Category: {selectedCategory}
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('ALL')}
+                  className="hover:text-purple-200 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setActivePeriod('all');
+                setSelectedProjectId('ALL');
+                setSelectedCategory('ALL');
+                setSearch('');
+              }}
+              className="text-[11px] text-slate-400 hover:text-rose-400 underline ml-auto"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Report Data Table */}
+      {/* CATEGORY-WISE EXPENSE BREAKDOWN (Featured for Expense Report) */}
+      {isExpenseReport && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 print:border-black print:bg-white print:text-black">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3 print:border-black mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-100 print:text-black flex items-center gap-2">
+                <PieChart className="w-5 h-5 text-amber-500" />
+                कैटेगरी अनुसार कुल खर्च विवरण (Category-Wise Expense Breakdown)
+              </h2>
+              <p className="text-xs text-slate-400 print:text-gray-600 mt-0.5">
+                प्रत्येक मद में कितना खर्च हुआ, प्रतिशत एवं कुल वाउचर्स (Click any category to filter table)
+              </p>
+            </div>
+            {selectedCategory !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('ALL')}
+                className="text-xs font-semibold px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 print:hidden w-fit"
+              >
+                सभी कैटेगरी दिखाएं (Show All)
+              </button>
+            )}
+          </div>
+
+          {expenseCategories.length === 0 ? (
+            <div className="text-center py-6 text-slate-500 text-xs">
+              इस समयावधि में कोई खर्च रिकॉर्ड दर्ज नहीं है। (No expense logs recorded for this period.)
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {expenseCategories.map((item: any) => {
+                const meta = getCategoryDetails(item.category);
+                const isSelected = selectedCategory === item.category;
+
+                return (
+                  <div
+                    key={item.category}
+                    onClick={() => setSelectedCategory(isSelected ? 'ALL' : item.category)}
+                    className={`cursor-pointer rounded-xl p-3.5 border transition duration-150 ${
+                      isSelected
+                        ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                        : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
+                    } print:border-gray-400 print:bg-gray-50`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${meta.badgeColor} print:border-black print:text-black mb-1`}>
+                          {meta.title}
+                        </span>
+                        <div className="text-[11px] text-slate-400 print:text-gray-600 truncate">
+                          {item.category}
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-amber-400 print:text-black shrink-0">
+                        {item.percentage}%
+                      </span>
+                    </div>
+
+                    <div className="mt-2.5 flex items-baseline justify-between">
+                      <div className="text-lg font-black text-slate-100 print:text-black font-mono">
+                        ₹{Number(item.totalAmount || 0).toLocaleString('en-IN')}
+                      </div>
+                      <div className="text-[11px] text-slate-400 print:text-gray-600">
+                        {item.count} {item.count === 1 ? 'पर्ची' : 'पर्चियां'}
+                      </div>
+                    </div>
+
+                    {/* Ratio / Progress bar */}
+                    <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2.5 overflow-hidden print:bg-gray-200">
+                      <div
+                        className={`h-1.5 rounded-full ${meta.barColor} print:bg-black`}
+                        style={{ width: `${Math.min(100, Math.max(3, item.percentage))}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* REPORT DATA TABLE */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden print:border-black print:bg-white">
+        {isExpenseReport && selectedCategory !== 'ALL' && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs print:hidden">
+            <span className="text-amber-400 font-medium">
+              फिल्टर सक्रिय: <strong>{selectedCategory}</strong> ({rows.length} रिकॉर्ड्स)
+            </span>
+            <button
+              onClick={() => setSelectedCategory('ALL')}
+              className="text-slate-400 hover:text-white underline text-[11px]"
+            >
+              फ़िल्टर हटाएं (Remove Filter)
+            </button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse print:text-black">
             <thead>
@@ -264,14 +663,17 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             <tbody className="divide-y divide-slate-800/60 print:divide-gray-300">
               {isLoading ? (
                 <tr>
-                  <td colSpan={columns.length || 1} className="text-center py-10 text-slate-500">
-                    Generating report data...
+                  <td colSpan={columns.length || 1} className="text-center py-12 text-slate-500">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-5 h-5 animate-spin text-amber-500" />
+                      <span>Generating report data...</span>
+                    </div>
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length || 1} className="text-center py-10 text-slate-400">
-                    No data records found for this period and project.
+                  <td colSpan={columns.length || 1} className="text-center py-12 text-slate-400">
+                    No records found for this period and site filter.
                   </td>
                 </tr>
               ) : (
@@ -300,17 +702,27 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                               ₹{val.toLocaleString('en-IN')}
                             </span>
                           ) : col === 'status' || col === 'paymentStatus' ? (
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              val === 'PAID' || val === 'PRESENT' || val === 'OK' || val === 'COMPLETED'
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                : val === 'PENDING' || val === 'ABSENT' || val === 'LOW STOCK' || val === 'OVER BUDGET'
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                val === 'PAID' || val === 'PRESENT' || val === 'OK' || val === 'COMPLETED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                  : val === 'PENDING' || val === 'ABSENT' || val === 'LOW STOCK' || val === 'OVER BUDGET'
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {val}
+                            </span>
+                          ) : col === 'category' && isExpenseReport ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-amber-400 border border-slate-700">
                               {val}
                             </span>
                           ) : typeof val === 'string' && val.includes('T') && !isNaN(Date.parse(val)) && val.length >= 10 ? (
-                            new Date(val).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            new Date(val).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
                           ) : (
                             <span className="text-slate-300 print:text-black">{val ?? '—'}</span>
                           )}
