@@ -51,6 +51,7 @@ export default function MaterialsPage() {
   const [materialModalOpen, setMaterialModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<any>(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<any | null>(null);
   const [usageModalOpen, setUsageModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [addStockModalOpen, setAddStockModalOpen] = useState(false);
@@ -212,6 +213,21 @@ export default function MaterialsPage() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDeleteReceipt = async (id: string, matName: string) => {
+    if (!confirm(`Are you sure you want to delete receipt entry for '${matName || 'material'}'?`)) return;
+    try {
+      const res = await fetch(`/api/materials/receipts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete receipt');
+        return;
+      }
+      fetchData();
+    } catch (e: any) {
+      alert(e.message || 'Error deleting receipt');
     }
   };
 
@@ -731,12 +747,13 @@ export default function MaterialsPage() {
                     <th className="py-3 px-3 text-right">Rate (₹)</th>
                     <th className="py-3 px-3 text-right font-bold text-slate-200">Total Cost</th>
                     <th className="py-3 px-4">Challan / Inv</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {receipts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-10 text-slate-400">
+                      <td colSpan={9} className="text-center py-10 text-slate-400">
                         No material receipts recorded yet. Click "Receive Material (GRN)" to log deliveries.
                       </td>
                     </tr>
@@ -768,6 +785,31 @@ export default function MaterialsPage() {
                         </td>
                         <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
                           {r.invoiceNumber || '—'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                              onClick={() => {
+                                setEditingReceipt(r);
+                                setReceiptModalOpen(true);
+                              }}
+                              title="Edit Receipt"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-rose-400"
+                              onClick={() => handleDeleteReceipt(r.id, r.material?.name)}
+                              title="Delete Receipt"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -911,9 +953,13 @@ export default function MaterialsPage() {
 
       <ReceiptFormModal
         isOpen={receiptModalOpen}
-        onClose={() => setReceiptModalOpen(false)}
+        onClose={() => {
+          setReceiptModalOpen(false);
+          setEditingReceipt(null);
+        }}
         onSuccess={fetchData}
         defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+        initialData={editingReceipt}
       />
 
       <UsageFormModal
