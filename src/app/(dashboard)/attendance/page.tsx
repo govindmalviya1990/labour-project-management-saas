@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   CalendarCheck,
@@ -13,7 +13,8 @@ import {
   RefreshCw,
   AlertCircle,
   IndianRupee,
-  Layers,
+  ChevronLeft,
+  ChevronRight,
   RotateCcw,
   Trash2,
 } from 'lucide-react';
@@ -25,11 +26,10 @@ export default function AttendancePage() {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || '';
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId);
-  const [selectedSiteId, setSelectedSiteId] = useState<string>('');
-  const [projectSites, setProjectSites] = useState<any[]>([]);
 
   const [sheet, setSheet] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>({
@@ -65,32 +65,13 @@ export default function AttendancePage() {
     loadProjects();
   }, [selectedProjectId]);
 
-  // Update sites when selected project changes
-  useEffect(() => {
-    if (!selectedProjectId) {
-      setProjectSites([]);
-      setSelectedSiteId('');
-      return;
-    }
-    const currentProj = projects.find((p) => p.id === selectedProjectId);
-    if (currentProj && currentProj.sites) {
-      setProjectSites(currentProj.sites);
-      setSelectedSiteId(currentProj.sites[0]?.id || '');
-    } else {
-      setProjectSites([]);
-      setSelectedSiteId('');
-    }
-  }, [selectedProjectId, projects]);
-
   const fetchAttendanceSheet = useCallback(async () => {
     if (!selectedProjectId) return;
     setIsLoading(true);
     setError('');
     setSaveSuccess('');
     try {
-      const url = `/api/attendance?date=${date}&projectId=${selectedProjectId}${
-        selectedSiteId ? `&siteId=${selectedSiteId}` : ''
-      }`;
+      const url = `/api/attendance?date=${date}&projectId=${selectedProjectId}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to load attendance sheet');
       const data = await res.json();
@@ -101,7 +82,7 @@ export default function AttendancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [date, selectedProjectId, selectedSiteId]);
+  }, [date, selectedProjectId]);
 
   useEffect(() => {
     fetchAttendanceSheet();
@@ -208,7 +189,7 @@ export default function AttendancePage() {
         body: JSON.stringify({
           date,
           projectId: selectedProjectId,
-          siteId: selectedSiteId || null,
+          siteId: null,
           records,
         }),
       });
@@ -268,20 +249,90 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Filter Header: Date, Project, Site */}
+      {/* Filter Header: Date & Project */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 sm:p-5 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-amber-500" />
-              Attendance Date
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-mono"
-            />
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                Attendance Date
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(date);
+                    d.setDate(d.getDate() - 1);
+                    setDate(d.toISOString().split('T')[0]);
+                  }}
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-0.5"
+                  title="Pichhla Din (Yesterday)"
+                >
+                  <ChevronLeft className="w-3 h-3" /> Kal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDate(new Date().toISOString().split('T')[0])}
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors"
+                  title="Aaj (Today)"
+                >
+                  Aaj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(date);
+                    d.setDate(d.getDate() + 1);
+                    setDate(d.toISOString().split('T')[0]);
+                  }}
+                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-0.5"
+                  title="Agla Din (Next Day)"
+                >
+                  Next <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            <div
+              className="relative flex items-center cursor-pointer"
+              onClick={() => {
+                try {
+                  dateInputRef.current?.showPicker?.();
+                } catch {
+                  dateInputRef.current?.focus();
+                }
+              }}
+            >
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                onClick={(e) => {
+                  try {
+                    (e.target as any).showPicker?.();
+                  } catch {}
+                }}
+                style={{ colorScheme: 'dark' }}
+                className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 pr-10 text-xs focus:outline-none focus:border-amber-500 font-mono cursor-pointer [color-scheme:dark]"
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try {
+                    dateInputRef.current?.showPicker?.();
+                  } catch {
+                    dateInputRef.current?.focus();
+                  }
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors"
+                title="Calendar kholein (Click to choose date)"
+              >
+                <Calendar className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -292,30 +343,11 @@ export default function AttendancePage() {
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-500 h-[38px]"
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.projectCode})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-amber-500" />
-              Site / Tower / Wing
-            </label>
-            <select
-              value={selectedSiteId}
-              onChange={(e) => setSelectedSiteId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-500"
-            >
-              <option value="">General / All Sites</option>
-              {projectSites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
                 </option>
               ))}
             </select>

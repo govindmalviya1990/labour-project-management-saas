@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   try {
     const auth = await checkRolePermission([
       'OWNER',
+      'PARTNER',
       'MANAGER',
       'SITE_SUPERVISOR',
       'ACCOUNTANT',
@@ -116,9 +117,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    // Only OWNER, MANAGER, and SITE_SUPERVISOR can mark/save attendance
+    // Only OWNER, PARTNER, MANAGER, and SITE_SUPERVISOR can mark/save attendance
     // ACCOUNTANT and LABOUR are strictly forbidden
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR']);
+    const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'SITE_SUPERVISOR']);
     if (!auth.authorized) return auth.response;
     const orgId = auth.session.organizationId;
 
