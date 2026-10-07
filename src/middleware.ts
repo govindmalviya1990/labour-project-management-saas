@@ -58,7 +58,12 @@ export async function middleware(request: NextRequest) {
 
   const role = normalizeRole(payload.role as string | undefined);
 
-  // 4. Role-based Route Protection for Pages
+  // 4. Handle /dashboard alias
+  if (pathname === '/dashboard') {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // 5. Role-based Route Protection for Pages
   if (!pathname.startsWith('/api/')) {
     // OWNER and MANAGER have access to everything
     if (role === 'OWNER' || role === 'MANAGER') {
