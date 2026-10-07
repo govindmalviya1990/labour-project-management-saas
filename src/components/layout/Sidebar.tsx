@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
-  Wallet,
   Package,
   FileBarChart,
   Bell,
@@ -175,15 +174,6 @@ export function Sidebar({
           ],
         },
         {
-          title: 'Finance & Hisaab',
-          icon: <Wallet className="w-4 h-4 text-emerald-400" />,
-          children: [
-            { title: 'Site Expenses', href: '/finance/expenses' },
-            { title: 'Worker Payments', href: '/finance/payments' },
-            { title: 'Worker Khata Ledger', href: '/khata' },
-          ],
-        },
-        {
           title: 'Reports',
           icon: <FileBarChart className="w-4 h-4 text-cyan-400" />,
           children: [
@@ -227,15 +217,6 @@ export function Sidebar({
             { title: 'Worker Passbook Portal', href: '/worker-portal' },
             { title: 'Salary & Wages', href: '/salary' },
             { title: 'Khata / Ledger', href: '/khata' },
-          ],
-        },
-        {
-          title: 'Finance & Accounts',
-          icon: <Wallet className="w-4 h-4 text-emerald-400" />,
-          children: [
-            { title: 'Payments & Advances', href: '/finance/payments' },
-            { title: 'Site Expenses', href: '/finance/expenses' },
-            { title: 'Khata Ledger', href: '/finance/khata' },
           ],
         },
         {
@@ -296,15 +277,6 @@ export function Sidebar({
           { title: 'Work Records', href: '/work' },
           { title: 'Salary', href: '/salary' },
           { title: 'Khata / Ledger', href: '/khata' },
-        ],
-      },
-      {
-        title: 'Finance',
-        icon: <Wallet className="w-4 h-4 text-emerald-400" />,
-        children: [
-          { title: 'Payments', href: '/finance/payments' },
-          { title: 'Expenses', href: '/finance/expenses' },
-          { title: 'Khata Ledger', href: '/finance/khata' },
         ],
       },
       {
