@@ -101,11 +101,6 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
         },
         {
-          title: 'Cash Book (Din Ka Hisaab)',
-          href: '/cash-book',
-          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
-        },
-        {
           title: 'Site Projects',
           href: '/projects',
           icon: <FolderKanban className="w-4 h-4 text-blue-400" />,
@@ -154,11 +149,6 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
         },
         {
-          title: 'Cash Book & Wallet',
-          href: '/cash-book',
-          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
-        },
-        {
           title: 'Assigned Sites & Projects',
           href: '/projects',
           icon: <FolderKanban className="w-4 h-4 text-blue-400" />,
@@ -188,7 +178,6 @@ export function Sidebar({
           title: 'Finance & Hisaab',
           icon: <Wallet className="w-4 h-4 text-emerald-400" />,
           children: [
-            { title: 'Cash Book Statement', href: '/cash-book' },
             { title: 'Site Expenses', href: '/finance/expenses' },
             { title: 'Worker Payments', href: '/finance/payments' },
             { title: 'Worker Khata Ledger', href: '/khata' },
@@ -223,11 +212,6 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-purple-400" />,
         },
         {
-          title: 'Cash Book & Wallets',
-          href: '/cash-book',
-          icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
-        },
-        {
           title: 'Projects',
           icon: <FolderKanban className="w-4 h-4" />,
           children: [
@@ -249,7 +233,6 @@ export function Sidebar({
           title: 'Finance & Accounts',
           icon: <Wallet className="w-4 h-4 text-emerald-400" />,
           children: [
-            { title: 'Cash Book & Wallets', href: '/cash-book' },
             { title: 'Payments & Advances', href: '/finance/payments' },
             { title: 'Site Expenses', href: '/finance/expenses' },
             { title: 'Khata Ledger', href: '/finance/khata' },
@@ -291,11 +274,6 @@ export function Sidebar({
         icon: <LayoutDashboard className="w-4 h-4" />,
       },
       {
-        title: 'Cash Book (Hisaab)',
-        href: '/cash-book',
-        icon: <BookOpen className="w-4 h-4 text-emerald-400" />,
-      },
-      {
         title: 'Projects',
         icon: <FolderKanban className="w-4 h-4" />,
         children: [
@@ -324,7 +302,6 @@ export function Sidebar({
         title: 'Finance',
         icon: <Wallet className="w-4 h-4 text-emerald-400" />,
         children: [
-          { title: 'Cash Book & Wallets', href: '/cash-book' },
           { title: 'Payments', href: '/finance/payments' },
           { title: 'Expenses', href: '/finance/expenses' },
           { title: 'Khata Ledger', href: '/finance/khata' },

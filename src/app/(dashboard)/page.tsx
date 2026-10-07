@@ -539,12 +539,6 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-
-            <Link href="/cash-book">
-              <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs">
-                Open Cash Book &rarr;
-              </Button>
-            </Link>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

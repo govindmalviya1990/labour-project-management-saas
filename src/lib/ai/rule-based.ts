@@ -139,8 +139,8 @@ export async function matchRuleBased(
       card: {
         type: 'WARNING',
         title: 'Action Not Allowed via Assistant',
-        linkUrl: lower.includes('role') ? '/users' : '/cash-book',
-        linkLabel: lower.includes('role') ? 'Manage Users' : 'Open Cash Book',
+        linkUrl: lower.includes('role') ? '/users' : '/dashboard',
+        linkLabel: lower.includes('role') ? 'Manage Users' : 'Open Dashboard',
       },
     };
   }
@@ -448,19 +448,19 @@ export async function matchRuleBased(
           type: 'PARTNERS',
           title: 'Partners Cash Overview',
           data: partnerData,
-          linkUrl: '/cash-book',
-          linkLabel: 'Open Cash Book',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
         },
       };
     } catch (err: any) {
       return {
         matched: true,
-        content: 'Partners cash balance dekhne ke liye Cash Book open karein.',
+        content: 'Partners cash balance dekhne ke liye Dashboard open karein.',
         card: {
           type: 'PARTNERS',
-          title: 'Cash Book Overview',
-          linkUrl: '/cash-book',
-          linkLabel: 'Open Cash Book',
+          title: 'Cash Overview',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
         },
       };
     }
@@ -533,19 +533,19 @@ export async function matchRuleBased(
           type: 'SUMMARY',
           title: 'Din Ka Hisaab Status',
           data: cashData,
-          linkUrl: '/cash-book',
-          linkLabel: 'Open Cash Book',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
         },
       };
     } catch (err: any) {
       return {
         matched: true,
-        content: 'Din Ka Hisaab dekhne aur physical cash verify karne ke liye Cash Book par "Din Ka Hisaab" button use karein.',
+        content: 'Din Ka Hisaab dekhne aur physical cash verify karne ke liye Dashboard use karein.',
         card: {
           type: 'SUMMARY',
           title: 'Din Ka Hisaab',
-          linkUrl: '/cash-book',
-          linkLabel: 'Open Cash Book',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
         },
       };
     }

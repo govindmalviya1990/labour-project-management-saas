@@ -135,10 +135,10 @@ export function ConfirmationCard({ draft, onSaved, onCancelled }: ConfirmationCa
         <div className="pt-2 border-t border-emerald-800/40 flex items-center justify-between text-[11px]">
           <span className="text-emerald-400/80">Source: AI Assistant</span>
           <Link
-            href="/cash-book"
+            href="/dashboard"
             className="inline-flex items-center gap-1 font-semibold text-emerald-300 hover:text-emerald-100 underline underline-offset-2"
           >
-            <span>Cash Book me dekhein</span>
+            <span>Dashboard par dekhein</span>
             <ArrowRight className="w-3 h-3" />
           </Link>
         </div>

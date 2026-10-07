@@ -121,8 +121,8 @@ export async function POST(req: Request) {
         card: {
           type: 'KNOWLEDGE',
           title: 'Quick Assistant Suggestions',
-          linkUrl: '/cash-book',
-          linkLabel: 'Open Cash Book',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
         },
       });
     }
