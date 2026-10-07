@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
+import Link from 'next/link';
 import {
   Package,
   Plus,
@@ -19,6 +20,7 @@ import {
   Edit2,
   FileSpreadsheet,
   Send,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -90,6 +92,52 @@ export default function MaterialsPage() {
       alert(err.message || 'Error updating stock');
     } finally {
       setIsSavingStock(false);
+    }
+  };
+
+  // Supervisor verification modal state
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [selectedDispatch, setSelectedDispatch] = useState<any | null>(null);
+  const [receivedQty, setReceivedQty] = useState<number>(0);
+  const [supervisorName, setSupervisorName] = useState('Site Supervisor');
+  const [verificationRemarks, setVerificationRemarks] = useState('Stock checked and received in good condition at site.');
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+
+  const handleOpenVerifyModal = (dispatch: any) => {
+    setSelectedDispatch(dispatch);
+    setReceivedQty(dispatch.quantity || 0);
+    setVerificationRemarks('Stock physically verified and received in good condition at site.');
+    setVerifyModalOpen(true);
+  };
+
+  const handleConfirmApproval = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDispatch) return;
+    setIsSubmittingApproval(true);
+    try {
+      const approvalNote = `[VERIFIED: Received ${receivedQty} ${selectedDispatch.material?.unit} by ${supervisorName} on ${new Date().toLocaleDateString('en-IN')}] ${verificationRemarks}`;
+      const existingNotes = selectedDispatch.notes ? `${selectedDispatch.notes} | ` : '';
+      const res = await fetch(`/api/materials/usage/${selectedDispatch.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskPurpose: 'APPROVED',
+          quantity: receivedQty,
+          notes: `${existingNotes}${approvalNote}`,
+        }),
+      });
+      if (res.ok) {
+        setVerifyModalOpen(false);
+        setSelectedDispatch(null);
+        fetchData();
+      } else {
+        const d = await res.json();
+        alert(d.error || 'Failed to approve receipt');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Error approving dispatch');
+    } finally {
+      setIsSubmittingApproval(false);
     }
   };
 
@@ -560,88 +608,197 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* TAB 2: INWARD RECEIPTS / GRN */}
+      {/* TAB 2: RECEIVE MATERIAL & INWARD DELIVERIES */}
       {activeTab === 'receipts' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-3">Project Site</th>
-                  <th className="py-3 px-3">Material Item</th>
-                  <th className="py-3 px-3">Supplier / Vendor</th>
-                  <th className="py-3 px-3 text-right">Quantity</th>
-                  <th className="py-3 px-3 text-right">Rate (₹)</th>
-                  <th className="py-3 px-3 text-right font-bold text-slate-200">Total Cost</th>
-                  <th className="py-3 px-4">Challan / Inv</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {receipts.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-10 text-slate-400">
-                      No material receipts recorded yet. Click "Receive Stock (GRN)" to log deliveries.
-                    </td>
+        <div className="space-y-6">
+          {/* Top banner linking to full portal */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300">
+            <div>
+              <strong className="text-emerald-200">Site Supervisor Receiving Portal:</strong>
+              <span className="ml-1 text-slate-300">
+                Company warehouse se bheja gaya maal yahan site supervisor dwara physically check karke approve kiya jata hai.
+              </span>
+            </div>
+            <Link
+              href="/materials/received"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shrink-0 flex items-center gap-1.5 transition"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Open Full Receiving Portal ➡️
+            </Link>
+          </div>
+
+          {/* Section 1: Incoming Dispatches Awaiting Supervisor Approval */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+            <div className="p-3.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                <Clock className="w-4 h-4" />
+                Incoming Dispatches from Company Godown — Awaiting Supervisor Verification
+              </div>
+              <span className="text-[11px] text-slate-500 font-mono">
+                {usages.filter((u) => u.taskPurpose !== 'APPROVED').length} pending approval
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-4">Date Sent</th>
+                    <th className="py-3 px-3">Site / Project</th>
+                    <th className="py-3 px-3">Material</th>
+                    <th className="py-3 px-3 text-right">Dispatched Qty</th>
+                    <th className="py-3 px-4">Challan / Vehicle / Notes</th>
+                    <th className="py-3 px-3 text-center">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
-                ) : (
-                  receipts.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-slate-300 font-medium">
-                        {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-100">{r.project?.name}</div>
-                        <div className="text-[11px] text-slate-500">{r.site?.name || 'General Site'}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-200">{r.material?.name}</div>
-                        <span className="text-[11px] text-slate-500 font-mono">{r.material?.materialCode}</span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {r.supplier?.name || 'Direct / Market Purchase'}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
-                        +{r.quantity} {r.material?.unit}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-300">
-                        ₹{r.purchaseRate}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">
-                        ₹{r.totalCost.toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
-                        {r.invoiceNumber || '—'}
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {usages.filter((u) => u.taskPurpose !== 'APPROVED').length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-8 text-slate-400">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5 opacity-60" />
+                        Sabhi stock verify ho chuke hain! No pending dispatches awaiting verification.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    usages
+                      .filter((u) => u.taskPurpose !== 'APPROVED')
+                      .map((u) => (
+                        <tr key={`pend-${u.id}`} className="hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-4 text-slate-300 font-medium">
+                            {new Date(u.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-100 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                            {u.project?.name}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-200">{u.material?.name}</div>
+                            <span className="text-[11px] text-slate-500 font-mono">{u.material?.materialCode}</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-amber-400 text-sm">
+                            {u.quantity} {u.material?.unit}
+                          </td>
+                          <td className="py-3 px-4 text-slate-300">
+                            {u.notes || u.taskPurpose || 'Dispatched from company godown'}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                              <Clock className="w-3 h-3 animate-pulse" />
+                              वेरीफिकेशन बाकी
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenVerifyModal(u)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7 px-2.5 shadow-sm"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                              Verify & Approve (चेक करके अप्रूव करें)
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Section 2: Direct Purchases & Received History */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+            <div className="p-3.5 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                <Truck className="w-4 h-4 text-emerald-400" />
+                Verified & Direct Inward Receipts at Sites
+              </div>
+              <span className="text-[11px] text-slate-500">
+                {receipts.length} entries
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-3">Project Site</th>
+                    <th className="py-3 px-3">Material Item</th>
+                    <th className="py-3 px-3">Supplier / Vendor</th>
+                    <th className="py-3 px-3 text-right">Quantity</th>
+                    <th className="py-3 px-3 text-right">Rate (₹)</th>
+                    <th className="py-3 px-3 text-right font-bold text-slate-200">Total Cost</th>
+                    <th className="py-3 px-4">Challan / Inv</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {receipts.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-10 text-slate-400">
+                        No material receipts recorded yet. Click "Receive Material (GRN)" to log deliveries.
+                      </td>
+                    </tr>
+                  ) : (
+                    receipts.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 text-slate-300 font-medium">
+                          {new Date(r.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-slate-100">{r.project?.name}</div>
+                          <div className="text-[11px] text-slate-500">{r.site?.name || 'General Site'}</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-slate-200">{r.material?.name}</div>
+                          <span className="text-[11px] text-slate-500 font-mono">{r.material?.materialCode}</span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-300">
+                          {r.supplier?.name || 'Direct / Market Purchase'}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-400">
+                          +{r.quantity} {r.material?.unit}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-300">
+                          ₹{r.purchaseRate}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">
+                          ₹{r.totalCost.toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                          {r.invoiceNumber || '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
-      {/* TAB 2: SEND TO SITE / DISPATCH LOGS */}
+      {/* TAB 3: SEND TO SITE / DISPATCH LOGS */}
       {activeTab === 'send' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-3">Project Site</th>
+                  <th className="py-3 px-4">Date Sent</th>
+                  <th className="py-3 px-3">Destination Site</th>
                   <th className="py-3 px-3">Material</th>
-                  <th className="py-3 px-3 text-right">Quantity Used</th>
-                  <th className="py-3 px-4">Work Purpose / Task</th>
-                  <th className="py-3 px-4">Notes</th>
+                  <th className="py-3 px-3 text-right">Quantity Sent</th>
+                  <th className="py-3 px-4">Challan / Vehicle Notes</th>
+                  <th className="py-3 px-3 text-center">Delivery Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {usages.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="text-center py-10 text-slate-400">
-                      No material consumption logs recorded yet. Click "Log Daily Usage" to record daily work consumption.
+                      No materials sent to sites yet. Click "Send to Site" to dispatch inventory.
                     </td>
                   </tr>
                 ) : (
@@ -651,19 +808,32 @@ export default function MaterialsPage() {
                         {new Date(u.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-100">{u.project?.name}</div>
+                        <div className="font-semibold text-slate-100 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                          {u.project?.name}
+                        </div>
                       </td>
                       <td className="py-3 px-3">
                         <div className="font-semibold text-slate-200">{u.material?.name}</div>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-rose-400">
-                        -{u.quantity} {u.material?.unit}
+                      <td className="py-3 px-3 text-right font-mono font-bold text-sky-400">
+                        {u.quantity} {u.material?.unit}
                       </td>
-                      <td className="py-3 px-4 text-slate-100 font-medium">
-                        {u.taskPurpose}
+                      <td className="py-3 px-4 text-slate-300">
+                        {u.notes || u.taskPurpose || 'Dispatched from godown'}
                       </td>
-                      <td className="py-3 px-4 text-slate-400 text-[11px]">
-                        {u.notes || '—'}
+                      <td className="py-3 px-3 text-center">
+                        {u.taskPurpose === 'APPROVED' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3" />
+                            साइट पर प्राप्त (Approved)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                            <Clock className="w-3 h-3 animate-pulse" />
+                            वेरीफिकेशन बाकी (Pending)
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -838,6 +1008,108 @@ export default function MaterialsPage() {
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
               >
                 {isSavingStock ? 'Saving...' : '+ Confirm Add Stock'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* SUPERVISOR VERIFICATION MODAL */}
+      {verifyModalOpen && selectedDispatch && (
+        <Modal
+          isOpen={verifyModalOpen}
+          onClose={() => {
+            setVerifyModalOpen(false);
+            setSelectedDispatch(null);
+          }}
+          title="Verify & Receive Material at Site (साइट पर चेक और अप्रूव करें)"
+          description="Confirm physical arrival of material dispatched from company stock to this construction site."
+          size="md"
+        >
+          <form onSubmit={handleConfirmApproval} className="space-y-4">
+            <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Material Name:</span>
+                <span className="font-bold text-slate-100">{selectedDispatch.material?.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Receiving Site:</span>
+                <span className="font-semibold text-sky-400">{selectedDispatch.project?.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Dispatched Quantity:</span>
+                <span className="font-mono font-bold text-amber-400">
+                  {selectedDispatch.quantity} {selectedDispatch.material?.unit}
+                </span>
+              </div>
+              {selectedDispatch.notes && (
+                <div className="text-xs text-slate-400 pt-1 border-t border-slate-800">
+                  <span className="font-semibold text-slate-300">Dispatch Notes:</span> {selectedDispatch.notes}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Physical Quantity Received ({selectedDispatch.material?.unit}) *
+              </label>
+              <Input
+                type="number"
+                step="any"
+                min="0.01"
+                value={receivedQty}
+                onChange={(e) => setReceivedQty(parseFloat(e.target.value) || 0)}
+                required
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Enter quantity received physically on site. Defaults to dispatched quantity.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Verified By (Site Supervisor Name) *
+              </label>
+              <Input
+                value={supervisorName}
+                onChange={(e) => setSupervisorName(e.target.value)}
+                placeholder="Supervisor Name"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Receiving Condition & Remarks
+              </label>
+              <textarea
+                value={verificationRemarks}
+                onChange={(e) => setVerificationRemarks(e.target.value)}
+                placeholder="e.g. Stock received in good condition, bags intact..."
+                rows={2}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setVerifyModalOpen(false);
+                  setSelectedDispatch(null);
+                }}
+                disabled={isSubmittingApproval}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmittingApproval || !receivedQty || receivedQty <= 0}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                {isSubmittingApproval ? 'Approving...' : 'Confirm & Mark Received at Site'}
               </Button>
             </div>
           </form>
