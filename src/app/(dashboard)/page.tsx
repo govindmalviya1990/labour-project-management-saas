@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -15,7 +15,6 @@ import {
   TrendingDown,
   ArrowUpRight,
   Plus,
-  HardHat,
   AlertTriangle,
   RefreshCw,
   Hammer,
@@ -25,12 +24,8 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Button } from '@/components/ui/Button';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { formatINR } from '@/lib/calculations';
-import { ExpenseCharts } from '@/components/charts/ExpenseCharts';
-import { OverallMoneyPositionSection } from '@/components/finance/OverallMoneyPositionSection';
 import {
   ResponsiveContainer,
   BarChart,
@@ -39,8 +34,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  AreaChart,
-  Area,
 } from 'recharts';
 
 export default function DashboardPage() {
@@ -510,101 +503,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Overall Money Position (All Partners Cash + Supervisors Cash + Bank Balances) */}
-      <OverallMoneyPositionSection />
-
-      {/* Aaj Ka Hisaab (Connected Cash Flow & Partner Wallet) */}
-      {data?.aajKaHisaab && (
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-amber-500/30 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                  Aaj Ka Hisaab (Daily Cash Flow &amp; Wallet)
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                      data.aajKaHisaab.isClosingVerified
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    }`}
-                  >
-                    {data.aajKaHisaab.isClosingVerified ? 'Verified & Locked' : 'Pending Closing'}
-                  </span>
-                </h2>
-                <p className="text-[11px] text-slate-400">
-                  Live partner cash book, daily site expenses, client receipts, and worker payouts
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
-              <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider block">
-                Cash In Hand (Wallet)
-              </span>
-              <div className="text-lg font-extrabold text-amber-400 mt-1">
-                {formatINR(data.aajKaHisaab.walletBalance)}
-              </div>
-              <span className="text-[10px] text-slate-400">Current live balance</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
-              <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider block">
-                Today&apos;s Inflow (Aaya)
-              </span>
-              <div className="text-lg font-bold text-emerald-400 mt-1">
-                +{formatINR(data.aajKaHisaab.todayInflow)}
-              </div>
-              <span className="text-[10px] text-emerald-500/80">Client bills &amp; transfers</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40">
-              <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider block">
-                Transfers Given (Diya)
-              </span>
-              <div className="text-lg font-bold text-amber-400 mt-1">
-                -{formatINR(data.aajKaHisaab.todayTransfersOut)}
-              </div>
-              <span className="text-[10px] text-amber-500/80">To supervisors / workers</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-800/40">
-              <span className="text-[11px] text-rose-400 font-semibold uppercase tracking-wider block">
-                Spent (Kharch)
-              </span>
-              <div className="text-lg font-bold text-rose-400 mt-1">
-                -{formatINR(data.aajKaHisaab.todayExpenses)}
-              </div>
-              <span className="text-[10px] text-rose-500/80">Goods, chay, petrol</span>
-            </div>
-          </div>
-
-          {/* Partner Comparison if available */}
-          {data.partnersComparison && data.partnersComparison.length > 0 && (
-            <div className="pt-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                All Partners Cash in Hand:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {data.partnersComparison.map((p: any) => (
-                  <div
-                    key={p.userId}
-                    className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs flex items-center gap-2"
-                  >
-                    <span className="font-semibold text-slate-300">{p.name}:</span>
-                    <span className="font-bold text-amber-400">{formatINR(p.balance)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 12 Key Summary Metrics Grid */}
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
@@ -715,40 +613,83 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Chart Section */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-amber-500" />
-          7-Day Operational Trends (Labour &amp; Expenses)
-        </h2>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
-                  borderRadius: '0.75rem',
-                  fontSize: '12px',
-                  color: '#fff',
-                }}
-              />
-              <Bar dataKey="labourCost" name="Labour Cost" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expenseAmount" name="Site Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Operational Trends & Active Running Projects */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-amber-500" />
+            7-Day Operational Trends (Labour &amp; Expenses)
+          </h2>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderColor: '#334155',
+                    borderRadius: '0.75rem',
+                    fontSize: '12px',
+                    color: '#fff',
+                  }}
+                />
+                <Bar dataKey="labourCost" name="Labour Cost" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expenseAmount" name="Site Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <FolderKanban className="w-4 h-4 text-amber-500" />
+                Active Running Sites
+              </h2>
+              <Link
+                href="/projects"
+                className="text-xs font-semibold text-amber-500 hover:text-amber-400 flex items-center gap-1 transition-colors"
+              >
+                View all <ArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+            <div className="space-y-3">
+              {runningProjects && runningProjects.length > 0 ? (
+                runningProjects.map((p: any) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800"
+                  >
+                    <div className="truncate mr-2">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {p.projectCode} • {p.location || 'Site Location'}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 uppercase">
+                      {p.status}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-400 py-8 text-center">No active projects running.</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+            <span className="text-xs text-slate-500">Need to start a new contract?</span>
+            <Link href="/projects?action=new">
+              <Button size="sm" variant="outline" className="text-xs">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Project
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
-
-      {/* Expense Analytics Charts (Round Donut + Pillar Bar) */}
-      <ExpenseCharts
-        title="Expense Analytics & Breakdown"
-        subtitle="Category-wise Round Donut & Partner-wise Pillar distribution (Single source of truth)"
-        initialDateRange="THIS_MONTH"
-      />
     </div>
   );
 }
