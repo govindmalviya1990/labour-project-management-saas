@@ -24,6 +24,7 @@ import {
   FileText,
   ShieldCheck,
   User,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -34,6 +35,7 @@ import { UsageFormModal } from '@/components/materials/UsageFormModal';
 import { TransferFormModal } from '@/components/materials/TransferFormModal';
 import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
 import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
+import { StockReportModal } from '@/components/materials/StockReportModal';
 
 export default function MaterialsPage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'send' | 'receipts' | 'transfers'>('catalog');
@@ -59,6 +61,7 @@ export default function MaterialsPage() {
   const [editingReceipt, setEditingReceipt] = useState<any | null>(null);
   const [usageModalOpen, setUsageModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [stockReportModalOpen, setStockReportModalOpen] = useState(false);
   const [addStockModalOpen, setAddStockModalOpen] = useState(false);
   const [stockMaterial, setStockMaterial] = useState<any | null>(null);
   const [addedStockQty, setAddedStockQty] = useState<number>(0);
@@ -296,41 +299,13 @@ export default function MaterialsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex items-center gap-2.5">
           <Button
-            onClick={() => {
-              setEditingMaterial(null);
-              setMaterialModalOpen(true);
-            }}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
+            onClick={() => setStockReportModalOpen(true)}
+            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-950/40 px-4 py-2.5 h-auto flex items-center gap-2 border border-emerald-400/30"
           >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Add Material
-          </Button>
-
-          <Button
-            onClick={() => setUsageModalOpen(true)}
-            className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
-          >
-            <Send className="w-4 h-4 mr-1.5" />
-            Send to Site
-          </Button>
-
-          <Button
-            onClick={() => setReceiptModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-          >
-            <Truck className="w-4 h-4 mr-1.5" />
-            Receive Material (GRN)
-          </Button>
-
-          <Button
-            onClick={() => setTransferModalOpen(true)}
-            variant="outline"
-            className="text-xs font-bold border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
-          >
-            <ArrowRightLeft className="w-4 h-4 mr-1.5" />
-            Internal Transfer
+            <BarChart3 className="w-4 h-4 text-emerald-100" />
+            View Stock Report (साइट-वार स्टॉक रिपोर्ट देखें)
           </Button>
         </div>
       </div>
@@ -427,6 +402,14 @@ export default function MaterialsPage() {
           <ArrowRightLeft className="w-4 h-4" />
           Internal Transfer ({transfers.length})
         </button>
+
+        <button
+          onClick={() => setStockReportModalOpen(true)}
+          className="px-4 py-2.5 text-sm font-bold rounded-t-lg transition flex items-center gap-2 text-emerald-400 hover:text-emerald-300 hover:bg-slate-900/60 ml-auto border border-b-0 border-emerald-500/20"
+        >
+          <BarChart3 className="w-4 h-4 text-emerald-400" />
+          Stock Report (स्टॉक रिपोर्ट देखें)
+        </button>
       </div>
 
       {/* Filter Bar */}
@@ -521,14 +504,26 @@ export default function MaterialsPage() {
         </div>
 
         {activeTab === 'catalog' && (
-          <Button
-            onClick={exportMaterialsCSV}
-            variant="outline"
-            className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800 shrink-0 w-full md:w-auto"
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            <Button
+              onClick={exportMaterialsCSV}
+              variant="outline"
+              className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Export CSV
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingMaterial(null);
+                setMaterialModalOpen(true);
+              }}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              Add Material
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1202,6 +1197,17 @@ export default function MaterialsPage() {
         isOpen={!!selectedDetailRecord}
         onClose={() => setSelectedDetailRecord(null)}
         record={selectedDetailRecord}
+      />
+
+      {/* SITE-WISE STOCK REPORT MODAL */}
+      <StockReportModal
+        isOpen={stockReportModalOpen}
+        onClose={() => setStockReportModalOpen(false)}
+        materials={materials}
+        projects={projects}
+        usages={usages}
+        receipts={receipts}
+        transfers={transfers}
       />
     </div>
   );
