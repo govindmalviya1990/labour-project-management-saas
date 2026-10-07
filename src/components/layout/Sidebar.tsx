@@ -121,13 +121,8 @@ export function Sidebar({
         },
         {
           title: 'Materials',
+          href: '/materials',
           icon: <Package className="w-4 h-4 text-orange-400" />,
-          children: [
-            { title: 'Inventory Stock', href: '/materials' },
-            { title: 'Send to Site', href: '/materials/send' },
-            { title: 'Receive Material', href: '/materials/received' },
-            { title: 'Internal Transfer', href: '/materials/transfers' },
-          ],
         },
         {
           title: 'Notifications',
@@ -164,13 +159,8 @@ export function Sidebar({
         },
         {
           title: 'Materials & Stock',
+          href: '/materials',
           icon: <Package className="w-4 h-4 text-orange-400" />,
-          children: [
-            { title: 'Inventory Stock', href: '/materials' },
-            { title: 'Send to Site', href: '/materials/send' },
-            { title: 'Receive Material', href: '/materials/received' },
-            { title: 'Internal Transfer', href: '/materials/transfers' },
-          ],
         },
         {
           title: 'Reports',
@@ -285,13 +275,8 @@ export function Sidebar({
       },
       {
         title: 'Materials',
+        href: '/materials',
         icon: <Package className="w-4 h-4" />,
-        children: [
-          { title: 'Inventory Stock', href: '/materials' },
-          { title: 'Send to Site', href: '/materials/send' },
-          { title: 'Receive Material', href: '/materials/received' },
-          { title: 'Internal Transfer', href: '/materials/transfers' },
-        ],
       },
       {
         title: 'Reports',
