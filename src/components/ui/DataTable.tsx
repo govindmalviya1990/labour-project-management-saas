@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from 'lucide-react';
 import { Input } from './Input';
+import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 
 export interface Column<T> {
@@ -23,6 +24,20 @@ export interface DataTableProps<T> {
   pageSizeOptions?: number[];
 }
 
+function extractSearchableStrings(obj: any, depth = 0): string[] {
+  if (depth > 5 || obj === null || obj === undefined) return [];
+  if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+    return [String(obj).toLowerCase()];
+  }
+  if (Array.isArray(obj)) {
+    return obj.flatMap((item) => extractSearchableStrings(item, depth + 1));
+  }
+  if (typeof obj === 'object') {
+    return Object.values(obj).flatMap((val) => extractSearchableStrings(val, depth + 1));
+  }
+  return [];
+}
+
 export function DataTable<T extends Record<string, any>>({
   data,
   columns,
@@ -35,22 +50,45 @@ export function DataTable<T extends Record<string, any>>({
   onEmptyAction,
   pageSizeOptions = [10, 25, 50, 100],
 }: DataTableProps<T>) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(pageSizeOptions[0] || 10);
 
+  const applySearch = (val: string) => {
+    setActiveQuery(val);
+    setCurrentPage(1);
+  };
+
   // Filter
   const filteredData = data.filter((item) => {
-    if (!searchTerm) return true;
+    const rawSearch = activeQuery.trim().toLowerCase();
+    if (!rawSearch) return true;
+
     if (searchKey && item[searchKey as string]) {
       return String(item[searchKey as string])
         .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+        .includes(rawSearch);
     }
-    // Search across all string/number fields
-    return Object.values(item).some(
-      (val) => val && String(val).toLowerCase().includes(searchTerm.toLowerCase())
-    );
+
+    const allValues = extractSearchableStrings(item);
+    const joined = allValues.join(' ');
+    const cleanedJoined = joined.replace(/\s+/g, '');
+    const cleanedSearch = rawSearch.replace(/\s+/g, '');
+
+    // 1. Direct match in concatenated values
+    if (joined.includes(rawSearch)) return true;
+
+    // 2. Space-insensitive match (e.g. "sher singh" matches "shersingh")
+    if (cleanedJoined.includes(cleanedSearch)) return true;
+
+    // 3. Multi-word match: each word in search query must appear in values
+    const words = rawSearch.split(/\s+/).filter(Boolean);
+    if (words.length > 0 && words.every((w) => joined.includes(w))) {
+      return true;
+    }
+
+    return false;
   });
 
   // Pagination
@@ -65,18 +103,49 @@ export function DataTable<T extends Record<string, any>>({
   return (
     <div className="w-full space-y-4">
       {/* Search & Actions Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="w-full sm:w-72">
-          <Input
-            placeholder={searchPlaceholder}
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-            leftIcon={<Search className="w-4 h-4" />}
-          />
-        </div>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            applySearch(searchInput);
+          }}
+          className="w-full sm:max-w-md flex items-center gap-2"
+        >
+          <div className="relative flex-1">
+            <Input
+              placeholder={searchPlaceholder}
+              value={searchInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearchInput(val);
+                applySearch(val);
+              }}
+              leftIcon={<Search className="w-4 h-4 text-slate-400" />}
+              className="pr-8"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput('');
+                  applySearch('');
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs p-1 rounded-full hover:bg-slate-800 transition-colors"
+                title="Clear Search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <Button
+            type="submit"
+            onClick={() => applySearch(searchInput)}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-all active:scale-95"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Search</span>
+          </Button>
+        </form>
         <div className="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500 dark:text-slate-400">
           <span>Rows per page:</span>
           <select

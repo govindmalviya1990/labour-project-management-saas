@@ -116,10 +116,17 @@ export default function SalaryPayrollPage() {
   const filteredWorkers = rawWorkers.filter((w: any) => {
     if (selectedCategory !== 'ALL' && w.category !== selectedCategory) return false;
     if (search.trim()) {
-      const q = search.toLowerCase();
-      const matchName = w.name?.toLowerCase().includes(q);
-      const matchCode = w.workerCode?.toLowerCase().includes(q);
-      const matchPhone = w.mobile?.includes(q);
+      const q = search.trim().toLowerCase();
+      const cleanedQ = q.replace(/\s+/g, '');
+      const name = (w.name || '').toLowerCase();
+      const cleanedName = name.replace(/\s+/g, '');
+      const code = (w.workerCode || '').toLowerCase();
+      const phone = (w.mobile || '').toLowerCase();
+
+      const matchName = name.includes(q) || cleanedName.includes(cleanedQ);
+      const matchCode = code.includes(q) || code.replace(/\s+/g, '').includes(cleanedQ);
+      const matchPhone = phone.includes(q);
+
       if (!matchName && !matchCode && !matchPhone) return false;
     }
     return true;
@@ -291,13 +298,34 @@ export default function SalaryPayrollPage() {
               <Search className="w-3.5 h-3.5 text-amber-500" />
               Search Worker
             </label>
-            <input
-              type="text"
-              placeholder="Name or worker code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-amber-500"
-            />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Name or worker code..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 pr-7 text-xs focus:outline-none focus:border-amber-500 h-[38px]"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs p-1"
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <Button
+                type="button"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shrink-0 h-[38px]"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Search</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
