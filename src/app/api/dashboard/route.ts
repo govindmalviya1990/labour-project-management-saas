@@ -132,13 +132,74 @@ export async function GET(req: Request) {
     // -------------------------------------------------------------
     const { searchParams } = new URL(req.url);
     const selectedProjectId = searchParams.get('projectId') || undefined;
+    const period = searchParams.get('period') || 'today';
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
 
-    // Today's boundaries in UTC
-    const today = new Date();
-    const startOfToday = new Date(today);
-    startOfToday.setUTCHours(0, 0, 0, 0);
-    const endOfToday = new Date(today);
-    endOfToday.setUTCHours(23, 59, 59, 999);
+    // Calculate period dates
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    let filterStart: Date | null = null;
+    let filterEnd: Date | null = null;
+    let periodLabel = 'Today';
+
+    if (period === 'today') {
+      filterStart = startOfToday;
+      filterEnd = endOfToday;
+      periodLabel = 'Today';
+    } else if (period === 'weekly') {
+      const s = new Date(now);
+      s.setDate(s.getDate() - 6);
+      s.setHours(0, 0, 0, 0);
+      const e = new Date(now);
+      e.setHours(23, 59, 59, 999);
+      filterStart = s;
+      filterEnd = e;
+      periodLabel = 'Last 7 Days';
+    } else if (period === 'monthly') {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1);
+      s.setHours(0, 0, 0, 0);
+      const e = new Date(now);
+      e.setHours(23, 59, 59, 999);
+      filterStart = s;
+      filterEnd = e;
+      periodLabel = 'This Month';
+    } else if (period === 'custom') {
+      if (startDateParam && endDateParam) {
+        filterStart = new Date(startDateParam);
+        filterStart.setHours(0, 0, 0, 0);
+        filterEnd = new Date(endDateParam);
+        filterEnd.setHours(23, 59, 59, 999);
+        periodLabel = `${startDateParam} to ${endDateParam}`;
+      } else if (startDateParam) {
+        filterStart = new Date(startDateParam);
+        filterStart.setHours(0, 0, 0, 0);
+        periodLabel = `From ${startDateParam}`;
+      } else if (endDateParam) {
+        filterEnd = new Date(endDateParam);
+        filterEnd.setHours(23, 59, 59, 999);
+        periodLabel = `Until ${endDateParam}`;
+      }
+    } else if (period === 'all') {
+      filterStart = null;
+      filterEnd = null;
+      periodLabel = 'All Time';
+    }
+
+    const dateFilterCondition: any = {};
+    if (filterStart && filterEnd) {
+      dateFilterCondition.gte = filterStart;
+      dateFilterCondition.lte = filterEnd;
+    } else if (filterStart) {
+      dateFilterCondition.gte = filterStart;
+    } else if (filterEnd) {
+      dateFilterCondition.lte = filterEnd;
+    }
+    const hasDateCondition = Boolean(filterStart || filterEnd);
 
     // 1. Projects
     const allProjects = await prisma.project.findMany({
@@ -155,31 +216,31 @@ export async function GET(req: Request) {
     const runningProjectsCount = runningProjectsList.length;
     const totalProjectValue = allProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
 
-    // 2. Workers & Attendance
+    // 2. Workers & Attendance (filtered by selected period)
     const totalWorkers = await prisma.worker.count({
       where: { organizationId: orgId, deletedAt: null },
     });
 
-    const todayAttendance = await prisma.attendance.findMany({
+    const periodAttendance = await prisma.attendance.findMany({
       where: {
         organizationId: orgId,
-        date: { gte: startOfToday, lte: endOfToday },
+        ...(hasDateCondition ? { date: dateFilterCondition } : {}),
         ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
       },
     });
 
-    const presentToday = todayAttendance.filter(
+    const presentCount = periodAttendance.filter(
       (a) => a.status === 'PRESENT' || a.status === 'HALF_DAY'
     ).length;
-    const absentToday = todayAttendance.filter((a) => a.status === 'ABSENT').length;
-    const todayLabourCost = todayAttendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+    const absentCount = periodAttendance.filter((a) => a.status === 'ABSENT').length;
+    const periodLabourCost = periodAttendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
 
     // If SITE_SUPERVISOR: Return operational metrics only (hide sensitive financial P&L)
     if (role === 'SITE_SUPERVISOR') {
       const todayWorkRecords = await prisma.workRecord.findMany({
         where: {
           organizationId: orgId,
-          date: { gte: startOfToday, lte: endOfToday },
+          ...(hasDateCondition ? { date: dateFilterCondition } : {}),
         },
         include: {
           worker: { select: { name: true } },
@@ -199,10 +260,16 @@ export async function GET(req: Request) {
           totalProjects,
           runningProjects: runningProjectsCount,
           totalWorkers,
-          presentToday,
-          absentToday,
-          markedCount: todayAttendance.length,
-          unmarkedCount: Math.max(0, totalWorkers - todayAttendance.length),
+          presentWorkers: presentCount,
+          absentWorkers: absentCount,
+          labourCost: periodLabourCost,
+          presentToday: presentCount,
+          absentToday: absentCount,
+          todayLabourCost: periodLabourCost,
+          markedCount: periodAttendance.length,
+          unmarkedCount: Math.max(0, totalWorkers - periodAttendance.length),
+          period,
+          periodLabel,
         },
         runningProjects: runningProjectsList.slice(0, 5).map((p) => ({
           id: p.id,
@@ -216,15 +283,15 @@ export async function GET(req: Request) {
     }
 
     // 3. For OWNER, MANAGER, ACCOUNTANT: Full financial metrics & charts
-    const todayExpenses = await prisma.expense.findMany({
+    const periodExpenses = await prisma.expense.findMany({
       where: {
         organizationId: orgId,
-        date: { gte: startOfToday, lte: endOfToday },
+        ...(hasDateCondition ? { date: dateFilterCondition } : {}),
         deletedAt: null,
         ...(selectedProjectId ? { projectId: selectedProjectId } : {}),
       },
     });
-    const todayExpenseTotal = todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const periodExpenseTotal = periodExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
     const allAttendance = await prisma.attendance.findMany({
       where: {
@@ -497,10 +564,16 @@ export async function GET(req: Request) {
         totalProjects,
         runningProjects: runningProjectsCount,
         totalWorkers,
-        presentToday,
-        absentToday,
-        todayLabourCost,
-        todayExpense: todayExpenseTotal,
+        period,
+        periodLabel,
+        presentWorkers: presentCount,
+        absentWorkers: absentCount,
+        labourCost: periodLabourCost,
+        expenseTotal: periodExpenseTotal,
+        presentToday: presentCount,
+        absentToday: absentCount,
+        todayLabourCost: periodLabourCost,
+        todayExpense: periodExpenseTotal,
         pendingLabourPayment,
         materialStockValue: totalStockValue,
         lowStockCount,

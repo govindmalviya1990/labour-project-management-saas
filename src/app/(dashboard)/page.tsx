@@ -22,6 +22,8 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
+  Calendar,
+  Filter,
 } from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { Button } from '@/components/ui/Button';
@@ -42,28 +44,193 @@ export default function DashboardPage() {
 
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
+  const [period, setPeriod] = useState<'today' | 'weekly' | 'monthly' | 'custom' | 'all'>('today');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  const fetchDashboardData = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/dashboard');
-      if (!res.ok) {
-        throw new Error('Failed to load dashboard metrics');
+  const fetchDashboardData = useCallback(
+    async (
+      targetPeriod: 'today' | 'weekly' | 'monthly' | 'custom' | 'all' = period,
+      targetStart: string = startDate,
+      targetEnd: string = endDate,
+      showUpdating = false
+    ) => {
+      if (showUpdating) {
+        setIsUpdating(true);
+      } else {
+        setIsLoading(true);
       }
-      const json = await res.json();
-      setData(json);
-    } catch (err: any) {
-      setError(err.message || 'Error loading dashboard');
-    } finally {
-      setIsLoading(false);
+      setError('');
+      try {
+        const params = new URLSearchParams();
+        if (targetPeriod) params.set('period', targetPeriod);
+        if (targetPeriod === 'custom') {
+          if (targetStart) params.set('startDate', targetStart);
+          if (targetEnd) params.set('endDate', targetEnd);
+        }
+        const res = await fetch(`/api/dashboard?${params.toString()}`);
+        if (!res.ok) {
+          throw new Error('Failed to load dashboard metrics');
+        }
+        const json = await res.json();
+        setData(json);
+      } catch (err: any) {
+        setError(err.message || 'Error loading dashboard');
+      } finally {
+        setIsLoading(false);
+        setIsUpdating(false);
+      }
+    },
+    [period, startDate, endDate]
+  );
+
+  const handlePeriodChange = (newPeriod: 'today' | 'weekly' | 'monthly' | 'custom' | 'all') => {
+    setPeriod(newPeriod);
+    if (newPeriod === 'custom') {
+      const today = new Date().toISOString().split('T')[0];
+      const pastWeek = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+      const s = startDate || pastWeek;
+      const e = endDate || today;
+      if (!startDate) setStartDate(s);
+      if (!endDate) setEndDate(e);
+      fetchDashboardData('custom', s, e, true);
+    } else {
+      fetchDashboardData(newPeriod, '', '', true);
     }
-  }, []);
+  };
+
+  const handleCustomApply = () => {
+    if (startDate && endDate) {
+      fetchDashboardData('custom', startDate, endDate, true);
+    }
+  };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchDashboardData('today', '', '', false);
+  }, []);
+
+  const renderPeriodFilterToolbar = (summaryData: any) => (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Dashboard Period Filter
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Report View:{' '}
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
+                {summaryData?.periodLabel || (period === 'all' ? 'All Time' : period)}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => handlePeriodChange('today')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period === 'today'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePeriodChange('weekly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period === 'weekly'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Weekly
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePeriodChange('monthly')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period === 'monthly'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePeriodChange('custom')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period === 'custom'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Custom Date
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePeriodChange('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                period === 'all'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+
+          {isUpdating && (
+            <span className="flex items-center gap-1.5 text-[11px] text-amber-500 font-medium px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Recalculating...
+            </span>
+          )}
+        </div>
+      </div>
+
+      {period === 'custom' && (
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">From Date:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">To Date:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <Button
+            size="sm"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
+            onClick={handleCustomApply}
+            disabled={!startDate || !endDate || isUpdating}
+          >
+            Apply Filter
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -86,7 +253,7 @@ export default function DashboardPage() {
         </div>
         <h3 className="text-base font-semibold text-slate-900 dark:text-white">Dashboard Error</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">{error}</p>
-        <Button size="sm" variant="outline" className="mt-4" onClick={fetchDashboardData}>
+        <Button size="sm" variant="outline" className="mt-4" onClick={() => fetchDashboardData('today')}>
           <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
           Retry
         </Button>
@@ -370,6 +537,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Period Filter Toolbar */}
+        {renderPeriodFilterToolbar(summary)}
+
         {/* Supervisor 4 Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
@@ -381,15 +551,15 @@ export default function DashboardPage() {
           />
           <MetricCard
             title="Present on Site"
-            value={summary.presentToday}
-            subtitle="Marked present today"
+            value={summary.presentWorkers ?? summary.presentToday}
+            subtitle={`Present during ${summary.periodLabel || 'selected period'}`}
             icon={<CalendarCheck className="w-5 h-5 text-emerald-400" />}
             variant="emerald"
           />
           <MetricCard
-            title="Absent Today"
-            value={summary.absentToday}
-            subtitle="Marked absent"
+            title="Absent Workers"
+            value={summary.absentWorkers ?? summary.absentToday}
+            subtitle={`Absent during ${summary.periodLabel || 'selected period'}`}
             icon={<CalendarX className="w-5 h-5 text-rose-400" />}
             variant="rose"
           />
@@ -431,7 +601,7 @@ export default function DashboardPage() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
               <Hammer className="w-4 h-4 text-indigo-500" />
-              Today's Work Progress Output
+              Work Progress Output
             </h2>
             <div className="space-y-3">
               {recentWorkRecords && recentWorkRecords.length > 0 ? (
@@ -447,7 +617,7 @@ export default function DashboardPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-400 py-6 text-center">No work recorded yet today.</p>
+                <p className="text-xs text-slate-400 py-6 text-center">No work recorded for this period.</p>
               )}
             </div>
           </div>
@@ -503,6 +673,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Period Filter Toolbar */}
+      {renderPeriodFilterToolbar(summary)}
+
       {/* 12 Key Summary Metrics Grid */}
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
@@ -526,33 +699,33 @@ export default function DashboardPage() {
           />
 
           <MetricCard
-            title="Present Today"
-            value={summary.presentToday}
-            subtitle="On site today"
+            title="Present Workers"
+            value={summary.presentWorkers ?? summary.presentToday}
+            subtitle={`Attended during ${summary.periodLabel || 'selected period'}`}
             icon={<CalendarCheck className="w-5 h-5 text-emerald-500" />}
             variant="emerald"
           />
 
           <MetricCard
-            title="Absent Today"
-            value={summary.absentToday}
-            subtitle="Marked absent"
+            title="Absent Workers"
+            value={summary.absentWorkers ?? summary.absentToday}
+            subtitle={`Absent during ${summary.periodLabel || 'selected period'}`}
             icon={<CalendarX className="w-5 h-5 text-rose-500" />}
             variant="rose"
           />
 
           <MetricCard
-            title="Today's Labour Cost"
-            value={formatINR(summary.todayLabourCost)}
-            subtitle="Calculated from attendance"
+            title="Total Labour Cost"
+            value={formatINR(summary.labourCost ?? summary.todayLabourCost)}
+            subtitle={`Wages for ${summary.periodLabel || 'selected period'}`}
             icon={<IndianRupee className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />
 
           <MetricCard
-            title="Today's Expense"
-            value={formatINR(summary.todayExpense)}
-            subtitle="Recorded site expenses"
+            title="Total Expenses"
+            value={formatINR(summary.expenseTotal ?? summary.todayExpense)}
+            subtitle={`Expenses for ${summary.periodLabel || 'selected period'}`}
             icon={<Receipt className="w-5 h-5 text-rose-500" />}
             variant="rose"
           />
