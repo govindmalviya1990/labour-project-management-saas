@@ -21,6 +21,9 @@ import {
   FileSpreadsheet,
   Send,
   Clock,
+  FileText,
+  ShieldCheck,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -29,6 +32,8 @@ import { MaterialFormModal } from '@/components/materials/MaterialFormModal';
 import { ReceiptFormModal } from '@/components/materials/ReceiptFormModal';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
 import { TransferFormModal } from '@/components/materials/TransferFormModal';
+import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
+import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
 
 export default function MaterialsPage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'send' | 'receipts' | 'transfers'>('catalog');
@@ -103,11 +108,30 @@ export default function MaterialsPage() {
   const [supervisorName, setSupervisorName] = useState('Site Supervisor');
   const [verificationRemarks, setVerificationRemarks] = useState('Stock checked and received in good condition at site.');
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<any | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setCurrentUser(d.user);
+          if (d.user.name) {
+            setSupervisorName(d.user.name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleOpenVerifyModal = (dispatch: any) => {
     setSelectedDispatch(dispatch);
     setReceivedQty(dispatch.quantity || 0);
     setVerificationRemarks('Stock physically verified and received in good condition at site.');
+    if (currentUser?.name) {
+      setSupervisorName(currentUser.name);
+    }
     setVerifyModalOpen(true);
   };
 
@@ -116,15 +140,14 @@ export default function MaterialsPage() {
     if (!selectedDispatch) return;
     setIsSubmittingApproval(true);
     try {
-      const approvalNote = `[VERIFIED: Received ${receivedQty} ${selectedDispatch.material?.unit} by ${supervisorName} on ${new Date().toLocaleDateString('en-IN')}] ${verificationRemarks}`;
-      const existingNotes = selectedDispatch.notes ? `${selectedDispatch.notes} | ` : '';
       const res = await fetch(`/api/materials/usage/${selectedDispatch.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskPurpose: 'APPROVED',
           quantity: receivedQty,
-          notes: `${existingNotes}${approvalNote}`,
+          supervisorName,
+          verificationRemarks,
         }),
       });
       if (res.ok) {
@@ -746,6 +769,7 @@ export default function MaterialsPage() {
                     <th className="py-3 px-3 text-right">Quantity</th>
                     <th className="py-3 px-3 text-right">Rate (₹)</th>
                     <th className="py-3 px-3 text-right font-bold text-slate-200">Total Cost</th>
+                    <th className="py-3 px-3">Verified / Received By</th>
                     <th className="py-3 px-4">Challan / Inv</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -753,7 +777,7 @@ export default function MaterialsPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {receipts.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-10 text-slate-400">
+                      <td colSpan={10} className="text-center py-10 text-slate-400">
                         No material receipts recorded yet. Click "Receive Material (GRN)" to log deliveries.
                       </td>
                     </tr>
@@ -783,11 +807,28 @@ export default function MaterialsPage() {
                         <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">
                           ₹{r.totalCost.toLocaleString('en-IN')}
                         </td>
+                        <td className="py-3 px-3">
+                          <SupervisorVerificationBadge
+                            notes={r.notes}
+                            fallbackUser={r.purchasedBy}
+                            onViewDetails={() => setSelectedDetailRecord(r)}
+                            compact
+                          />
+                        </td>
                         <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
                           {r.invoiceNumber || '—'}
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-400"
+                              onClick={() => setSelectedDetailRecord(r)}
+                              title="View Verification Details"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -865,17 +906,11 @@ export default function MaterialsPage() {
                         {u.notes || u.taskPurpose || 'Dispatched from godown'}
                       </td>
                       <td className="py-3 px-3 text-center">
-                        {u.taskPurpose === 'APPROVED' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3" />
-                            साइट पर प्राप्त (Approved)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                            <Clock className="w-3 h-3 animate-pulse" />
-                            वेरीफिकेशन बाकी (Pending)
-                          </span>
-                        )}
+                        <SupervisorVerificationBadge
+                          notes={u.notes}
+                          taskPurpose={u.taskPurpose}
+                          onViewDetails={u.taskPurpose === 'APPROVED' ? () => setSelectedDetailRecord(u) : undefined}
+                        />
                       </td>
                     </tr>
                   ))
@@ -1161,6 +1196,13 @@ export default function MaterialsPage() {
           </form>
         </Modal>
       )}
+
+      {/* VERIFICATION DETAILS MODAL */}
+      <VerificationDetailsModal
+        isOpen={!!selectedDetailRecord}
+        onClose={() => setSelectedDetailRecord(null)}
+        record={selectedDetailRecord}
+      />
     </div>
   );
 }

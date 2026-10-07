@@ -17,11 +17,15 @@ import {
   Layers,
   Edit2,
   Trash2,
+  FileText,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { ReceiptFormModal } from '@/components/materials/ReceiptFormModal';
+import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
+import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
 
 export default function MaterialReceivedPage() {
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
@@ -46,6 +50,22 @@ export default function MaterialReceivedPage() {
   // Manual Receipt Modal State
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [editingReceipt, setEditingReceipt] = useState<any | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<any | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) {
+          setCurrentUser(d.user);
+          if (d.user.name) {
+            setSupervisorName(d.user.name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -122,6 +142,9 @@ export default function MaterialReceivedPage() {
     setSelectedDispatch(dispatch);
     setReceivedQty(dispatch.quantity || 0);
     setVerificationRemarks('Stock physically verified and received in good condition at site.');
+    if (currentUser?.name) {
+      setSupervisorName(currentUser.name);
+    }
     setApprovalError('');
     setVerifyModalOpen(true);
   };
@@ -134,16 +157,14 @@ export default function MaterialReceivedPage() {
     setApprovalError('');
 
     try {
-      const approvalNote = `[VERIFIED: Received ${receivedQty} ${selectedDispatch.material?.unit} by ${supervisorName} on ${new Date().toLocaleDateString('en-IN')}] ${verificationRemarks}`;
-      const existingNotes = selectedDispatch.notes ? `${selectedDispatch.notes} | ` : '';
-
       const res = await fetch(`/api/materials/usage/${selectedDispatch.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskPurpose: 'APPROVED',
           quantity: receivedQty,
-          notes: `${existingNotes}${approvalNote}`,
+          supervisorName,
+          verificationRemarks,
         }),
       });
 
@@ -418,6 +439,7 @@ export default function MaterialReceivedPage() {
                   <th className="py-3 px-3">Site / Project</th>
                   <th className="py-3 px-3">Material</th>
                   <th className="py-3 px-3 text-right">Received Quantity</th>
+                  <th className="py-3 px-4">Verified By (चेक करने वाला सुपरवाइज़र)</th>
                   <th className="py-3 px-4">Delivery & Verification Remarks</th>
                   <th className="py-3 px-3 text-center">Status</th>
                 </tr>
@@ -425,13 +447,13 @@ export default function MaterialReceivedPage() {
               <tbody className="divide-y divide-slate-800/60">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-500">
+                    <td colSpan={7} className="text-center py-10 text-slate-500">
                       Loading received records...
                     </td>
                   </tr>
                 ) : approvedDispatches.length === 0 && filteredReceipts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
                       Abhi tak koi material receive nahi hua hai.
                     </td>
                   </tr>
@@ -456,6 +478,13 @@ export default function MaterialReceivedPage() {
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 text-sm">
                           +{u.quantity} {u.material?.unit}
+                        </td>
+                        <td className="py-3 px-4">
+                          <SupervisorVerificationBadge
+                            notes={u.notes}
+                            taskPurpose={u.taskPurpose}
+                            onViewDetails={() => setSelectedDetailRecord(u)}
+                          />
                         </td>
                         <td className="py-3 px-4 text-slate-300">
                           <div className="text-slate-200">{u.notes || 'Verified at site'}</div>
@@ -488,6 +517,13 @@ export default function MaterialReceivedPage() {
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-black text-emerald-400 text-sm">
                           +{r.quantity} {r.material?.unit}
+                        </td>
+                        <td className="py-3 px-4">
+                          <SupervisorVerificationBadge
+                            notes={r.notes}
+                            fallbackUser={r.purchasedBy}
+                            onViewDetails={() => setSelectedDetailRecord(r)}
+                          />
                         </td>
                         <td className="py-3 px-4 text-slate-300">
                           <div className="text-slate-200">
@@ -632,6 +668,13 @@ export default function MaterialReceivedPage() {
         onSuccess={fetchData}
         defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
         initialData={editingReceipt}
+      />
+
+      {/* VERIFICATION DETAILS MODAL */}
+      <VerificationDetailsModal
+        isOpen={!!selectedDetailRecord}
+        onClose={() => setSelectedDetailRecord(null)}
+        record={selectedDetailRecord}
       />
     </div>
   );

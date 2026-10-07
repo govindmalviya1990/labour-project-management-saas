@@ -15,9 +15,12 @@ import {
   Clock,
   CheckCircle2,
   Truck,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
+import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
+import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
 
 export default function SendMaterialPage() {
   const [usages, setUsages] = useState<any[]>([]);
@@ -26,6 +29,7 @@ export default function SendMaterialPage() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUsage, setEditingUsage] = useState<any | null>(null);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchUsages = async () => {
@@ -267,20 +271,25 @@ export default function SendMaterialPage() {
                         )}
                       </td>
                       <td className="py-3 px-3 text-center">
-                        {isApproved ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            <CheckCircle2 className="w-3 h-3" />
-                            साइट पर प्राप्त (Approved)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                            <Clock className="w-3 h-3 animate-pulse" />
-                            वेरीफिकेशन बाकी (Pending)
-                          </span>
-                        )}
+                        <SupervisorVerificationBadge
+                          notes={u.notes}
+                          taskPurpose={u.taskPurpose}
+                          onViewDetails={isApproved ? () => setSelectedDetailRecord(u) : undefined}
+                        />
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {isApproved && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-400"
+                              onClick={() => setSelectedDetailRecord(u)}
+                              title="View Verification Details"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -319,6 +328,12 @@ export default function SendMaterialPage() {
         onSuccess={fetchUsages}
         defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
         initialData={editingUsage}
+      />
+
+      <VerificationDetailsModal
+        isOpen={!!selectedDetailRecord}
+        onClose={() => setSelectedDetailRecord(null)}
+        record={selectedDetailRecord}
       />
     </div>
   );

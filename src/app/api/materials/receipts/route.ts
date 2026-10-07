@@ -42,6 +42,7 @@ export async function GET(req: Request) {
         project: { select: { id: true, name: true, projectCode: true } },
         site: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true } },
+        purchasedBy: { select: { id: true, name: true, email: true, mobile: true } },
       },
       orderBy: { date: 'desc' },
     });

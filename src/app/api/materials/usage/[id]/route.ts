@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { updateMaterialUsageSchema } from '@/lib/validations/materials';
+import { formatVerificationNote } from '@/lib/materials/verification';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +63,26 @@ export async function PUT(
     }
 
     const data = validated.data;
+    const session = auth.session;
+    const isApproving = data.taskPurpose === 'APPROVED' && existing.taskPurpose !== 'APPROVED';
+    let finalNotes = data.notes !== undefined ? (data.notes || null) : existing.notes;
+
+    if (isApproving) {
+      const verifierName = body.supervisorName?.trim() || session.name || 'Site Supervisor';
+      const verifierRole = session.role || 'SITE_SUPERVISOR';
+      const remarks = body.verificationRemarks?.trim() || body.remarks?.trim() || 'Physical stock verified and received in good condition at site.';
+      const verifiedQty = data.quantity !== undefined ? data.quantity : existing.quantity;
+
+      const formattedVerification = formatVerificationNote({
+        verifierName,
+        role: verifierRole,
+        receivedQty: verifiedQty,
+        remarks,
+      });
+
+      finalNotes = existing.notes ? `${existing.notes} | ${formattedVerification}` : formattedVerification;
+    }
+
     const updated = await prisma.materialUsage.update({
       where: { id: params.id },
       data: {
@@ -71,7 +92,7 @@ export async function PUT(
         ...(data.date ? { date: new Date(data.date) } : {}),
         ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
         ...(data.taskPurpose !== undefined ? { taskPurpose: data.taskPurpose } : {}),
-        ...(data.notes !== undefined ? { notes: data.notes || null } : {}),
+        notes: finalNotes,
       },
       include: {
         material: true,
@@ -81,7 +102,7 @@ export async function PUT(
     });
 
     // When supervisor marks dispatch as APPROVED, record verified arrival in MaterialReceipt
-    if (data.taskPurpose === 'APPROVED' && existing.taskPurpose !== 'APPROVED') {
+    if (isApproving) {
       const mat = await prisma.material.findUnique({ where: { id: updated.materialId } });
       const qty = updated.quantity;
       const rate = mat?.purchaseRate || 0;
@@ -98,7 +119,7 @@ export async function PUT(
           purchaseRate: rate,
           totalCost: Math.round(qty * rate * 100) / 100,
           invoiceNumber: `DISPATCH-${updated.id.slice(-6).toUpperCase()}`,
-          notes: `Dispatched from Company Stock. Verified & Approved at site by supervisor. ${updated.notes || ''}`.trim(),
+          notes: finalNotes,
         },
       });
     }
