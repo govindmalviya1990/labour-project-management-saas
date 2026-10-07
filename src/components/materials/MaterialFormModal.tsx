@@ -308,7 +308,7 @@ export function MaterialFormModal({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Opening Stock
+              Company Stock (कंपनी गोदाम का स्टॉक)
             </label>
             <Input
               type="number"
@@ -317,9 +317,8 @@ export function MaterialFormModal({
               value={formData.openingStock}
               onChange={(e) => setFormData({ ...formData, openingStock: parseFloat(e.target.value) || 0 })}
               placeholder="0"
-              disabled={!!initialData}
             />
-            {initialData && <p className="text-[11px] text-slate-500 mt-1">Opening stock locked after creation</p>}
+            <p className="text-[11px] text-slate-500 mt-1">Total stock held in company godown</p>
           </div>
 
           <div>

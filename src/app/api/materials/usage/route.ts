@@ -95,49 +95,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Selected project not found' }, { status: 404 });
     }
 
-    // Calculate available stock at this project to enforce Negative Stock Prevention
-    const receipts = await prisma.materialReceipt.findMany({
-      where: { organizationId: orgId, materialId: data.materialId, projectId: data.projectId, deletedAt: null },
+    // Calculate available Company Warehouse Stock
+    const allOrgUsages = await prisma.materialUsage.findMany({
+      where: { organizationId: orgId, materialId: data.materialId, deletedAt: null },
       select: { quantity: true },
     });
-    const totalReceived = receipts.reduce((sum, r) => sum + r.quantity, 0);
+    const totalAlreadyDispatched = allOrgUsages.reduce((sum, u) => sum + u.quantity, 0);
+    const availableCompanyStock = Math.round(Math.max(0, material.openingStock - totalAlreadyDispatched) * 1000) / 1000;
 
-    const transfersIn = await prisma.materialTransfer.findMany({
-      where: { organizationId: orgId, materialId: data.materialId, destinationProjectId: data.projectId },
-      select: { quantity: true },
-    });
-    const totalTransferredIn = transfersIn.reduce((sum, t) => sum + t.quantity, 0);
-
-    const transfersOut = await prisma.materialTransfer.findMany({
-      where: { organizationId: orgId, materialId: data.materialId, sourceProjectId: data.projectId },
-      select: { quantity: true },
-    });
-    const totalTransferredOut = transfersOut.reduce((sum, t) => sum + t.quantity, 0);
-
-    const pastUsages = await prisma.materialUsage.findMany({
-      where: { organizationId: orgId, materialId: data.materialId, projectId: data.projectId, deletedAt: null },
-      select: { quantity: true },
-    });
-    const totalUsed = pastUsages.reduce((sum, u) => sum + u.quantity, 0);
-
-    let availableStock = Math.round((totalReceived + totalTransferredIn - totalTransferredOut - totalUsed) * 1000) / 1000;
-
-    // If opening stock exists on the material and project has no receipts or transfers, allow from opening stock
-    if (availableStock <= 0 && material.openingStock > 0 && totalReceived === 0 && totalTransferredIn === 0) {
-      const allOrgUsages = await prisma.materialUsage.aggregate({
-        where: { organizationId: orgId, materialId: data.materialId, deletedAt: null },
-        _sum: { quantity: true },
-      });
-      const orgUsed = allOrgUsages._sum.quantity || 0;
-      availableStock = Math.round((material.openingStock - orgUsed) * 1000) / 1000;
-    }
-
-    if (data.quantity > availableStock) {
-      const currentAvailable = Math.max(0, availableStock);
+    if (data.quantity > availableCompanyStock) {
       return NextResponse.json(
         {
-          error: `Cannot use ${data.quantity} ${material.unit}. Only ${currentAvailable} ${material.unit} available at ${project.name}.`,
-          availableStock: currentAvailable,
+          error: `Company godown me sirf ${availableCompanyStock} ${material.unit} uplabdh hai. Aap ${data.quantity} ${material.unit} nahi bhej sakte.`,
+          availableStock: availableCompanyStock,
         },
         { status: 400 }
       );
@@ -151,7 +121,7 @@ export async function POST(req: Request) {
         siteId: data.siteId || null,
         date: new Date(data.date),
         quantity: data.quantity,
-        taskPurpose: data.taskPurpose,
+        taskPurpose: data.taskPurpose || 'PENDING',
         notes: data.notes || null,
       },
       include: {
@@ -160,13 +130,13 @@ export async function POST(req: Request) {
       },
     });
 
-    const newRemainingStock = Math.round((availableStock - data.quantity) * 1000) / 1000;
+    const newRemainingStock = Math.round(Math.max(0, availableCompanyStock - data.quantity) * 1000) / 1000;
 
     return NextResponse.json({
       success: true,
       usage,
       remainingStock: newRemainingStock,
-      message: `Used ${data.quantity} ${material.unit} of ${material.name} for ${data.taskPurpose}. Remaining at ${project.name}: ${newRemainingStock} ${material.unit}.`,
+      message: `Dispatched ${data.quantity} ${material.unit} of ${material.name} to ${project.name}. Company godown me bacha: ${newRemainingStock} ${material.unit}.`,
     });
   } catch (error: any) {
     console.error('Material Usage POST error:', error);

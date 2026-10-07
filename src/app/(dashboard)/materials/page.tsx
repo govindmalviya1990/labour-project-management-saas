@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
 import { MaterialFormModal } from '@/components/materials/MaterialFormModal';
 import { ReceiptFormModal } from '@/components/materials/ReceiptFormModal';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
@@ -50,6 +51,47 @@ export default function MaterialsPage() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [usageModalOpen, setUsageModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [addStockModalOpen, setAddStockModalOpen] = useState(false);
+  const [stockMaterial, setStockMaterial] = useState<any | null>(null);
+  const [addedStockQty, setAddedStockQty] = useState<number>(0);
+  const [addedStockRate, setAddedStockRate] = useState<number>(0);
+  const [isSavingStock, setIsSavingStock] = useState(false);
+
+  const handleOpenAddStock = (m: any) => {
+    setStockMaterial(m);
+    setAddedStockQty(100);
+    setAddedStockRate(m.purchaseRate || 0);
+    setAddStockModalOpen(true);
+  };
+
+  const handleSaveAddStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockMaterial || addedStockQty <= 0) return;
+    setIsSavingStock(true);
+    try {
+      const newOpening = (stockMaterial.openingStock || 0) + Number(addedStockQty);
+      const res = await fetch(`/api/materials/${stockMaterial.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          openingStock: newOpening,
+          ...(addedStockRate > 0 ? { purchaseRate: Number(addedStockRate) } : {}),
+        }),
+      });
+      if (res.ok) {
+        setAddStockModalOpen(false);
+        setStockMaterial(null);
+        fetchData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update stock');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error updating stock');
+    } finally {
+      setIsSavingStock(false);
+    }
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -411,10 +453,10 @@ export default function MaterialsPage() {
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-4">Code & Name</th>
-                  <th className="py-3 px-3 text-right">Opening</th>
-                  <th className="py-3 px-3 text-right text-emerald-400 font-bold">Aaya (Inward)</th>
-                  <th className="py-3 px-3 text-right text-sky-400 font-bold">Use Hua (Used)</th>
-                  <th className="py-3 px-3 text-right font-black text-amber-400">Bacha (Stock)</th>
+                  <th className="py-3 px-3">Category</th>
+                  <th className="py-3 px-3 text-right">Company Stock</th>
+                  <th className="py-3 px-3 text-right text-sky-400 font-bold">Sent to Sites</th>
+                  <th className="py-3 px-3 text-right font-black text-amber-400">Available Stock</th>
                   <th className="py-3 px-3 text-right">Min Level</th>
                   <th className="py-3 px-3 text-right">Rate</th>
                   <th className="py-3 px-3 text-right">Valuation</th>
@@ -425,13 +467,13 @@ export default function MaterialsPage() {
               <tbody className="divide-y divide-slate-800/60">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-10 text-slate-500">
+                    <td colSpan={10} className="text-center py-10 text-slate-500">
                       Loading materials inventory...
                     </td>
                   </tr>
                 ) : materials.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-12 text-slate-400">
+                    <td colSpan={10} className="text-center py-12 text-slate-400">
                       No materials match the selected filters. Click "+ Add Material" to register items.
                     </td>
                   </tr>
@@ -447,17 +489,14 @@ export default function MaterialsPage() {
                           {m.category}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-slate-400">
-                        {m.openingStock} {m.unit}
+                      <td className="py-3 px-3 text-right font-mono font-bold text-slate-200">
+                        {m.totalCompanyStock ?? m.openingStock} {m.unit}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-emerald-400 font-medium">
-                        +{m.totalReceived}
+                      <td className="py-3 px-3 text-right font-mono font-bold text-sky-400">
+                        -{m.totalSentToSites ?? m.totalUsed ?? 0} {m.unit}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono text-rose-400 font-medium">
-                        -{m.totalUsed}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-sm">
-                        <span className={m.isLowStock ? 'text-rose-400' : 'text-slate-100'}>
+                      <td className="py-3 px-3 text-right font-mono font-black text-sm">
+                        <span className={m.isLowStock ? 'text-rose-400' : 'text-amber-400 font-bold'}>
                           {m.remainingStock} {m.unit}
                         </span>
                       </td>
@@ -485,6 +524,14 @@ export default function MaterialsPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            title="Add Stock (+ नया स्टॉक जोड़ें)"
+                            onClick={() => handleOpenAddStock(m)}
+                            className="px-2 py-1 text-[11px] font-bold bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 rounded transition flex items-center gap-1 shrink-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Add Stock
+                          </button>
                           <button
                             title="Edit Material"
                             onClick={() => {
@@ -712,6 +759,90 @@ export default function MaterialsPage() {
         onSuccess={fetchData}
         defaultSourceProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
       />
+
+      {/* QUICK ADD STOCK MODAL */}
+      {addStockModalOpen && stockMaterial && (
+        <Modal
+          isOpen={addStockModalOpen}
+          onClose={() => {
+            setAddStockModalOpen(false);
+            setStockMaterial(null);
+          }}
+          title={`+ Add Stock to Company Godown: ${stockMaterial.name}`}
+          description="Add new incoming stock purchased or received into company central inventory."
+          size="md"
+        >
+          <form onSubmit={handleSaveAddStock} className="space-y-4">
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg text-xs space-y-1">
+              <div className="flex justify-between text-slate-400">
+                <span>Current Total Company Stock:</span>
+                <span className="font-bold text-slate-200">{stockMaterial.openingStock} {stockMaterial.unit}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Sent to Sites:</span>
+                <span className="font-bold text-sky-400">-{stockMaterial.totalSentToSites ?? stockMaterial.totalUsed ?? 0} {stockMaterial.unit}</span>
+              </div>
+              <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-800">
+                <span>Available in Godown:</span>
+                <span className="font-bold text-amber-400">{stockMaterial.remainingStock} {stockMaterial.unit}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                New Stock Quantity to Add ({stockMaterial.unit}) *
+              </label>
+              <Input
+                type="number"
+                step="any"
+                min="0.01"
+                value={addedStockQty || ''}
+                onChange={(e) => setAddedStockQty(parseFloat(e.target.value) || 0)}
+                placeholder="Enter stock quantity to add"
+                required
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                New total company stock will become: <strong>{(stockMaterial.openingStock || 0) + (Number(addedStockQty) || 0)} {stockMaterial.unit}</strong>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Purchase Rate (₹ per {stockMaterial.unit})
+              </label>
+              <Input
+                type="number"
+                step="any"
+                min="0"
+                value={addedStockRate || ''}
+                onChange={(e) => setAddedStockRate(parseFloat(e.target.value) || 0)}
+                placeholder="Rate in INR"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAddStockModalOpen(false);
+                  setStockMaterial(null);
+                }}
+                disabled={isSavingStock}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingStock || !addedStockQty || addedStockQty <= 0}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              >
+                {isSavingStock ? 'Saving...' : '+ Confirm Add Stock'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

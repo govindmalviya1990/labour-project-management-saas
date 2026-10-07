@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Hammer, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Send, AlertCircle, AlertTriangle, CheckCircle2, Truck } from 'lucide-react';
 
 interface UsageFormModalProps {
   isOpen: boolean;
@@ -26,7 +26,6 @@ export function UsageFormModal({
   const [projects, setProjects] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [availableStock, setAvailableStock] = useState<number | null>(null);
-  const [checkingStock, setCheckingStock] = useState(false);
 
   const [formData, setFormData] = useState({
     projectId: initialData?.projectId || defaultProjectId || '',
@@ -57,9 +56,10 @@ export function UsageFormModal({
         }
         if (matRes.ok) {
           const m = await matRes.json();
-          setMaterials(m.materials || []);
-          if (!formData.materialId && m.materials?.length > 0) {
-            setFormData((prev) => ({ ...prev, materialId: m.materials[0].id }));
+          const mats = m.materials || [];
+          setMaterials(mats);
+          if (!formData.materialId && mats.length > 0) {
+            setFormData((prev) => ({ ...prev, materialId: mats[0].id }));
           }
         }
 
@@ -84,37 +84,15 @@ export function UsageFormModal({
     }
   }, [isOpen, defaultProjectId, defaultMaterialId, initialData]);
 
-  // Check available stock whenever project or material changes
+  // Check available stock in Company Godown
   useEffect(() => {
-    async function checkStock() {
-      if (!formData.projectId || !formData.materialId) {
-        setAvailableStock(null);
-        return;
-      }
-      setCheckingStock(true);
-      try {
-        // Fetch project-specific materials stock
-        const res = await fetch(`/api/materials?projectId=${formData.projectId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const found = (data.materials || []).find((m: any) => m.id === formData.materialId);
-          if (found) {
-            setAvailableStock(found.remainingStock);
-          } else {
-            setAvailableStock(0);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setCheckingStock(false);
-      }
+    if (!formData.materialId || materials.length === 0) {
+      setAvailableStock(null);
+      return;
     }
-
-    if (isOpen && formData.projectId && formData.materialId) {
-      checkStock();
-    }
-  }, [isOpen, formData.projectId, formData.materialId]);
+    const found = materials.find((m: any) => m.id === formData.materialId);
+    setAvailableStock(found ? found.remainingStock : 0);
+  }, [formData.materialId, materials]);
 
   const selectedMaterial = materials.find((m) => m.id === formData.materialId);
   const selectedProject = projects.find((p) => p.id === formData.projectId);
@@ -127,7 +105,7 @@ export function UsageFormModal({
     setError('');
 
     if (!formData.projectId) {
-      setError('Please select a project');
+      setError('Please select destination construction site/project');
       return;
     }
     if (!formData.materialId) {
@@ -135,20 +113,16 @@ export function UsageFormModal({
       return;
     }
     if (!formData.quantity || formData.quantity <= 0) {
-      setError('Quantity must be greater than zero');
-      return;
-    }
-    if (!formData.taskPurpose.trim()) {
-      setError('Please enter the purpose or activity where material was used');
+      setError('Quantity to send must be greater than zero');
       return;
     }
 
     if (!initialData && isStockInsufficient) {
       setError(
-        `Cannot use ${formData.quantity} ${selectedMaterial?.unit || 'units'}. Only ${Math.max(
+        `Cannot send ${formData.quantity} ${selectedMaterial?.unit || 'units'}. Only ${Math.max(
           0,
-          availableStock
-        )} ${selectedMaterial?.unit || 'units'} available at ${selectedProject?.name || 'this project'}.`
+          availableStock || 0
+        )} ${selectedMaterial?.unit || 'units'} available in Company Godown Stock.`
       );
       return;
     }
@@ -167,7 +141,7 @@ export function UsageFormModal({
           materialId: formData.materialId,
           date: formData.date,
           quantity: Number(formData.quantity),
-          taskPurpose: formData.taskPurpose,
+          taskPurpose: formData.taskPurpose || 'PENDING',
           notes: formData.notes || null,
         }),
       });
@@ -175,7 +149,7 @@ export function UsageFormModal({
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Failed to record material consumption');
+        setError(data.error || 'Failed to dispatch material');
         setIsLoading(false);
         return;
       }
@@ -193,8 +167,8 @@ export function UsageFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site (Site Dispatch)'}
-      description="Dispatch material inventory to construction site project."
+      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site (कंपनी से साइट पर सामग्री भेजें)'}
+      description="Dispatch material from company godown stock to construction project site. Dispatched stock is deducted from total company inventory."
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -208,15 +182,15 @@ export function UsageFormModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Project / Site *
+              Destination Site / Project (किस साइट पर भेज रहे हैं) *
             </label>
             <select
               value={formData.projectId}
               onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               required
             >
-              <option value="">-- Select Project --</option>
+              <option value="">-- Select Destination Site --</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name} ({p.projectCode})</option>
               ))}
@@ -225,7 +199,7 @@ export function UsageFormModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Date of Usage *
+              Dispatch Date (भेजने की तारीख) *
             </label>
             <Input
               type="date"
@@ -238,27 +212,27 @@ export function UsageFormModal({
 
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Material to Consume *
+            Material to Send (कंपनी स्टॉक से सामग्री चुनें) *
           </label>
           <select
             value={formData.materialId}
             onChange={(e) => setFormData({ ...formData, materialId: e.target.value })}
-            className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
             required
           >
             <option value="">-- Select Material --</option>
             {materials.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} ({m.materialCode}) - Unit: {m.unit}
+                {m.name} ({m.materialCode}) — [Available in Godown: {m.remainingStock} {m.unit}]
               </option>
             ))}
           </select>
         </div>
 
-        {/* Live Stock Status Badge */}
+        {/* Live Company Stock Status Badge */}
         {selectedMaterial && (
           <div className={`p-3 rounded-lg border flex items-center justify-between text-sm ${
-            availableStock === null || checkingStock
+            availableStock === null
               ? 'bg-slate-900/50 border-slate-800 text-slate-400'
               : availableStock <= 0
               ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
@@ -273,11 +247,11 @@ export function UsageFormModal({
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               )}
               <span>
-                Available Stock at <strong>{selectedProject?.name || 'Selected Project'}</strong>:
+                Company Godown Available Stock: <strong>{selectedMaterial.name}</strong>
               </span>
             </div>
             <span className="font-bold text-base">
-              {checkingStock ? 'Checking...' : `${availableStock !== null ? availableStock : '0'} ${selectedMaterial.unit}`}
+              {availableStock !== null ? `${availableStock} ${selectedMaterial.unit}` : '0 units'}
             </span>
           </div>
         )}
@@ -285,47 +259,47 @@ export function UsageFormModal({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Quantity Used {selectedMaterial ? `(${selectedMaterial.unit})` : ''} *
+              Quantity to Send {selectedMaterial ? `(${selectedMaterial.unit})` : ''} *
             </label>
             <Input
               type="number"
               step="any"
               min="0.01"
-              value={formData.quantity}
+              value={formData.quantity || ''}
               onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
               className={isStockInsufficient ? 'border-rose-500 focus:ring-rose-500' : ''}
+              placeholder="Enter quantity to dispatch"
               required
             />
             {isStockInsufficient && (
               <p className="text-xs text-rose-400 mt-1 font-medium">
-                ⚠️ Exceeds available stock of {availableStock} {selectedMaterial?.unit}
+                ⚠️ Exceeds company available stock of {availableStock} {selectedMaterial?.unit}
               </p>
             )}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Purpose / Construction Task *
+              Vehicle / Challan / Delivery Ref
             </label>
             <Input
-              value={formData.taskPurpose}
+              value={formData.taskPurpose === 'PENDING' ? '' : formData.taskPurpose}
               onChange={(e) => setFormData({ ...formData, taskPurpose: e.target.value })}
-              placeholder="e.g. Slab casting, Foundation, Brickwork, or Site delivery"
-              required
+              placeholder="e.g. Truck RJ14-1234, Challan #402, Driver Ramesh"
             />
           </div>
         </div>
 
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Dispatch / Vehicle Notes (Optional)
+            Dispatch Instructions / Notes for Site Supervisor
           </label>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Vehicle number, driver name, challan number or remarks..."
+            placeholder="Any specific instructions for supervisor verifying at site..."
             rows={2}
-            className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />
         </div>
 
@@ -336,9 +310,10 @@ export function UsageFormModal({
           <Button
             type="submit"
             disabled={isLoading || isStockInsufficient}
-            className="bg-sky-500 hover:bg-sky-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-sky-600 hover:bg-sky-700 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Saving...' : initialData ? 'Update Dispatch Record' : 'Confirm & Send Material'}
+            <Truck className="w-4 h-4 mr-1.5" />
+            {isLoading ? 'Sending...' : initialData ? 'Update Dispatch Record' : 'Confirm & Send to Site'}
           </Button>
         </div>
       </form>

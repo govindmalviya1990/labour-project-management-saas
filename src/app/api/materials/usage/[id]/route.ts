@@ -80,6 +80,29 @@ export async function PUT(
       },
     });
 
+    // When supervisor marks dispatch as APPROVED, record verified arrival in MaterialReceipt
+    if (data.taskPurpose === 'APPROVED' && existing.taskPurpose !== 'APPROVED') {
+      const mat = await prisma.material.findUnique({ where: { id: updated.materialId } });
+      const qty = updated.quantity;
+      const rate = mat?.purchaseRate || 0;
+      await prisma.materialReceipt.create({
+        data: {
+          organizationId: orgId,
+          materialId: updated.materialId,
+          projectId: updated.projectId,
+          siteId: updated.siteId || null,
+          purchasedById: auth.session.userId,
+          paymentMethod: 'TRANSFER',
+          date: new Date(),
+          quantity: qty,
+          purchaseRate: rate,
+          totalCost: Math.round(qty * rate * 100) / 100,
+          invoiceNumber: `DISPATCH-${updated.id.slice(-6).toUpperCase()}`,
+          notes: `Dispatched from Company Stock. Verified & Approved at site by supervisor. ${updated.notes || ''}`.trim(),
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, usage: updated });
   } catch (error: any) {
     console.error('Material usage PUT error:', error);

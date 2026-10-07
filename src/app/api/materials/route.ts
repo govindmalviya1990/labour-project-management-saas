@@ -100,18 +100,24 @@ export async function GET(req: Request) {
         (projectId && projectId !== 'ALL') || (siteId && siteId !== 'ALL')
       );
 
-      const stock = calculateMaterialStock({
-        openingStock: isFiltered ? 0 : m.openingStock,
-        totalReceived,
-        totalUsed,
-        transfersIn,
-        transfersOut,
-        minimumStock: m.minimumStock,
-        purchaseRate: m.purchaseRate,
-      });
+      let remainingStock = 0;
+      let stockValue = 0;
+      let isLowStock = false;
 
-      totalStockValue += stock.stockValue;
-      if (stock.isLowStock) lowStockCount++;
+      if (isFiltered) {
+        // Site-specific inventory calculation
+        remainingStock = Math.round(Math.max(0, totalReceived + transfersIn - transfersOut - totalUsed) * 1000) / 1000;
+        stockValue = Math.round(remainingStock * m.purchaseRate * 100) / 100;
+        isLowStock = remainingStock <= m.minimumStock;
+      } else {
+        // Company Central Warehouse: Total Company Stock - Sent to Sites
+        remainingStock = Math.round(Math.max(0, m.openingStock - totalUsed) * 1000) / 1000;
+        stockValue = Math.round(remainingStock * m.purchaseRate * 100) / 100;
+        isLowStock = remainingStock <= m.minimumStock;
+      }
+
+      totalStockValue += stockValue;
+      if (isLowStock) lowStockCount++;
 
       return {
         id: m.id,
@@ -120,13 +126,15 @@ export async function GET(req: Request) {
         category: m.category,
         unit: m.unit,
         openingStock: m.openingStock,
+        totalCompanyStock: m.openingStock,
+        totalSentToSites: totalUsed,
         totalReceived,
         totalUsed,
-        remainingStock: stock.remainingStock,
+        remainingStock,
         minimumStock: m.minimumStock,
         purchaseRate: m.purchaseRate,
-        stockValue: stock.stockValue,
-        isLowStock: stock.isLowStock,
+        stockValue,
+        isLowStock,
         supplierName: m.supplier?.name || null,
         notes: m.notes,
       };
