@@ -193,8 +193,8 @@ export function UsageFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? 'Edit Material Consumption / Usage Log' : 'Record Material Consumption / Daily Usage'}
-      description="Log daily materials used on site. Negative inventory is strictly prevented."
+      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site (Site Dispatch)'}
+      description="Dispatch material inventory to construction site project."
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -305,12 +305,12 @@ export function UsageFormModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Purpose / Construction Work *
+              Purpose / Construction Task *
             </label>
             <Input
               value={formData.taskPurpose}
               onChange={(e) => setFormData({ ...formData, taskPurpose: e.target.value })}
-              placeholder="e.g. Slab casting 4th floor, Plastering Tower B"
+              placeholder="e.g. Slab casting, Foundation, Brickwork, or Site delivery"
               required
             />
           </div>
@@ -318,12 +318,12 @@ export function UsageFormModal({
 
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Supervisor Notes (Optional)
+            Dispatch / Vehicle Notes (Optional)
           </label>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Wastage notes, contractor name, weather conditions..."
+            placeholder="Vehicle number, driver name, challan number or remarks..."
             rows={2}
             className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
           />
@@ -336,10 +336,9 @@ export function UsageFormModal({
           <Button
             type="submit"
             disabled={isLoading || isStockInsufficient}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-sky-500 hover:bg-sky-600 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Hammer className="w-4 h-4 mr-1.5" />
-            {isLoading ? 'Saving...' : initialData ? 'Update Material Usage' : 'Log Material Usage'}
+            {isLoading ? 'Saving...' : initialData ? 'Update Dispatch Record' : 'Confirm & Send Material'}
           </Button>
         </div>
       </form>

@@ -29,24 +29,24 @@ export const materialUnitEnum = z.enum([
 export const createMaterialSchema = z.object({
   materialCode: z.string().min(1, 'Material code is required'),
   name: z.string().min(2, 'Material name is required'),
-  category: materialCategoryEnum.default('Other'),
+  category: z.string().min(1, 'Category is required').default('Other'),
   unit: z.string().default('bags'),
   openingStock: z.number().min(0, 'Opening stock cannot be negative').default(0),
   minimumStock: z.number().min(0, 'Minimum stock cannot be negative').default(10),
   purchaseRate: z.number().min(0, 'Purchase rate cannot be negative').default(0),
   supplierId: z.string().optional().nullable(),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export const updateMaterialSchema = createMaterialSchema.partial();
 
 export const createSupplierSchema = z.object({
   name: z.string().min(2, 'Supplier company name is required'),
-  contactPerson: z.string().optional(),
-  mobile: z.string().optional(),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  address: z.string().optional(),
-  gstNumber: z.string().optional(),
+  contactPerson: z.string().optional().nullable(),
+  mobile: z.string().optional().nullable(),
+  email: z.string().email('Invalid email').optional().or(z.literal('')).nullable(),
+  address: z.string().optional().nullable(),
+  gstNumber: z.string().optional().nullable(),
 });
 
 export const updateSupplierSchema = createSupplierSchema.partial();
@@ -59,9 +59,9 @@ export const createMaterialReceiptSchema = z.object({
   date: z.string().min(10, 'Valid date is required'),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   purchaseRate: z.number().min(0, 'Purchase rate must be non-negative'),
-  invoiceNumber: z.string().optional(),
-  attachmentUrl: z.string().optional(),
-  notes: z.string().optional(),
+  invoiceNumber: z.string().optional().nullable(),
+  attachmentUrl: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const createMaterialUsageSchema = z.object({
@@ -70,8 +70,8 @@ export const createMaterialUsageSchema = z.object({
   siteId: z.string().optional().nullable(),
   date: z.string().min(10, 'Valid date is required'),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
-  taskPurpose: z.string().min(2, 'Purpose / task description is required'),
-  notes: z.string().optional(),
+  taskPurpose: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const createMaterialTransferSchema = z.object({
@@ -80,7 +80,7 @@ export const createMaterialTransferSchema = z.object({
   destinationProjectId: z.string().min(1, 'Destination project is required'),
   date: z.string().min(10, 'Valid date is required'),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export const updateMaterialReceiptSchema = createMaterialReceiptSchema.partial();

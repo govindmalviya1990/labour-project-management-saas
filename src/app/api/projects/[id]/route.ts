@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -126,7 +126,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -198,7 +198,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;

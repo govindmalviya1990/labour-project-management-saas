@@ -77,10 +77,10 @@ export default function MaterialTransfersPage() {
           </div>
           <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2.5">
             <ArrowRightLeft className="w-7 h-7 text-indigo-400" />
-            Inter-Project Material Transfers
+            Internal Transfer (Site-to-Site Transfer)
           </h1>
           <p className="text-sm text-slate-400">
-            Shift material stocks between project sites without creating duplicate purchase expenses (Section 26 & 67)
+            Shift material stocks between project sites without creating duplicate purchase expenses
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export default function MaterialTransfersPage() {
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
           >
             <Plus className="w-4 h-4 mr-1.5" />
-            Inter-Site Transfer
+            New Internal Transfer
           </Button>
         </div>
       </div>

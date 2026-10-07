@@ -17,7 +17,8 @@ import {
   CheckCircle2,
   Trash2,
   Edit2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -25,10 +26,9 @@ import { MaterialFormModal } from '@/components/materials/MaterialFormModal';
 import { ReceiptFormModal } from '@/components/materials/ReceiptFormModal';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
 import { TransferFormModal } from '@/components/materials/TransferFormModal';
-import { SupplierFormModal } from '@/components/materials/SupplierFormModal';
 
 export default function MaterialsPage() {
-  const [activeTab, setActiveTab] = useState<'catalog' | 'receipts' | 'usages' | 'transfers' | 'suppliers'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'send' | 'receipts' | 'transfers'>('catalog');
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
   const [selectedSiteId, setSelectedSiteId] = useState('ALL');
@@ -42,7 +42,6 @@ export default function MaterialsPage() {
   const [receipts, setReceipts] = useState<any[]>([]);
   const [usages, setUsages] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<any[]>([]);
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals state
@@ -51,8 +50,6 @@ export default function MaterialsPage() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [usageModalOpen, setUsageModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
-  const [editingSupplier, setEditingSupplier] = useState<any>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -105,13 +102,6 @@ export default function MaterialsPage() {
         const t = await trRes.json();
         setTransfers(t.transfers || []);
       }
-
-      // 6. Suppliers
-      const supRes = await fetch('/api/materials/suppliers');
-      if (supRes.ok) {
-        const s = await supRes.json();
-        setSuppliers(s.suppliers || []);
-      }
     } catch (e) {
       console.error('Failed to load materials inventory:', e);
     } finally {
@@ -127,18 +117,6 @@ export default function MaterialsPage() {
     if (!confirm(`Are you sure you want to remove '${name}' from inventory?`)) return;
     try {
       const res = await fetch(`/api/materials/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchData();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDeleteSupplier = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete supplier '${name}'?`)) return;
-    try {
-      const res = await fetch(`/api/materials/suppliers/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       }
@@ -202,19 +180,19 @@ export default function MaterialsPage() {
           </Button>
 
           <Button
+            onClick={() => setUsageModalOpen(true)}
+            className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
+          >
+            <Send className="w-4 h-4 mr-1.5" />
+            Send to Site
+          </Button>
+
+          <Button
             onClick={() => setReceiptModalOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
           >
             <Truck className="w-4 h-4 mr-1.5" />
-            Receive Stock (GRN)
-          </Button>
-
-          <Button
-            onClick={() => setUsageModalOpen(true)}
-            className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
-          >
-            <Hammer className="w-4 h-4 mr-1.5" />
-            Log Daily Usage
+            Receive Material (GRN)
           </Button>
 
           <Button
@@ -223,19 +201,7 @@ export default function MaterialsPage() {
             className="text-xs font-bold border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
           >
             <ArrowRightLeft className="w-4 h-4 mr-1.5" />
-            Inter-Site Transfer
-          </Button>
-
-          <Button
-            onClick={() => {
-              setEditingSupplier(null);
-              setSupplierModalOpen(true);
-            }}
-            variant="outline"
-            className="text-xs font-medium border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            <Building2 className="w-4 h-4 mr-1.5" />
-            New Supplier
+            Internal Transfer
           </Button>
         </div>
       </div>
@@ -294,7 +260,19 @@ export default function MaterialsPage() {
           }`}
         >
           <Layers className="w-4 h-4" />
-          Inventory Stock Levels ({materials.length})
+          Inventory Stock ({materials.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('send')}
+          className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition flex items-center gap-2 ${
+            activeTab === 'send'
+              ? 'bg-slate-900 border-t-2 border-sky-500 text-sky-400'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Send className="w-4 h-4" />
+          Send to Site ({usages.length})
         </button>
 
         <button
@@ -306,19 +284,7 @@ export default function MaterialsPage() {
           }`}
         >
           <Truck className="w-4 h-4" />
-          Inward Receipts / GRN ({receipts.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('usages')}
-          className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition flex items-center gap-2 ${
-            activeTab === 'usages'
-              ? 'bg-slate-900 border-t-2 border-sky-500 text-sky-400'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Hammer className="w-4 h-4" />
-          Daily Consumption Logs ({usages.length})
+          Receive Material ({receipts.length})
         </button>
 
         <button
@@ -330,19 +296,7 @@ export default function MaterialsPage() {
           }`}
         >
           <ArrowRightLeft className="w-4 h-4" />
-          Inter-Project Transfers ({transfers.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('suppliers')}
-          className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition flex items-center gap-2 ${
-            activeTab === 'suppliers'
-              ? 'bg-slate-900 border-t-2 border-purple-500 text-purple-400'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          Suppliers Directory ({suppliers.length})
+          Internal Transfer ({transfers.length})
         </button>
       </div>
 
@@ -621,8 +575,8 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* TAB 3: DAILY USAGE LOGS */}
-      {activeTab === 'usages' && (
+      {/* TAB 2: SEND TO SITE / DISPATCH LOGS */}
+      {activeTab === 'send' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -730,83 +684,6 @@ export default function MaterialsPage() {
         </div>
       )}
 
-      {/* TAB 5: SUPPLIERS DIRECTORY */}
-      {activeTab === 'suppliers' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Supplier / Vendor</th>
-                  <th className="py-3 px-3">Contact Person</th>
-                  <th className="py-3 px-3">Mobile & Email</th>
-                  <th className="py-3 px-3">GSTIN</th>
-                  <th className="py-3 px-3">Yard / Office Address</th>
-                  <th className="py-3 px-3 text-center">Catalog Items</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {suppliers.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-10 text-slate-400">
-                      No suppliers registered yet. Click "New Supplier" to add vendor contact cards.
-                    </td>
-                  </tr>
-                ) : (
-                  suppliers.map((s) => (
-                    <tr key={s.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-100">{s.name}</div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-300">
-                        {s.contactPerson || '—'}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="text-slate-200 font-mono">{s.mobile || '—'}</div>
-                        <div className="text-[11px] text-slate-500">{s.email || ''}</div>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-amber-400">
-                        {s.gstNumber || '—'}
-                      </td>
-                      <td className="py-3 px-3 text-slate-400">
-                        {s.address || '—'}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                          {s._count?.materials || 0}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            title="Edit Supplier"
-                            onClick={() => {
-                              setEditingSupplier(s);
-                              setSupplierModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded transition"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            title="Delete Supplier"
-                            onClick={() => handleDeleteSupplier(s.id, s.name)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* MODALS */}
       <MaterialFormModal
         isOpen={materialModalOpen}
@@ -834,13 +711,6 @@ export default function MaterialsPage() {
         onClose={() => setTransferModalOpen(false)}
         onSuccess={fetchData}
         defaultSourceProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
-      />
-
-      <SupplierFormModal
-        isOpen={supplierModalOpen}
-        onClose={() => setSupplierModalOpen(false)}
-        onSuccess={fetchData}
-        initialData={editingSupplier}
       />
     </div>
   );

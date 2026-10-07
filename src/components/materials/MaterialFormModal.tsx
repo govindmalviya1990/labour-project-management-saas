@@ -46,6 +46,10 @@ export function MaterialFormModal({
   initialData,
 }: MaterialFormModalProps) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [dynamicCategories, setDynamicCategories] = useState<string[]>(CATEGORIES);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
+
   const [formData, setFormData] = useState({
     materialCode: '',
     name: '',
@@ -62,24 +66,40 @@ export function MaterialFormModal({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    async function loadSuppliers() {
+    async function loadSuppliersAndCategories() {
       try {
-        const res = await fetch('/api/materials/suppliers');
-        if (!res.ok) return;
-        const data = await res.json();
-        setSuppliers(data.suppliers || []);
+        const [supRes, matRes] = await Promise.all([
+          fetch('/api/materials/suppliers'),
+          fetch('/api/materials'),
+        ]);
+
+        if (supRes.ok) {
+          const data = await supRes.json();
+          setSuppliers(data.suppliers || []);
+        }
+
+        if (matRes.ok) {
+          const matData = await matRes.json();
+          const existingCats = (matData.materials || []).map((m: any) => m.category).filter(Boolean);
+          const combined = Array.from(new Set([...CATEGORIES, ...existingCats])) as string[];
+          setDynamicCategories(combined);
+        }
       } catch (e) {
-        console.error('Failed to load suppliers:', e);
+        console.error('Failed to load modal metadata:', e);
       }
     }
 
     if (isOpen) {
-      loadSuppliers();
+      loadSuppliersAndCategories();
       if (initialData) {
+        const cat = initialData.category || 'Cement';
+        const isKnown = CATEGORIES.includes(cat);
+        setIsCustomCategory(!isKnown);
+        setCustomCategory(!isKnown ? cat : '');
         setFormData({
           materialCode: initialData.materialCode || '',
           name: initialData.name || '',
-          category: initialData.category || 'Cement',
+          category: cat,
           unit: initialData.unit || 'bags',
           openingStock: initialData.openingStock || 0,
           minimumStock: initialData.minimumStock || 0,
@@ -88,6 +108,8 @@ export function MaterialFormModal({
           notes: initialData.notes || '',
         });
       } else {
+        setIsCustomCategory(false);
+        setCustomCategory('');
         const randomCode = `MAT-${Math.floor(100 + Math.random() * 900)}`;
         setFormData({
           materialCode: randomCode,
@@ -199,18 +221,72 @@ export function MaterialFormModal({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Category
-            </label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Category *
+              </label>
+              {!isCustomCategory ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomCategory(true);
+                    setCustomCategory('');
+                    setFormData((prev) => ({ ...prev, category: '' }));
+                  }}
+                  className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold"
+                >
+                  + Add Custom Category
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomCategory(false);
+                    setFormData((prev) => ({ ...prev, category: 'Cement' }));
+                  }}
+                  className="text-[11px] text-slate-400 hover:text-slate-200"
+                >
+                  Back to List
+                </button>
+              )}
+            </div>
+
+            {isCustomCategory ? (
+              <div className="space-y-1.5">
+                <Input
+                  value={customCategory}
+                  onChange={(e) => {
+                    setCustomCategory(e.target.value);
+                    setFormData({ ...formData, category: e.target.value });
+                  }}
+                  placeholder="Enter Custom Category (e.g. Wood, Rori, Marble, Glass)"
+                  required
+                  autoFocus
+                />
+                <p className="text-[10px] text-slate-400">
+                  Custom category will be saved and available in your catalog.
+                </p>
+              </div>
+            ) : (
+              <select
+                value={formData.category}
+                onChange={(e) => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCustomCategory(true);
+                    setCustomCategory('');
+                    setFormData({ ...formData, category: '' });
+                  } else {
+                    setFormData({ ...formData, category: e.target.value });
+                  }
+                }}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                {dynamicCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+                <option value="__NEW__">➕ + Custom Category (Add New)...</option>
+              </select>
+            )}
           </div>
 
           <div>

@@ -124,9 +124,9 @@ export function Sidebar({
           icon: <Package className="w-4 h-4 text-orange-400" />,
           children: [
             { title: 'Inventory Stock', href: '/materials' },
-            { title: 'Material Received', href: '/materials/received' },
-            { title: 'Material Used', href: '/materials/used' },
-            { title: 'Site Transfers', href: '/materials/transfers' },
+            { title: 'Send to Site', href: '/materials/send' },
+            { title: 'Receive Material', href: '/materials/received' },
+            { title: 'Internal Transfer', href: '/materials/transfers' },
           ],
         },
         {
@@ -167,10 +167,9 @@ export function Sidebar({
           icon: <Package className="w-4 h-4 text-orange-400" />,
           children: [
             { title: 'Inventory Stock', href: '/materials' },
-            { title: 'Material Received', href: '/materials/received' },
-            { title: 'Material Used', href: '/materials/used' },
-            { title: 'Inter-Site Transfers', href: '/materials/transfers' },
-            { title: 'Suppliers', href: '/materials/suppliers' },
+            { title: 'Send to Site', href: '/materials/send' },
+            { title: 'Receive Material', href: '/materials/received' },
+            { title: 'Internal Transfer', href: '/materials/transfers' },
           ],
         },
         {
@@ -289,10 +288,9 @@ export function Sidebar({
         icon: <Package className="w-4 h-4" />,
         children: [
           { title: 'Inventory Stock', href: '/materials' },
-          { title: 'Material Received', href: '/materials/received' },
-          { title: 'Material Used', href: '/materials/used' },
-          { title: 'Inter-Site Transfers', href: '/materials/transfers' },
-          { title: 'Suppliers', href: '/materials/suppliers' },
+          { title: 'Send to Site', href: '/materials/send' },
+          { title: 'Receive Material', href: '/materials/received' },
+          { title: 'Internal Transfer', href: '/materials/transfers' },
         ],
       },
       {
