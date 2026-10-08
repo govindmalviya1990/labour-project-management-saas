@@ -63,6 +63,7 @@ export async function GET() {
       mode: isApiKeyConfigured ? 'GEMINI' : 'SIMPLE',
       geminiStatus,
       geminiError,
+      buildVersion: 'build-2026-v4',
       userRole: session.role,
     });
   } catch (error: any) {

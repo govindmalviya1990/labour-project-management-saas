@@ -21,8 +21,13 @@ function normalizeSchema(schema: any): any {
   return copy;
 }
 
+export let lastDiscoveredModels: string[] = [];
+
 async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
-  if (activeModelCache) return activeModelCache;
+  if (activeModelCache && !activeModelCache.includes('2.5-flash')) {
+    return activeModelCache;
+  }
+  activeModelCache = null;
 
   let initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
   if (initial.includes('2.5-flash')) {
@@ -33,10 +38,12 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
     if (listRes.ok) {
       const data = await listRes.json();
-      const validModels: string[] = (data.models || [])
+      const rawModels: string[] = (data.models || [])
         .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-        .map((m: any) => m.name.replace(/^models\//, ''))
-        .filter((name: string) => !name.includes('2.5-flash')); // Google deprecated 2.5-flash in favor of 3.8-flash
+        .map((m: any) => m.name.replace(/^models\//, ''));
+
+      lastDiscoveredModels = rawModels;
+      const validModels = rawModels.filter((name: string) => !name.includes('2.5-flash'));
 
       if (initial && validModels.includes(initial)) {
         activeModelCache = initial;
@@ -71,7 +78,7 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
     console.warn('Failed to query Gemini models list:', err);
   }
 
-  return initial || 'gemini-2.0-flash';
+  return initial || 'gemini-3.8-flash';
 }
 
 export class GeminiProvider implements ILlmProvider {
@@ -192,7 +199,7 @@ export class GeminiProvider implements ILlmProvider {
         return {
           content: '',
           isFallback: true,
-          error: `Gemini API HTTP ${response.status} (${model}): ${errorText}`,
+          error: `Gemini API HTTP ${response.status} (${model}) [Discovered: ${lastDiscoveredModels.join(', ')}]: ${errorText}`,
         };
       }
 
