@@ -43,6 +43,7 @@ export interface LlmResponse {
     totalTokens: number;
   };
   isFallback?: boolean;
+  error?: string;
 }
 
 export interface ILlmProvider {

@@ -41,11 +41,28 @@ export async function GET() {
       select: { assistantEnabled: true },
     });
 
-    const isApiKeyConfigured = Boolean(process.env.GEMINI_API_KEY);
+    const isApiKeyConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
+    let geminiStatus = 'NOT_CONFIGURED';
+    let geminiError: string | null = null;
+
+    if (isApiKeyConfigured && session.role === 'OWNER') {
+      const pingRes = await defaultLlmProvider.generateResponse({
+        messages: [{ role: 'user', content: 'Say OK' }],
+        maxTokens: 5,
+      });
+      if (pingRes.content && !pingRes.isFallback) {
+        geminiStatus = 'ACTIVE';
+      } else {
+        geminiStatus = 'ERROR';
+        geminiError = pingRes.error || 'Failed to ping Gemini';
+      }
+    }
 
     return NextResponse.json({
       enabled: org?.assistantEnabled ?? true,
       mode: isApiKeyConfigured ? 'GEMINI' : 'SIMPLE',
+      geminiStatus,
+      geminiError,
       userRole: session.role,
     });
   } catch (error: any) {
@@ -123,6 +140,7 @@ export async function POST(req: Request) {
     // ---------------------------------------------------------
     // STEP 2: Gemini LLM Call (PRIMARY SMART ENGINE like Claude/Gemini Flash)
     // ---------------------------------------------------------
+    let llmError: string | null = null;
     if (process.env.GEMINI_API_KEY) {
       const systemInstruction = `You are the ultra-smart, deeply capable in-app AI Assistant for "Modern Way Civil Solutions" (Waterproofing, Construction & Civil Project Management SaaS in Ahmedabad).
 You have the intelligence, conversational naturalness, and multilingual reasoning of Claude 3.5 Sonnet / Gemini 2.0 Flash.
@@ -221,6 +239,10 @@ CORE BEHAVIOR & RULES:
           source: 'GEMINI',
         });
       }
+
+      if (firstLlmResponse.isFallback) {
+        llmError = firstLlmResponse.error || 'Gemini returned fallback';
+      }
     }
 
     // ---------------------------------------------------------
@@ -241,6 +263,7 @@ CORE BEHAVIOR & RULES:
     return NextResponse.json({
       answer: 'Main aapke rozana ke hisaab me madad kar sakta hoon:\n• "Aaj ka kharch kitna hua?"\n• "Sabhi partners ka cash balance dikhao"\n• "Ramesh ko ₹500 diye petrol ke"\n• "Pending payment report dikhao"\n\n*(Full Claude/Gemini conversational AI chalane ke liye Gemini API Key configure karein).*',
       source: 'SIMPLE_MODE',
+      ...(ctx.userRole === 'OWNER' && llmError ? { debugError: llmError } : {}),
     });
   } catch (error: any) {
     console.error('Assistant POST error:', error);

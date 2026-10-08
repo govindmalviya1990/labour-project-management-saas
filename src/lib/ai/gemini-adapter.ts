@@ -4,13 +4,15 @@ export class GeminiProvider implements ILlmProvider {
   name = 'gemini';
 
   async generateResponse(request: LlmRequest): Promise<LlmResponse> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const rawKey = process.env.GEMINI_API_KEY?.trim() || '';
+    const apiKey = rawKey.replace(/^["']|["']$/g, '').trim();
+    const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
 
     if (!apiKey) {
       return {
         content: '',
         isFallback: true,
+        error: 'GEMINI_API_KEY is not set',
       };
     }
 
@@ -94,10 +96,10 @@ export class GeminiProvider implements ILlmProvider {
       if (!response.ok) {
         const errorText = await response.text();
         console.warn(`Gemini API HTTP ${response.status}:`, errorText);
-        // Fallback gracefully on rate limits or API errors
         return {
           content: '',
           isFallback: true,
+          error: `Gemini API HTTP ${response.status}: ${errorText}`,
         };
       }
 
@@ -134,6 +136,7 @@ export class GeminiProvider implements ILlmProvider {
       return {
         content: '',
         isFallback: true,
+        error: `Gemini exception: ${err?.message || String(err)}`,
       };
     }
   }
