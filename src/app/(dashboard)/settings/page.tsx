@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ReasonsSettings } from '@/components/settings/ReasonsSettings';
+import { BankAccountManageModal } from '@/components/finance/BankAccountManageModal';
 
 export default function SettingsPage() {
   const [org, setOrg] = useState<any>(null);
@@ -44,6 +45,10 @@ export default function SettingsPage() {
   const [clearStatus, setClearStatus] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Bank Accounts Management
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [bankAccountsCount, setBankAccountsCount] = useState<number | null>(null);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -149,8 +154,21 @@ export default function SettingsPage() {
     }
   };
 
+  const fetchBankAccountsCount = async () => {
+    try {
+      const res = await fetch('/api/finance/bank-accounts');
+      if (res.ok) {
+        const data = await res.json();
+        setBankAccountsCount((data.bankAccounts || []).length);
+      }
+    } catch (e) {
+      console.error('Error fetching bank accounts count:', e);
+    }
+  };
+
   useEffect(() => {
     fetchOrg();
+    fetchBankAccountsCount();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -476,6 +494,29 @@ export default function SettingsPage() {
       {/* Custom Reasons Management */}
       <ReasonsSettings />
 
+      {/* Company Bank Accounts Management */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-sky-400" /> Company Bank Accounts
+            </h2>
+            <p className="text-xs text-slate-400 max-w-xl">
+              Add and manage official company bank accounts for receiving client payments, site transfers, and recording inflows/outflows.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsBankModalOpen(true)}
+            className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10 text-xs shrink-0 font-bold"
+          >
+            <Building2 className="w-3.5 h-3.5 mr-1.5" />
+            Manage Bank Accounts {bankAccountsCount !== null ? `(${bankAccountsCount})` : ''}
+          </Button>
+        </div>
+      </div>
+
       {/* Danger Zone: Wipe All Demo Data */}
       <div className="bg-rose-950/20 border border-rose-500/30 rounded-xl p-5 space-y-3 mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -528,6 +569,13 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Modal: Bank Account Management */}
+      <BankAccountManageModal
+        isOpen={isBankModalOpen}
+        onClose={() => setIsBankModalOpen(false)}
+        onUpdated={fetchBankAccountsCount}
+      />
     </div>
   );
 }

@@ -111,7 +111,14 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
+    const auth = await checkRolePermission([
+      'OWNER',
+      'MANAGER',
+      'PARTNER',
+      'SITE_SUPERVISOR',
+      'SUPERVISOR',
+      'ACCOUNTANT',
+    ]);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
