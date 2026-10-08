@@ -105,6 +105,7 @@ export function Sidebar({
           icon: <Receipt className="w-4 h-4 text-emerald-400" />,
           children: [
             { title: 'Payment Received', href: '/hisaab' },
+            { title: 'Partner Hisaab', href: '/hisaab/partners' },
           ],
         },
         {
@@ -155,6 +156,7 @@ export function Sidebar({
           icon: <Receipt className="w-4 h-4 text-emerald-400" />,
           children: [
             { title: 'Payment Received', href: '/hisaab' },
+            { title: 'Partner Hisaab', href: '/hisaab/partners' },
           ],
         },
         {
@@ -209,6 +211,7 @@ export function Sidebar({
           icon: <Receipt className="w-4 h-4 text-emerald-400" />,
           children: [
             { title: 'Payment Received', href: '/hisaab' },
+            { title: 'Partner Hisaab', href: '/hisaab/partners' },
           ],
         },
         {
@@ -265,6 +268,7 @@ export function Sidebar({
         icon: <Receipt className="w-4 h-4 text-emerald-400" />,
         children: [
           { title: 'Payment Received', href: '/hisaab' },
+          { title: 'Partner Hisaab', href: '/hisaab/partners' },
         ],
       },
       {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import {
   IndianRupee,
   Plus,
@@ -18,7 +19,10 @@ import {
   CreditCard,
   Layers,
   User,
+  Users,
+  Receipt,
   ArrowDownLeft,
+  ArrowRightLeft,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -470,6 +474,21 @@ export default function HisaabPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Submenu Switcher */}
+          <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 mr-1">
+            <div className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5" />
+              Receive Payment
+            </div>
+            <Link
+              href="/hisaab/partners"
+              className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5"
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-500" />
+              Partner Hisaab
+            </Link>
+          </div>
+
           <Button
             size="sm"
             variant="outline"
@@ -855,6 +874,13 @@ export default function HisaabPage() {
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
+                        <Link
+                          href="/hisaab/partners"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition-colors"
+                          title="Transfer to Partner"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </Link>
                         <button
                           type="button"
                           onClick={() => openEditModal(r)}
