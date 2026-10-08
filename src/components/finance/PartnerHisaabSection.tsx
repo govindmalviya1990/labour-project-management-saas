@@ -149,33 +149,33 @@ function ExpenseDonutChart({
   const hasData = isMounted && categories && categories.length > 0 && totalAmount > 0;
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm">
-            <PieChartIcon className="w-5 h-5" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="p-2 sm:p-2.5 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm shrink-0">
+            <PieChartIcon className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <h2 className="text-xs sm:text-base font-bold text-slate-900 dark:text-white truncate">
                 {title}
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider shrink-0">
                 Round Chart
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-none">
               {subtitle}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <span className="text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
             {categories.length} {categories.length === 1 ? 'Category' : 'Categories'}
           </span>
-          <span className="text-xs font-bold px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
+          <span className="text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono truncate max-w-[170px] sm:max-w-none">
             Total: {formatINR(totalAmount)}
           </span>
         </div>
@@ -195,10 +195,10 @@ function ExpenseDonutChart({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-center">
           {/* Round Donut Visual */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            <div className="h-60 sm:h-64 w-full relative flex items-center justify-center">
+            <div className="h-56 sm:h-64 w-full relative flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Tooltip
@@ -233,8 +233,8 @@ function ExpenseDonutChart({
                     nameKey="label"
                     cx="50%"
                     cy="50%"
-                    innerRadius={62}
-                    outerRadius={96}
+                    innerRadius={50}
+                    outerRadius={80}
                     paddingAngle={3}
                   >
                     {categories.map((entry, index) => (
@@ -245,12 +245,12 @@ function ExpenseDonutChart({
               </ResponsiveContainer>
 
               {/* Center Donut Hole Content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Expense</span>
-                <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white font-mono">
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2 text-center">
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Expense</span>
+                <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white font-mono truncate max-w-[120px] sm:max-w-[160px]">
                   {formatINR(totalAmount)}
                 </span>
-                <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                <span className="text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5">
                   {categories.length} {categories.length === 1 ? 'category' : 'categories'}
                 </span>
               </div>
@@ -345,6 +345,8 @@ export function PartnerHisaabSection({
   const [endDate, setEndDate] = useState('');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState('ALL');
+  const [showMobileTableMatrix, setShowMobileTableMatrix] = useState(false);
+  const [showMobileTableLedger, setShowMobileTableLedger] = useState(false);
 
   // Send Money Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -758,28 +760,28 @@ export function PartnerHisaabSection({
       )}
 
       {/* 2. Partner / Owner / Bank Selector Dropdown */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
               <UserCheck className="w-4 h-4" />
             </div>
-            <div>
-              <label htmlFor="partner-hisaab-select" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+            <div className="min-w-0">
+              <label htmlFor="partner-hisaab-select" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block truncate">
                 Select Partner / Owner / Bank:
               </label>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Choose an account, partner, or bank to inspect their hisaab &amp; statement
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Choose an account or bank to inspect hisaab &amp; statement
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:min-w-[340px]">
+          <div className="flex items-center gap-2 w-full sm:w-auto sm:min-w-[340px]">
             <select
               id="partner-hisaab-select"
               value={selectedPartnerId}
               onChange={(e) => setSelectedPartnerId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+              className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
             >
               <option value="ALL">
                 All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
@@ -835,20 +837,20 @@ export function PartnerHisaabSection({
       </div>
 
       {/* 3. Period Filter Toolbar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-amber-500" />
+            <Filter className="w-4 h-4 text-amber-500 shrink-0" />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Filter By Period:
             </span>
           </div>
 
-          <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 overflow-x-auto">
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-x-auto no-scrollbar scroll-smooth w-full md:w-auto">
             <button
               type="button"
               onClick={() => setPeriod('today')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'today'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -859,7 +861,7 @@ export function PartnerHisaabSection({
             <button
               type="button"
               onClick={() => setPeriod('weekly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'weekly'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -870,7 +872,7 @@ export function PartnerHisaabSection({
             <button
               type="button"
               onClick={() => setPeriod('monthly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'monthly'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -890,7 +892,7 @@ export function PartnerHisaabSection({
                   setEndDate(now.toISOString().split('T')[0]);
                 }
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'custom'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -901,7 +903,7 @@ export function PartnerHisaabSection({
             <button
               type="button"
               onClick={() => setPeriod('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'all'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
@@ -914,30 +916,30 @@ export function PartnerHisaabSection({
 
         {/* Custom Date Pickers */}
         {period === 'custom' && (
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-3 animate-fade-in">
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2.5 animate-fade-in">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">From Date:</span>
+              <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 shrink-0">From:</span>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">To Date:</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 shrink-0">To:</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <Button
               size="sm"
               onClick={loadPartnerHisaab}
-              className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0 w-full sm:w-auto"
             >
               Apply Filter
             </Button>
@@ -1059,27 +1061,149 @@ export function PartnerHisaabSection({
           />
 
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-500" />
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                  <Users className="w-4 h-4 text-indigo-500 shrink-0" />
                   All Partners &amp; Owners Summary Matrix
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Click on any partner to view their detailed transaction statement or transfer money
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                  Check individual hisaab of each partner &amp; owner or transfer money
                 </p>
               </div>
               <Button
                 size="sm"
                 onClick={() => openSendMoneyModal()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-sm"
               >
                 <Send className="w-3.5 h-3.5 mr-1" />
                 Send Money
               </Button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile View: Sliding / Swipeable Partner Cards Carousel */}
+            <div className="block md:hidden p-3.5 space-y-3 bg-slate-50/50 dark:bg-slate-950/30">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Partner Cards ({partners.length})
+                </span>
+                <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full">
+                  Swipe horizontally &rarr;
+                </span>
+              </div>
+
+              {/* Sliding Horizontal Container */}
+              <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-3 pt-1 px-1 -mx-1 no-scrollbar scroll-smooth">
+                {partners.map((p) => {
+                  const isPositive = p.currentBalance >= 0;
+                  return (
+                    <div
+                      key={p.id}
+                      className="w-[84vw] max-w-[320px] shrink-0 snap-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-sm flex flex-col justify-between space-y-3"
+                    >
+                      {/* Top: Avatar, Name & Role */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-black flex items-center justify-center text-sm shrink-0 border border-indigo-500/20">
+                            {p.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {p.name}
+                            </h3>
+                            <span className="text-[10px] text-slate-400 truncate block">
+                              {p.mobile || p.email}
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                          p.role === 'OWNER'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                            : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                        }`}>
+                          {p.role}
+                        </span>
+                      </div>
+
+                      {/* Live Cash in Hand Balance */}
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                            Cash in Hand (Live)
+                          </span>
+                          <span className="text-[11px] text-slate-500">Wallet balance</span>
+                        </div>
+                        <div className={`text-base font-black font-mono ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                          {formatINR(p.currentBalance)}
+                        </div>
+                      </div>
+
+                      {/* 2x2 Breakdown Grid for the period */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Site Receipts</span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            +{formatINR(p.period.receiptsTotal)}
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-sky-500/5 border border-sky-500/10">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Transfers In</span>
+                          <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                            +{formatINR(p.period.transfersInTotal)}
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Transfers Out</span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                            -{formatINR(p.period.transfersOutTotal)}
+                          </span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Site Expenses</span>
+                          <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                            -{formatINR(p.period.expensesTotal)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedPartnerId(p.id)}
+                          className="text-xs h-8 font-semibold w-full"
+                        >
+                          Check Hisaab
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => openSendMoneyModal({ defaultSourceType: 'PARTNER', defaultSourceId: p.id })}
+                          className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold w-full"
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          Send Money
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Toggle Table View on Mobile */}
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowMobileTableMatrix(!showMobileTableMatrix)}
+                  className="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline underline-offset-4 transition-colors"
+                >
+                  {showMobileTableMatrix ? 'Hide Full Table Matrix' : 'View Full Matrix Table (Horizontal Scroll)'}
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop Table (or mobile when toggled) */}
+            <div className={`${showMobileTableMatrix ? 'block' : 'hidden md:block'} overflow-x-auto`}>
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
@@ -1170,27 +1294,94 @@ export function PartnerHisaabSection({
           {/* Company Bank Accounts Overview */}
           {bankAccounts.length > 0 && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-              <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-sky-500" />
+              <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                    <Building2 className="w-4 h-4 text-sky-500 shrink-0" />
                     Company Bank Accounts
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Official bank balances available for project operations &amp; transfers
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                    Official bank balances available for operations &amp; transfers
                   </p>
                 </div>
                 <Button
                   size="sm"
                   onClick={() => openSendMoneyModal({ defaultSourceType: 'BANK', defaultSourceId: bankAccounts[0]?.id })}
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shrink-0 shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5 mr-1" />
                   Bank Transfer / Pay
                 </Button>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile View: Sliding Bank Cards Carousel */}
+              <div className="block md:hidden p-3.5 space-y-3 bg-slate-50/50 dark:bg-slate-950/30">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Bank Accounts ({bankAccounts.length})
+                  </span>
+                  <span className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full">
+                    Swipe horizontally &rarr;
+                  </span>
+                </div>
+
+                <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-3 pt-1 px-1 -mx-1 no-scrollbar scroll-smooth">
+                  {bankAccounts.map((b) => (
+                    <div
+                      key={b.id}
+                      className="w-[84vw] max-w-[320px] shrink-0 snap-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 shadow-sm flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 font-black flex items-center justify-center shrink-0 border border-sky-500/20">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                              {b.bankName}
+                            </h3>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block">
+                              {b.name}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                          {b.accountLast4 ? `..${b.accountLast4}` : 'A/C'}
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-sky-500/5 border border-sky-500/10 flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">Available Balance</span>
+                        <span className="text-base font-black font-mono text-sky-600 dark:text-sky-400">
+                          {formatINR(b.balance)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedPartnerId(`BANK_${b.id}`)}
+                          className="text-xs h-8 font-semibold w-full"
+                        >
+                          Check Hisaab
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => openSendMoneyModal({ defaultSourceType: 'BANK', defaultSourceId: b.id })}
+                          className="text-xs h-8 bg-sky-600 hover:bg-sky-700 text-white font-bold w-full"
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          Bank Pay
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
@@ -1340,12 +1531,12 @@ export function PartnerHisaabSection({
 
           {/* Ledger Toolbar (Search & Filter) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* Type Filter */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {/* Type Filter (Smooth Sliding on Mobile) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-smooth w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setLedgerTypeFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                   ledgerTypeFilter === 'ALL'
                     ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1356,7 +1547,7 @@ export function PartnerHisaabSection({
               <button
                 type="button"
                 onClick={() => setLedgerTypeFilter('RECEIPT')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                   ledgerTypeFilter === 'RECEIPT'
                     ? 'bg-emerald-600 text-white font-bold'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1369,7 +1560,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('BANK_DEPOSIT')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'BANK_DEPOSIT'
                         ? 'bg-sky-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1380,7 +1571,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'TRANSFER_OUT'
                         ? 'bg-indigo-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1391,7 +1582,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('BANK_WITHDRAWAL')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'BANK_WITHDRAWAL'
                         ? 'bg-amber-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1402,7 +1593,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('EXPENSE')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'EXPENSE'
                         ? 'bg-rose-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1416,7 +1607,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('TRANSFER_IN')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'TRANSFER_IN'
                         ? 'bg-sky-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1427,7 +1618,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('EXPENSE')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'EXPENSE'
                         ? 'bg-amber-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1438,7 +1629,7 @@ export function PartnerHisaabSection({
                   <button
                     type="button"
                     onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
                       ledgerTypeFilter === 'TRANSFER_OUT'
                         ? 'bg-indigo-600 text-white font-bold'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
@@ -1451,7 +1642,7 @@ export function PartnerHisaabSection({
             </div>
 
             {/* Search Input */}
-            <div className="relative min-w-[200px]">
+            <div className="relative w-full sm:w-auto sm:min-w-[220px]">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -1463,8 +1654,104 @@ export function PartnerHisaabSection({
             </div>
           </div>
 
-          {/* Ledger Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+          {/* Mobile Transaction Statement Cards View */}
+          <div className="block md:hidden space-y-2.5">
+            {displayedLedger.length === 0 ? (
+              <div className="py-10 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="font-semibold text-xs">{isBankSelected ? 'No bank transactions recorded' : 'No transactions recorded for this period'}</p>
+                <p className="text-[11px] mt-1">Tap &quot;Send Money&quot; above to record a new transaction.</p>
+              </div>
+            ) : (
+              displayedLedger.map((entry) => {
+                const isCredit = entry.credit > 0;
+                return (
+                  <div
+                    key={entry.id}
+                    className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2"
+                  >
+                    {/* Row 1: Date & Type Badge & Payment Method */}
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          entry.type === 'RECEIPT'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                            : entry.type === 'TRANSFER_IN' || entry.type === 'BANK_WITHDRAWAL'
+                            ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
+                            : entry.type === 'TRANSFER_OUT'
+                            ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                        }`}>
+                          {entry.categoryLabel}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-semibold text-slate-600 dark:text-slate-400">
+                          {entry.paymentMethod}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                        {new Date(entry.date).toLocaleDateString('en-IN', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Row 2: Title & Amount */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-slate-900 dark:text-white leading-snug">
+                          {entry.title}
+                        </div>
+                        {entry.subtitle && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">
+                            {entry.subtitle}
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right font-mono font-black text-sm">
+                        {isCredit ? (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            +{formatINR(entry.credit)}
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 dark:text-rose-400">
+                            -{formatINR(entry.debit)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 3: Reference & Notes if any */}
+                    {(entry.reference || entry.notes) && (
+                      <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
+                        <span className="truncate">{entry.notes || '—'}</span>
+                        {entry.reference && (
+                          <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                            Ref: {entry.reference}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+
+            {/* Toggle Full Table View on mobile */}
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => setShowMobileTableLedger(!showMobileTableLedger)}
+                className="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline underline-offset-4 transition-colors"
+              >
+                {showMobileTableLedger ? 'Hide Full Table Ledger' : 'View Full Table (Horizontal Scroll)'}
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Table (or mobile when toggled) */}
+          <div className={`${showMobileTableLedger ? 'block' : 'hidden md:block'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
@@ -1507,7 +1794,7 @@ export function PartnerHisaabSection({
                                     : entry.type === 'TRANSFER_IN' || entry.type === 'BANK_WITHDRAWAL'
                                     ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
                                     : entry.type === 'TRANSFER_OUT'
-                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
                                     : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                                 }`}>
                                   {entry.categoryLabel}

@@ -447,6 +447,15 @@ html.light .text-blue-400 {
   background: #475569;
 }
 
+/* Hide scrollbar for Chrome, Safari, Edge and Firefox for clean touch sliding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

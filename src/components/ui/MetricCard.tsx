@@ -29,18 +29,18 @@ export function MetricCard({
   return (
     <div
       className={clsx(
-        'relative overflow-hidden rounded-xl border p-5 shadow-sm transition-all',
+        'relative overflow-hidden rounded-xl border p-3.5 sm:p-5 shadow-sm transition-all',
         'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700',
         isAlert && 'border-amber-500/50 ring-1 ring-amber-500/30'
       )}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</p>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
-          {subtitle && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{title}</p>
+          <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">{value}</p>
+          {subtitle && <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{subtitle}</p>}
         </div>
-        <div className={clsx('p-3 rounded-lg border flex items-center justify-center', iconColor[variant])}>
+        <div className={clsx('p-2 sm:p-3 rounded-lg border flex items-center justify-center shrink-0', iconColor[variant])}>
           {icon}
         </div>
       </div>
