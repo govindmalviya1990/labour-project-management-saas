@@ -28,11 +28,22 @@ import {
   Landmark,
   User,
   Tag,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { formatINR } from '@/lib/calculations';
+
+export interface CategoryExpenseItem {
+  category: string;
+  label: string;
+  amount: number;
+  count: number;
+  percentage: number;
+  color: string;
+}
 
 interface PartnerSummaryItem {
   id: string;
@@ -43,6 +54,8 @@ interface PartnerSummaryItem {
   currentBalance: number;
   totalCredits: number;
   totalDebits: number;
+  expensesByCategory?: CategoryExpenseItem[];
+  totalExpensesAmount?: number;
   period: {
     receiptsTotal: number;
     receiptsCount: number;
@@ -116,6 +129,182 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   'Miscellaneous',
 ];
 
+interface ExpenseDonutChartProps {
+  title: string;
+  subtitle: string;
+  categories: CategoryExpenseItem[];
+  totalAmount: number;
+  isMounted: boolean;
+  emptyLabel?: string;
+}
+
+function ExpenseDonutChart({
+  title,
+  subtitle,
+  categories,
+  totalAmount,
+  isMounted,
+  emptyLabel = 'No expenses recorded in this period',
+}: ExpenseDonutChartProps) {
+  const hasData = isMounted && categories && categories.length > 0 && totalAmount > 0;
+
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-600/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm">
+            <PieChartIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                {title}
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+                Round Chart
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {subtitle}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+            {categories.length} {categories.length === 1 ? 'Category' : 'Categories'}
+          </span>
+          <span className="text-xs font-bold px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-mono">
+            Total: {formatINR(totalAmount)}
+          </span>
+        </div>
+      </div>
+
+      {/* Content */}
+      {!hasData ? (
+        <div className="py-10 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center mb-3">
+            <PieChartIcon className="w-7 h-7 text-slate-400 opacity-50" />
+          </div>
+          <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+            {emptyLabel}
+          </p>
+          <p className="text-[11px] text-slate-400 max-w-sm mt-1">
+            When site expenses, goods purchases, or personal expenses are recorded, they will show up here categorized with percentages.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          {/* Round Donut Visual */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center">
+            <div className="h-60 sm:h-64 w-full relative flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload as CategoryExpenseItem;
+                        return (
+                          <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 rounded-xl text-white text-xs shadow-xl min-w-[160px]">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: d.color }}
+                              />
+                              <span className="font-bold text-slate-100">{d.label}</span>
+                            </div>
+                            <div className="text-amber-400 font-black text-sm font-mono">
+                              {formatINR(d.amount)}
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5 pt-1.5 border-t border-slate-800">
+                              <span>{d.count} transaction{d.count > 1 ? 's' : ''}</span>
+                              <span className="text-emerald-400 font-bold">{d.percentage}%</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Pie
+                    data={categories}
+                    dataKey="amount"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={62}
+                    outerRadius={96}
+                    paddingAngle={3}
+                  >
+                    {categories.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Center Donut Hole Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Expense</span>
+                <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white font-mono">
+                  {formatINR(totalAmount)}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                  {categories.length} {categories.length === 1 ? 'category' : 'categories'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Category List & Percentage Legend */}
+          <div className="lg:col-span-7 space-y-2 max-h-72 overflow-y-auto pr-1">
+            {categories.map((item) => (
+              <div
+                key={item.category}
+                className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col gap-1.5"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-3 h-3 rounded-md shrink-0 shadow-sm"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                      {item.label}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium shrink-0">
+                      ({item.count} tx)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {formatINR(item.amount)}
+                    </span>
+                    <span
+                      className="text-[10px] font-black px-1.5 py-0.5 rounded text-white min-w-[42px] text-center"
+                      style={{ backgroundColor: item.color }}
+                    >
+                      {item.percentage}%
+                    </span>
+                  </div>
+                </div>
+                {/* Visual Progress Bar */}
+                <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(item.percentage, 100)}%`, backgroundColor: item.color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PartnerHisaabPage() {
   const [partners, setPartners] = useState<PartnerSummaryItem[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('ALL');
@@ -128,10 +317,17 @@ export default function PartnerHisaabPage() {
   const [workers, setWorkers] = useState<WorkerItem[]>([]);
   const [purposeOptions, setPurposeOptions] = useState<PurposeOptionItem[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [overallExpensesByCategory, setOverallExpensesByCategory] = useState<CategoryExpenseItem[]>([]);
+  const [overallExpensesTotal, setOverallExpensesTotal] = useState<number>(0);
+  const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Period Filters
   const [period, setPeriod] = useState<'today' | 'weekly' | 'monthly' | 'custom' | 'all'>('monthly');
@@ -213,6 +409,8 @@ export default function PartnerHisaabPage() {
       setBankSummary(data.bankSummary || null);
       setWorkers(data.workers || []);
       setPurposeOptions(data.purposeOptions || []);
+      setOverallExpensesByCategory(data.overallExpensesByCategory || []);
+      setOverallExpensesTotal(data.overallExpensesTotal || 0);
       if (data.currentUserId) setCurrentUserId(data.currentUserId);
     } catch (err: any) {
       setError(err.message || 'Error loading data');
@@ -829,6 +1027,16 @@ export default function PartnerHisaabPage() {
       {isAllSelected ? (
         // VIEW A: ALL PARTNERS LIST & SUMMARY TABLE + COMPANY BANK ACCOUNTS
         <div className="space-y-6">
+          {/* Round Chart: Total Expense Category-wise (All Partners & Sites) */}
+          <ExpenseDonutChart
+            title="Category-wise Expense Breakdown (All Partners & Sites)"
+            subtitle="Overall expenses recorded across all partner wallets and sites for the selected period"
+            categories={overallExpensesByCategory}
+            totalAmount={overallExpensesTotal || allPartnersTotals.expenses}
+            isMounted={isMounted}
+            emptyLabel="No partner or site expenses recorded for this period"
+          />
+
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
@@ -1095,6 +1303,18 @@ export default function PartnerHisaabPage() {
                 </Button>
               </div>
             </div>
+          )}
+
+          {/* Personal Partner Round Chart */}
+          {selectedPartner && (
+            <ExpenseDonutChart
+              title={`${selectedPartner.name}'s Category-wise Expense Breakdown`}
+              subtitle={`Personal expenses paid from ${selectedPartner.name}'s wallet for the selected period`}
+              categories={selectedPartner.expensesByCategory || []}
+              totalAmount={selectedPartner.totalExpensesAmount || selectedPartner.period.expensesTotal || 0}
+              isMounted={isMounted}
+              emptyLabel={`No expenses recorded for ${selectedPartner.name} in this period`}
+            />
           )}
 
           {/* Ledger Toolbar (Search & Filter) */}

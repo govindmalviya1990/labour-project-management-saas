@@ -5,6 +5,92 @@ import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations
 
 export const dynamic = 'force-dynamic';
 
+const CATEGORY_COLORS: Record<string, string> = {
+  GOODS_PURCHASE: '#3b82f6', // blue
+  CHAY_NASTA: '#f59e0b', // amber
+  TRAVEL_PETROL: '#ef4444', // red
+  LABOUR_FOOD: '#10b981', // emerald
+  GROCERY_WORKER: '#06b6d4', // cyan
+  GROCERY_SELF: '#8b5cf6', // purple
+  PERSONAL: '#ec4899', // pink
+  EQUIPMENT_TOOLS: '#6366f1', // indigo
+  RENT: '#14b8a6', // teal
+  MOBILE_RECHARGE: '#0284c7', // light blue
+  MISCELLANEOUS: '#64748b', // slate
+  OTHER: '#94a3b8', // light slate
+  MATERIAL: '#3b82f6',
+  FUEL: '#ef4444',
+  ELECTRICITY: '#f97316',
+  LABOUR: '#10b981',
+};
+
+const COLOR_PALETTE = [
+  '#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
+  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
+  '#84cc16', '#a855f7', '#64748b', '#0ea5e9', '#d946ef', '#eab308'
+];
+
+function formatCategoryLabel(cat: string): string {
+  if (!cat) return 'Miscellaneous';
+  const mapping: Record<string, string> = {
+    GOODS_PURCHASE: 'Goods Purchase',
+    CHAY_NASTA: 'Chay-Nasta',
+    TRAVEL_PETROL: 'Petrol & Travel',
+    LABOUR_FOOD: 'Labour Food',
+    GROCERY_WORKER: 'Worker Grocery',
+    GROCERY_SELF: 'Self Grocery',
+    PERSONAL: 'Self / Personal',
+    EQUIPMENT_TOOLS: 'Equipment / Tools',
+    RENT: 'Rent',
+    MOBILE_RECHARGE: 'Mobile Recharge',
+    MISCELLANEOUS: 'Miscellaneous',
+    OTHER: 'Other',
+    MATERIAL: 'Material',
+    FUEL: 'Fuel',
+    ELECTRICITY: 'Electricity',
+    LABOUR: 'Labour Wages',
+  };
+  if (mapping[cat.toUpperCase()]) return mapping[cat.toUpperCase()];
+  if (mapping[cat]) return mapping[cat];
+  return cat.replace(/_/g, ' ');
+}
+
+function getCategoryColor(categoryKey: string, index: number): string {
+  const upper = (categoryKey || '').toUpperCase();
+  if (CATEGORY_COLORS[upper]) return CATEGORY_COLORS[upper];
+  return COLOR_PALETTE[index % COLOR_PALETTE.length];
+}
+
+function buildCategoryBreakdown(expensesList: Array<{ category: string; amount: number }>) {
+  const total = expensesList.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const grouped: Record<string, { category: string; label: string; amount: number; count: number }> = {};
+
+  for (const e of expensesList) {
+    const rawCat = (e.category || 'MISCELLANEOUS').trim();
+    if (!grouped[rawCat]) {
+      grouped[rawCat] = {
+        category: rawCat,
+        label: formatCategoryLabel(rawCat),
+        amount: 0,
+        count: 0,
+      };
+    }
+    grouped[rawCat].amount += e.amount || 0;
+    grouped[rawCat].count += 1;
+  }
+
+  const sorted = Object.values(grouped).sort((a, b) => b.amount - a.amount);
+
+  return {
+    total,
+    categories: sorted.map((item, idx) => ({
+      ...item,
+      percentage: total > 0 ? Number(((item.amount / total) * 100).toFixed(1)) : 0,
+      color: getCategoryColor(item.category, idx),
+    })),
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const auth = await checkRolePermission([
@@ -84,7 +170,30 @@ export async function GET(req: Request) {
       ['PARTNER', 'OWNER', 'MANAGER'].includes(normalizeRole(m.role))
     );
 
-    // 3. For each partner/owner, compute live balance and period metrics
+    // 3. Fetch all expenses in organization for category breakdown
+    const orgPeriodExpensesWhere: any = {
+      organizationId: orgId,
+      deletedAt: null,
+    };
+    if (hasDateFilter) {
+      orgPeriodExpensesWhere.date = dateFilter;
+    }
+
+    const allPeriodExpenses = await prisma.expense.findMany({
+      where: orgPeriodExpensesWhere,
+      select: {
+        id: true,
+        amount: true,
+        category: true,
+        description: true,
+        walletOwnerId: true,
+        spentById: true,
+      },
+    });
+
+    const overallExpensesBreakdown = buildCategoryBreakdown(allPeriodExpenses);
+
+    // 4. For each partner/owner, compute live balance and period metrics
     const partnersSummary = await Promise.all(
       partnerMembers.map(async (m) => {
         const uId = m.userId;
@@ -207,6 +316,11 @@ export async function GET(req: Request) {
           }),
         ]);
 
+        const partnerExpensesList = allPeriodExpenses.filter(
+          (e) => e.walletOwnerId === uId || (!e.walletOwnerId && e.spentById === uId)
+        );
+        const partnerExpenseBreakdown = buildCategoryBreakdown(partnerExpensesList);
+
         return {
           id: uId,
           name: m.user.name,
@@ -225,9 +339,11 @@ export async function GET(req: Request) {
             transfersInCount: pTransfersIn._count.id || 0,
             transfersOutTotal: pTransfersOut._sum.amount || 0,
             transfersOutCount: pTransfersOut._count.id || 0,
-            expensesTotal: pExpenses._sum.amount || 0,
-            expensesCount: pExpenses._count.id || 0,
+            expensesTotal: pExpenses._sum.amount || partnerExpenseBreakdown.total || 0,
+            expensesCount: pExpenses._count.id || partnerExpensesList.length || 0,
           },
+          expensesByCategory: partnerExpenseBreakdown.categories,
+          totalExpensesAmount: partnerExpenseBreakdown.total,
         };
       })
     );
@@ -764,6 +880,11 @@ export async function GET(req: Request) {
       purposeOptions,
       currentUserId: session.userId,
       userRole,
+      overallExpensesByCategory: overallExpensesBreakdown.categories,
+      overallExpensesTotal: overallExpensesBreakdown.total,
+      selectedPartnerExpensesByCategory: targetPartnerId
+        ? (partnersSummary.find((p) => p.id === targetPartnerId)?.expensesByCategory || [])
+        : [],
     });
   } catch (error: any) {
     console.error('Error fetching partner hisaab:', error);
