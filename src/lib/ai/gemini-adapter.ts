@@ -170,75 +170,80 @@ export class GeminiProvider implements ILlmProvider {
       };
     }
 
-    try {
-      let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      let response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const candidateModels = [
+      model,
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3.7-flash',
+      'gemini-3.6-flash',
+      'gemini-3.8-flash',
+    ];
+    const uniqueModels = Array.from(new Set(candidateModels));
 
-      // If 404, model name was rejected; discover valid model from list and retry once
-      if (response.status === 404) {
-        activeModelCache = null;
-        const freshModel = await resolveWorkingModel(apiKey);
-        if (freshModel && freshModel !== model) {
-          model = freshModel;
-          url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+    let lastError = '';
+
+    for (const currentModel of uniqueModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          lastError = `HTTP ${response.status} (${currentModel}): ${errorText}`;
+          console.warn(`Gemini try failed for ${currentModel}:`, lastError);
+          if (response.status === 503 || response.status === 429 || response.status === 404) {
+            continue;
+          }
+          break;
         }
-      }
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`Gemini API HTTP ${response.status} (${model}):`, errorText);
+        const data = await response.json();
+        activeModelCache = currentModel;
+
+        const candidate = data.candidates?.[0];
+        const parts = candidate?.content?.parts || [];
+
+        let textContent = '';
+        let functionCall: { name: string; arguments: Record<string, any> } | undefined;
+
+        for (const part of parts) {
+          if (part.text) {
+            textContent += part.text;
+          }
+          if (part.functionCall) {
+            functionCall = {
+              name: part.functionCall.name,
+              arguments: part.functionCall.args || {},
+            };
+          }
+        }
+
         return {
-          content: '',
-          isFallback: true,
-          error: `Gemini API HTTP ${response.status} (${model}) [Discovered: ${lastDiscoveredModels.join(', ')}]: ${errorText}`,
+          content: textContent,
+          functionCall,
+          usage: {
+            promptTokens: data.usageMetadata?.promptTokenCount || 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: data.usageMetadata?.totalTokenCount || 0,
+          },
         };
+      } catch (err: any) {
+        lastError = `Exception (${currentModel}): ${err?.message || String(err)}`;
+        console.warn(`Gemini attempt error for ${currentModel}:`, lastError);
+        continue;
       }
-
-      const data = await response.json();
-      const candidate = data.candidates?.[0];
-      const parts = candidate?.content?.parts || [];
-
-      let textContent = '';
-      let functionCall: { name: string; arguments: Record<string, any> } | undefined;
-
-      for (const part of parts) {
-        if (part.text) {
-          textContent += part.text;
-        }
-        if (part.functionCall) {
-          functionCall = {
-            name: part.functionCall.name,
-            arguments: part.functionCall.args || {},
-          };
-        }
-      }
-
-      return {
-        content: textContent,
-        functionCall,
-        usage: {
-          promptTokens: data.usageMetadata?.promptTokenCount || 0,
-          completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
-          totalTokens: data.usageMetadata?.totalTokenCount || 0,
-        },
-      };
-    } catch (err: any) {
-      console.warn('Gemini request failed:', err?.message || err);
-      return {
-        content: '',
-        isFallback: true,
-        error: `Gemini exception: ${err?.message || String(err)}`,
-      };
     }
+
+    return {
+      content: '',
+      isFallback: true,
+      error: `Gemini API failed across models: ${lastError}`,
+    };
   }
 }
 
