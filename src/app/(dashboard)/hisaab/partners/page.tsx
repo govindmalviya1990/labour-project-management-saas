@@ -93,6 +93,7 @@ export default function PartnerHisaabPage() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [totalBankBalance, setTotalBankBalance] = useState<number>(0);
+  const [bankSummary, setBankSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -160,6 +161,7 @@ export default function PartnerHisaabPage() {
       setProjects(data.projects || []);
       setBankAccounts(data.bankAccounts || []);
       setTotalBankBalance(data.totalBankBalance || 0);
+      setBankSummary(data.bankSummary || null);
     } catch (err: any) {
       setError(err.message || 'Error loading data');
     } finally {
@@ -172,11 +174,19 @@ export default function PartnerHisaabPage() {
     loadPartnerHisaab();
   }, [loadPartnerHisaab]);
 
-  // Active Selected Partner Object
+  // Categorization of selected view
+  const isAllSelected = selectedPartnerId === 'ALL';
+  const isBankSelected = selectedPartnerId.startsWith('BANK');
+  const selectedBankAccount = useMemo(() => {
+    if (!isBankSelected || selectedPartnerId === 'BANK_ALL') return null;
+    const bankId = selectedPartnerId.replace('BANK_', '');
+    return bankAccounts.find((b) => b.id === bankId) || null;
+  }, [isBankSelected, selectedPartnerId, bankAccounts]);
+
   const selectedPartner = useMemo(() => {
-    if (selectedPartnerId === 'ALL') return null;
+    if (isAllSelected || isBankSelected) return null;
     return partners.find((p) => p.id === selectedPartnerId) || null;
-  }, [partners, selectedPartnerId]);
+  }, [partners, selectedPartnerId, isAllSelected, isBankSelected]);
 
   // Combined Totals when "ALL" is selected
   const allPartnersTotals = useMemo(() => {
@@ -216,14 +226,15 @@ export default function PartnerHisaabPage() {
   // Open Transfer Modal for specific partner
   const openTransferModal = (targetPartnerId?: string) => {
     setTransferError('');
+    const defaultRecipient = targetPartnerId || (selectedPartner ? selectedPartner.id : '');
     setTransferForm({
       fromUserId: '',
-      toUserId: targetPartnerId || (selectedPartnerId !== 'ALL' ? selectedPartnerId : ''),
+      toUserId: defaultRecipient,
       transferSourceType: 'DIRECT',
       receiptId: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
-      paymentMethod: 'CASH',
+      paymentMethod: isBankSelected ? 'BANK' : 'CASH',
       purpose: 'PARTNER_TRANSFER',
       projectId: '',
       siteId: '',
@@ -344,7 +355,7 @@ export default function PartnerHisaabPage() {
         </div>
       )}
 
-      {/* 2. Partner / Owner Selector Dropdown */}
+      {/* 2. Partner / Owner / Bank Selector Dropdown */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
@@ -353,10 +364,10 @@ export default function PartnerHisaabPage() {
             </div>
             <div>
               <label htmlFor="partner-hisaab-select" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                Select Partner / Owner:
+                Select Partner / Owner / Bank:
               </label>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Choose a partner to inspect their individual hisaab statement &amp; cash ledger
+                Choose an account, partner, or bank to inspect their hisaab &amp; statement
               </p>
             </div>
           </div>
@@ -368,20 +379,38 @@ export default function PartnerHisaabPage() {
               onChange={(e) => setSelectedPartnerId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
             >
-              <option value="ALL">
-                All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
-              </option>
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.role}) • Cash Bal: {formatINR(p.currentBalance)}
+              <optgroup label="Summary Views">
+                <option value="ALL">
+                  All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
                 </option>
-              ))}
+                <option value="BANK_ALL">
+                  Company Bank Accounts (Total Bank: {formatINR(totalBankBalance)})
+                </option>
+              </optgroup>
+
+              {bankAccounts.length > 0 && (
+                <optgroup label="Company Bank Accounts">
+                  {bankAccounts.map((b) => (
+                    <option key={b.id} value={`BANK_${b.id}`}>
+                      {b.bankName} - {b.name} {b.accountLast4 ? `(..${b.accountLast4})` : ''} • Bal: {formatINR(b.balance)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+
+              <optgroup label="Individual Partners &amp; Owners">
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.role}) • Cash Bal: {formatINR(p.currentBalance)}
+                  </option>
+                ))}
+              </optgroup>
             </select>
 
             <Button
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-sm"
-              onClick={() => openTransferModal()}
+              onClick={() => openTransferModal(selectedPartner?.id)}
             >
               <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
               Transfer
@@ -503,7 +532,7 @@ export default function PartnerHisaabPage() {
 
       {/* 4. Metric KPI Cards */}
       {selectedPartner ? (
-        // Specific Partner KPI Cards
+        // 1) INDIVIDUAL PARTNER VIEW: ONLY this partner's metrics! NO bank balance shown!
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title={`${selectedPartner.name}'s Cash Balance`}
@@ -513,29 +542,61 @@ export default function PartnerHisaabPage() {
             variant="emerald"
           />
           <MetricCard
-            title="Total Bank Balance"
-            value={formatINR(totalBankBalance)}
-            subtitle={`Available in ${bankAccounts.length} company bank account(s)`}
-            icon={<Building2 className="w-5 h-5 text-sky-500" />}
-            variant="blue"
-          />
-          <MetricCard
             title="Transfers Received"
             value={formatINR(selectedPartner.period.transfersInTotal)}
-            subtitle={`${selectedPartner.period.transfersInCount} transfers received`}
+            subtitle={`${selectedPartner.period.transfersInCount} transfer(s) received`}
             icon={<ArrowDownLeft className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
-            title="Expenses & Outflow"
-            value={formatINR(selectedPartner.period.transfersOutTotal + selectedPartner.period.expensesTotal)}
-            subtitle={`Exp: ${formatINR(selectedPartner.period.expensesTotal)} • Out: ${formatINR(selectedPartner.period.transfersOutTotal)}`}
+            title="Site Expenses Paid"
+            value={formatINR(selectedPartner.period.expensesTotal)}
+            subtitle={`${selectedPartner.period.expensesCount} expense entries on site`}
+            icon={<CreditCard className="w-5 h-5 text-amber-500" />}
+            variant="amber"
+          />
+          <MetricCard
+            title="Transfers Out / Given"
+            value={formatINR(selectedPartner.period.transfersOutTotal)}
+            subtitle={`${selectedPartner.period.transfersOutCount} transfer(s) passed to others`}
+            icon={<ArrowUpRight className="w-5 h-5 text-indigo-500" />}
+            variant="blue"
+          />
+        </div>
+      ) : isBankSelected ? (
+        // 2) BANK VIEW: ONLY bank-related metrics!
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title={selectedBankAccount ? `${selectedBankAccount.bankName} Balance` : 'Total Bank Balance'}
+            value={formatINR(bankSummary?.selectedBankBalance ?? (selectedBankAccount?.balance ?? totalBankBalance))}
+            subtitle={selectedBankAccount ? `${selectedBankAccount.name} (..${selectedBankAccount.accountLast4 || ''})` : `Available across ${bankAccounts.length} company bank account(s)`}
+            icon={<Building2 className="w-5 h-5 text-sky-500" />}
+            variant="blue"
+          />
+          <MetricCard
+            title="Bank Inflow & Deposits"
+            value={formatINR(bankSummary?.periodInflow ?? 0)}
+            subtitle="Client receipts & deposits in period"
+            icon={<ArrowDownLeft className="w-5 h-5 text-emerald-500" />}
+            variant="emerald"
+          />
+          <MetricCard
+            title="Transfers to Partners"
+            value={formatINR(bankSummary?.periodToPartner ?? 0)}
+            subtitle="Funds transferred to partner wallets"
+            icon={<ArrowRightLeft className="w-5 h-5 text-indigo-500" />}
+            variant="blue"
+          />
+          <MetricCard
+            title="Direct Bank Payments"
+            value={formatINR((bankSummary?.periodPayments ?? 0) + (bankSummary?.periodWithdrawals ?? 0))}
+            subtitle={`Vendor: ${formatINR(bankSummary?.periodPayments ?? 0)} • Cash Out: ${formatINR(bankSummary?.periodWithdrawals ?? 0)}`}
             icon={<CreditCard className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />
         </div>
       ) : (
-        // Overall Organization Partners KPI Cards
+        // 3) ALL PARTNERS & OWNERS OVERVIEW: Summary cards (Total Remaining Balance, Bank Balance, Cash in Hand, Expenses)
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Total Remaining Balance (Cash + Bank)"
@@ -568,160 +629,276 @@ export default function PartnerHisaabPage() {
         </div>
       )}
 
-      {/* 5. Main Content: ALL PARTNERS SUMMARY or INDIVIDUAL LEDGER */}
-      {selectedPartnerId === 'ALL' ? (
-        // VIEW A: ALL PARTNERS LIST & SUMMARY TABLE
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-indigo-500" />
-                All Partners &amp; Owners Summary Matrix
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Click on any partner to view their detailed transaction statement or transfer money
-              </p>
+      {/* 5. Main Content: ALL PARTNERS SUMMARY or BANK LEDGER or INDIVIDUAL PARTNER LEDGER */}
+      {isAllSelected ? (
+        // VIEW A: ALL PARTNERS LIST & SUMMARY TABLE + COMPANY BANK ACCOUNTS
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-indigo-500" />
+                  All Partners &amp; Owners Summary Matrix
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Click on any partner to view their detailed transaction statement or transfer money
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => openTransferModal()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />
+                Transfer Payment
+              </Button>
             </div>
-            <Button
-              size="sm"
-              onClick={() => openTransferModal()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />
-              Transfer Payment
-            </Button>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="py-3 px-4">Partner / Owner</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4 text-right">Cash in Hand (Live)</th>
+                    <th className="py-3 px-4 text-right">Direct Site Receipts</th>
+                    <th className="py-3 px-4 text-right">Transfers In</th>
+                    <th className="py-3 px-4 text-right">Transfers Out</th>
+                    <th className="py-3 px-4 text-right">Site Expenses</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  {partners.map((p) => {
+                    const isPositive = p.currentBalance >= 0;
+                    return (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                        onClick={() => setSelectedPartnerId(p.id)}
+                      >
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-xs">
+                              {p.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-bold">{p.name}</div>
+                              {p.mobile && <div className="text-[11px] text-slate-400">{p.mobile}</div>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            p.role === 'OWNER'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                              : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                          }`}>
+                            {p.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm">
+                          <span className={isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                            {formatINR(p.currentBalance)}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
+                          {formatINR(p.period.receiptsTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-sky-600 dark:text-sky-400">
+                          +{formatINR(p.period.transfersInTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-amber-600 dark:text-amber-400">
+                          -{formatINR(p.period.transfersOutTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-rose-600 dark:text-rose-400">
+                          -{formatINR(p.period.expensesTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedPartnerId(p.id)}
+                              className="text-xs h-7 px-2.5"
+                            >
+                              Check Hisaab
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => openTransferModal(p.id)}
+                              className="text-xs h-7 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                            >
+                              Transfer
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3 px-4">Partner / Owner</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4 text-right">Cash in Hand (Live)</th>
-                  <th className="py-3 px-4 text-right">Direct Site Receipts</th>
-                  <th className="py-3 px-4 text-right">Transfers In</th>
-                  <th className="py-3 px-4 text-right">Transfers Out</th>
-                  <th className="py-3 px-4 text-right">Site Expenses</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {partners.map((p) => {
-                  const isPositive = p.currentBalance >= 0;
-                  return (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
-                      onClick={() => setSelectedPartnerId(p.id)}
-                    >
-                      <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-white">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-xs">
-                            {p.name.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="font-bold">{p.name}</div>
-                            {p.mobile && <div className="text-[11px] text-slate-400">{p.mobile}</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          p.role === 'OWNER'
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                            : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
-                        }`}>
-                          {p.role}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono font-bold text-sm">
-                        <span className={isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                          {formatINR(p.currentBalance)}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                        {formatINR(p.period.receiptsTotal)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sky-600 dark:text-sky-400">
-                        +{formatINR(p.period.transfersInTotal)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-amber-600 dark:text-amber-400">
-                        -{formatINR(p.period.transfersOutTotal)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-rose-600 dark:text-rose-400">
-                        -{formatINR(p.period.expensesTotal)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {/* Company Bank Accounts Overview */}
+          {bankAccounts.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-sky-500" />
+                    Company Bank Accounts Overview
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Live balance across all active company bank accounts (Total: {formatINR(totalBankBalance)})
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedPartnerId('BANK_ALL')}
+                  className="text-xs font-semibold"
+                >
+                  View Bank Ledger &rarr;
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                      <th className="py-3 px-4">Bank Name</th>
+                      <th className="py-3 px-4">Account Name</th>
+                      <th className="py-3 px-4">Account Last 4</th>
+                      <th className="py-3 px-4 text-right">Available Balance</th>
+                      <th className="py-3 px-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                    {bankAccounts.map((b) => (
+                      <tr
+                        key={b.id}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+                        onClick={() => setSelectedPartnerId(`BANK_${b.id}`)}
+                      >
+                        <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-sky-500" />
+                          {b.bankName}
+                        </td>
+                        <td className="py-3.5 px-4">{b.name}</td>
+                        <td className="py-3.5 px-4 font-mono">{b.accountLast4 ? `..${b.accountLast4}` : '—'}</td>
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-sky-600 dark:text-sky-400">
+                          {formatINR(b.balance)}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setSelectedPartnerId(p.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPartnerId(`BANK_${b.id}`);
+                            }}
                             className="text-xs h-7 px-2.5"
                           >
-                            Check Hisaab
+                            Check Bank Hisaab
                           </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => openTransferModal(p.id)}
-                            className="text-xs h-7 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-                          >
-                            Transfer
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
-        // VIEW B: SELECTED PARTNER DETAILED LEDGER
+        // VIEW B & C: SELECTED PARTNER or BANK DETAILED LEDGER
         <div className="space-y-4">
-          {/* Partner Info Banner */}
-          <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                {selectedPartner?.name.charAt(0)}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    {selectedPartner?.name}&apos;s Hisaab Statement
-                  </h2>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
-                    {selectedPartner?.role}
-                  </span>
+          {/* Header Banner */}
+          {isBankSelected ? (
+            <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
+                  <Building2 className="w-5 h-5" />
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Current Balance: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatINR(selectedPartner?.currentBalance)}</strong>
-                  {selectedPartner?.mobile ? ` • Mobile: ${selectedPartner.mobile}` : ''}
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedBankAccount ? `${selectedBankAccount.bankName} (${selectedBankAccount.name}) Statement` : 'Company Bank Accounts Ledger'}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-700 dark:text-sky-300">
+                      BANK ACCOUNT
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Available Bank Balance: <strong className="font-mono text-sky-600 dark:text-sky-400">{formatINR(bankSummary?.selectedBankBalance ?? (selectedBankAccount?.balance ?? totalBankBalance))}</strong>
+                    {selectedBankAccount?.accountLast4 ? ` • A/C: ..${selectedBankAccount.accountLast4}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedPartnerId('ALL')}
+                  className="text-xs"
+                >
+                  &larr; View All Summary
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openTransferModal()}
+                  className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
+                  Transfer to Partner
+                </Button>
               </div>
             </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
+                  {selectedPartner?.name.charAt(0)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedPartner?.name}&apos;s Hisaab Statement
+                    </h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+                      {selectedPartner?.role}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Current Balance: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatINR(selectedPartner?.currentBalance)}</strong>
+                    {selectedPartner?.mobile ? ` • Mobile: ${selectedPartner.mobile}` : ''}
+                  </p>
+                </div>
+              </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setSelectedPartnerId('ALL')}
-                className="text-xs"
-              >
-                &larr; View All Partners
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => openTransferModal(selectedPartner?.id)}
-                className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-                Transfer to {selectedPartner?.name}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedPartnerId('ALL')}
+                  className="text-xs"
+                >
+                  &larr; View All Partners
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openTransferModal(selectedPartner?.id)}
+                  className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
+                  Transfer to {selectedPartner?.name}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Ledger Toolbar (Search & Filter) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -747,52 +924,103 @@ export default function PartnerHisaabPage() {
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                 }`}
               >
-                Client Receipts
+                {isBankSelected ? 'Client Receipts in Bank' : 'Client Receipts'}
               </button>
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('TRANSFER_IN')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
-                  ledgerTypeFilter === 'TRANSFER_IN'
-                    ? 'bg-sky-600 text-white font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                Transfers In
-              </button>
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
-                  ledgerTypeFilter === 'TRANSFER_OUT'
-                    ? 'bg-amber-600 text-white font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                Transfers Out
-              </button>
-              <button
-                type="button"
-                onClick={() => setLedgerTypeFilter('EXPENSE')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
-                  ledgerTypeFilter === 'EXPENSE'
-                    ? 'bg-rose-600 text-white font-bold'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                Expenses
-              </button>
+              {isBankSelected ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('BANK_DEPOSIT')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'BANK_DEPOSIT'
+                        ? 'bg-sky-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Bank Deposits
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'TRANSFER_OUT'
+                        ? 'bg-indigo-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Transfers to Partners
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('BANK_WITHDRAWAL')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'BANK_WITHDRAWAL'
+                        ? 'bg-amber-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Cash Withdrawals
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('EXPENSE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'EXPENSE'
+                        ? 'bg-rose-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Direct Payments
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('TRANSFER_IN')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'TRANSFER_IN'
+                        ? 'bg-sky-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Transfers Received
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('EXPENSE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'EXPENSE'
+                        ? 'bg-amber-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Site Expenses
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                      ledgerTypeFilter === 'TRANSFER_OUT'
+                        ? 'bg-indigo-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    Transfers Out
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* Search */}
-            <div className="relative w-full sm:w-64">
+            {/* Search Input */}
+            <div className="relative min-w-[200px]">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search ledger entries..."
+                placeholder={isBankSelected ? "Search bank records..." : "Search hisaab..."}
                 value={ledgerSearchQuery}
                 onChange={(e) => setLedgerSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -816,8 +1044,8 @@ export default function PartnerHisaabPage() {
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p className="font-semibold">No transactions recorded for this period</p>
-                        <p className="text-[11px] mt-1">Use the &quot;Transfer to Partner&quot; button above to record a new transaction.</p>
+                        <p className="font-semibold">{isBankSelected ? 'No bank transactions recorded for this period' : 'No transactions recorded for this partner in this period'}</p>
+                        <p className="text-[11px] mt-1">Use the &quot;Transfer&quot; button above to record a new transaction.</p>
                       </td>
                     </tr>
                   ) : (

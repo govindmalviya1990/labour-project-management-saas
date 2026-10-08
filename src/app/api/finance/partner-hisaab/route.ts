@@ -232,9 +232,13 @@ export async function GET(req: Request) {
       })
     );
 
-    // 4. If a specific partner or ledger query is requested
+    // 4. If a specific partner or bank ledger query is requested
     let ledgerEntries: any[] = [];
-    const targetPartnerId = partnerId !== 'ALL' ? partnerId : null;
+    const isBankQuery = partnerId.startsWith('BANK');
+    const specificBankId = partnerId.startsWith('BANK_') && partnerId !== 'BANK_ALL'
+      ? partnerId.replace('BANK_', '')
+      : null;
+    const targetPartnerId = !isBankQuery && partnerId !== 'ALL' ? partnerId : null;
 
     if (targetPartnerId) {
       // Build Ledger for this specific partner
@@ -441,6 +445,125 @@ export async function GET(req: Request) {
 
       // Sort chronological descending
       ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } else if (isBankQuery) {
+      // Build Ledger for Company Bank Accounts
+      const bankTxWhere: any = {
+        organizationId: orgId,
+        deletedAt: null,
+      };
+      if (specificBankId) {
+        bankTxWhere.bankAccountId = specificBankId;
+      }
+      if (hasDateFilter) {
+        bankTxWhere.date = dateFilter;
+      }
+
+      const bankReceiptsWhere: any = {
+        organizationId: orgId,
+        receivedIn: 'BANK',
+        deletedAt: null,
+      };
+      if (specificBankId) {
+        bankReceiptsWhere.bankAccountId = specificBankId;
+      }
+      if (hasDateFilter) {
+        bankReceiptsWhere.date = dateFilter;
+      }
+
+      const [bankTxs, bankReceipts] = await Promise.all([
+        prisma.bankTransaction.findMany({
+          where: bankTxWhere,
+          include: {
+            bankAccount: { select: { id: true, name: true, bankName: true, accountLast4: true } },
+            partner: { select: { id: true, name: true, email: true } },
+            project: { select: { id: true, name: true, projectCode: true } },
+          },
+          orderBy: { date: 'desc' },
+          take: 100,
+        }),
+        prisma.projectReceipt.findMany({
+          where: bankReceiptsWhere,
+          include: {
+            bankAccount: { select: { id: true, name: true, bankName: true, accountLast4: true } },
+            project: { select: { id: true, name: true, projectCode: true } },
+            site: { select: { id: true, name: true } },
+            receivedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+          take: 50,
+        }),
+      ]);
+
+      // Direct client receipts received into bank
+      bankReceipts.forEach((r) => {
+        ledgerEntries.push({
+          id: `rcpt-${r.id}`,
+          rawId: r.id,
+          date: r.date.toISOString(),
+          type: 'RECEIPT',
+          categoryLabel: 'Client Payment in Bank',
+          title: r.clientName,
+          subtitle: `${r.bankAccount ? `${r.bankAccount.bankName} (${r.bankAccount.name})` : 'Bank'}${r.project?.name ? ` • ${r.project.name}` : ''}${r.receivedBy?.name ? ` • Received by ${r.receivedBy.name}` : ''}`,
+          credit: r.amount,
+          debit: 0,
+          paymentMethod: r.paymentMethod,
+          receivedIn: 'BANK',
+          reference: r.reference,
+          notes: r.notes,
+        });
+      });
+
+      // Bank transactions
+      bankTxs.forEach((bt) => {
+        const isCredit = ['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(bt.type);
+        let typeLabel = 'Bank Transaction';
+        let entryType: 'RECEIPT' | 'TRANSFER_IN' | 'BANK_WITHDRAWAL' | 'TRANSFER_OUT' | 'EXPENSE' | 'BANK_DEPOSIT' = 'BANK_DEPOSIT';
+        let title = bt.bankAccount?.bankName || 'Bank';
+
+        if (bt.type === 'DEPOSIT') {
+          typeLabel = 'Direct Bank Deposit';
+          entryType = 'BANK_DEPOSIT';
+          title = bt.partner?.name ? `Deposit by ${bt.partner.name}` : 'Cash Deposited into Bank';
+        } else if (bt.type === 'TRANSFER_FROM_PARTNER') {
+          typeLabel = 'Partner Deposited Cash';
+          entryType = 'BANK_DEPOSIT';
+          title = `From Partner: ${bt.partner?.name || 'Partner'}`;
+        } else if (bt.type === 'RECEIPT') {
+          typeLabel = 'Bank Receipt';
+          entryType = 'RECEIPT';
+          title = bt.partner?.name ? `Receipt via ${bt.partner.name}` : 'Bank Receipt';
+        } else if (bt.type === 'TRANSFER_TO_PARTNER') {
+          typeLabel = 'Bank Transfer to Partner';
+          entryType = 'TRANSFER_OUT';
+          title = `To Partner: ${bt.partner?.name || 'Partner'}`;
+        } else if (bt.type === 'WITHDRAWAL') {
+          typeLabel = 'Cash Withdrawal from Bank';
+          entryType = 'BANK_WITHDRAWAL';
+          title = bt.partner?.name ? `Withdrawn by ${bt.partner.name}` : 'Cash Withdrawal';
+        } else if (bt.type === 'PAYMENT') {
+          typeLabel = 'Direct Vendor / Site Payment';
+          entryType = 'EXPENSE';
+          title = bt.notes || bt.reference || 'Bank Payment';
+        }
+
+        ledgerEntries.push({
+          id: `bt-${bt.id}`,
+          rawId: bt.id,
+          date: bt.date.toISOString(),
+          type: entryType,
+          categoryLabel: typeLabel,
+          title,
+          subtitle: `${bt.bankAccount?.bankName} (${bt.bankAccount?.name})${bt.project?.name ? ` • ${bt.project.name}` : ''}`,
+          credit: isCredit ? bt.amount : 0,
+          debit: !isCredit ? bt.amount : 0,
+          paymentMethod: 'BANK',
+          reference: bt.reference,
+          notes: bt.notes,
+        });
+      });
+
+      // Sort chronological descending
+      ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
 
     // 5. Fetch Recent Client Payment Receipts (for "Transfer from Received Payment" feature)
@@ -537,14 +660,85 @@ export async function GET(req: Request) {
 
     const totalBankBalance = accountsWithBalance.reduce((sum, b) => sum + (b.balance || 0), 0);
 
+    // Calculate Bank Summary (period metrics for banks)
+    const bankTxSummaryWhere: any = {
+      organizationId: orgId,
+      deletedAt: null,
+    };
+    if (specificBankId) {
+      bankTxSummaryWhere.bankAccountId = specificBankId;
+    }
+    if (hasDateFilter) {
+      bankTxSummaryWhere.date = dateFilter;
+    }
+
+    const bankReceiptSummaryWhere: any = {
+      organizationId: orgId,
+      receivedIn: 'BANK',
+      deletedAt: null,
+    };
+    if (specificBankId) {
+      bankReceiptSummaryWhere.bankAccountId = specificBankId;
+    }
+    if (hasDateFilter) {
+      bankReceiptSummaryWhere.date = dateFilter;
+    }
+
+    const [periodBankTxs, periodBankReceipts] = await Promise.all([
+      prisma.bankTransaction.findMany({
+        where: bankTxSummaryWhere,
+        select: { type: true, amount: true },
+      }),
+      prisma.projectReceipt.aggregate({
+        where: bankReceiptSummaryWhere,
+        _sum: { amount: true },
+      }),
+    ]);
+
+    let bankPeriodInflow = periodBankReceipts._sum.amount || 0;
+    let bankPeriodToPartner = 0;
+    let bankPeriodWithdrawals = 0;
+    let bankPeriodPayments = 0;
+
+    periodBankTxs.forEach((tx) => {
+      if (['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(tx.type)) {
+        bankPeriodInflow += tx.amount;
+      } else if (tx.type === 'TRANSFER_TO_PARTNER') {
+        bankPeriodToPartner += tx.amount;
+      } else if (tx.type === 'WITHDRAWAL') {
+        bankPeriodWithdrawals += tx.amount;
+      } else if (tx.type === 'PAYMENT') {
+        bankPeriodPayments += tx.amount;
+      }
+    });
+
+    const selectedBankBalance = specificBankId
+      ? (accountsWithBalance.find((a) => a.id === specificBankId)?.balance || 0)
+      : totalBankBalance;
+
+    const selectedBankAccount = specificBankId
+      ? (accountsWithBalance.find((a) => a.id === specificBankId) || null)
+      : null;
+
+    const bankSummary = {
+      selectedBankId: specificBankId || 'ALL',
+      selectedBankBalance,
+      selectedBankAccount,
+      periodInflow: bankPeriodInflow,
+      periodToPartner: bankPeriodToPartner,
+      periodWithdrawals: bankPeriodWithdrawals,
+      periodPayments: bankPeriodPayments,
+    };
+
     return NextResponse.json({
       partners: partnersSummary,
-      selectedPartnerId: targetPartnerId,
+      selectedPartnerId: partnerId,
       ledger: ledgerEntries,
       recentReceipts,
       projects,
       bankAccounts: accountsWithBalance,
       totalBankBalance,
+      bankSummary,
       currentUserId: session.userId,
       userRole,
     });
