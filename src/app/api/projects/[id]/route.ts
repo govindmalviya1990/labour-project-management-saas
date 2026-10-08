@@ -73,6 +73,18 @@ export async function GET(
     });
     const actualOtherExpense = allExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
+    // 3.5 Calculate Project Client Receipts (Payments Received from Client)
+    const allReceipts = await prisma.projectReceipt.findMany({
+      where: { projectId, organizationId: orgId, deletedAt: null },
+      include: {
+        site: { select: { id: true, name: true, location: true } },
+        receivedBy: { select: { id: true, name: true, mobile: true } },
+        bankAccount: { select: { id: true, name: true, bankName: true, accountLast4: true } },
+      },
+      orderBy: { date: 'desc' },
+    });
+    const totalPaymentReceived = allReceipts.reduce((sum, r) => sum + (r.amount || 0), 0);
+
     // 4. Completed Work Quantity from Work Records
     const workRecords = await prisma.workRecord.findMany({
       where: { projectId, organizationId: orgId },
@@ -82,6 +94,7 @@ export async function GET(
     // 5. Run Calculation Engine for Project Financials
     const financials = calculateProjectCost({
       projectValue: project.projectValue,
+      paymentReceived: totalPaymentReceived,
       labourCost: actualLabourCost,
       materialCost: actualMaterialCost,
       otherExpenses: actualOtherExpense,
@@ -99,10 +112,40 @@ export async function GET(
       unitName: project.targetUnit || 'sq.ft.',
     });
 
+    // 7. Site-level aggregation for Receipts & Expenses
+    const siteReceiptMap: Record<string, { totalReceived: number; receiptsCount: number }> = {};
+    for (const r of allReceipts) {
+      if (r.siteId) {
+        if (!siteReceiptMap[r.siteId]) siteReceiptMap[r.siteId] = { totalReceived: 0, receiptsCount: 0 };
+        siteReceiptMap[r.siteId].totalReceived += (r.amount || 0);
+        siteReceiptMap[r.siteId].receiptsCount += 1;
+      }
+    }
+
+    const siteExpenseMap: Record<string, number> = {};
+    for (const e of allExpenses) {
+      if (e.siteId) {
+        siteExpenseMap[e.siteId] = (siteExpenseMap[e.siteId] || 0) + (e.amount || 0);
+      }
+    }
+
+    const enrichedSites = (project.sites || []).map((site) => ({
+      ...site,
+      totalReceived: siteReceiptMap[site.id]?.totalReceived || 0,
+      receiptsCount: siteReceiptMap[site.id]?.receiptsCount || 0,
+      totalExpenses: siteExpenseMap[site.id] || 0,
+    }));
+
+    const enrichedProject = {
+      ...project,
+      sites: enrichedSites,
+    };
+
     return NextResponse.json({
-      project,
+      project: enrichedProject,
       financials,
       costPerUnit,
+      receipts: allReceipts,
       stats: {
         totalAttendanceCount,
         recentAttendance: attendanceRecords,
@@ -110,6 +153,8 @@ export async function GET(
         recentMaterialReceipts: allMaterialReceipts.slice(0, 5),
         expensesCount: allExpenses.length,
         recentExpenses: allExpenses.slice(0, 5),
+        receiptsCount: allReceipts.length,
+        totalPaymentReceived,
       },
     });
   } catch (error: any) {

@@ -11,6 +11,7 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowLeft,
+  ArrowDownLeft,
   Edit2,
   Plus,
   Trash2,
@@ -23,6 +24,8 @@ import {
   Phone,
   Mail,
   MapPin,
+  Wallet,
+  Landmark,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -30,6 +33,7 @@ import { MetricCard } from '@/components/ui/MetricCard';
 import { Modal } from '@/components/ui/Modal';
 import { ProjectFormModal } from '@/components/projects/ProjectFormModal';
 import { SiteFormModal } from '@/components/projects/SiteFormModal';
+import { MoneyInModal } from '@/components/finance/MoneyInModal';
 import { formatINR } from '@/lib/calculations';
 import {
   ResponsiveContainer,
@@ -51,11 +55,13 @@ export default function ProjectDetailsPage() {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'sites' | 'attendance' | 'materials' | 'expenses'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sites' | 'receipts' | 'attendance' | 'materials' | 'expenses'>('overview');
 
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSiteModalOpen, setIsSiteModalOpen] = useState(false);
+  const [isMoneyInModalOpen, setIsMoneyInModalOpen] = useState(false);
+  const [moneyInSiteId, setMoneyInSiteId] = useState<string | undefined>(undefined);
   const [editingSite, setEditingSite] = useState<any>(null);
   const [deletingSite, setDeletingSite] = useState<any>(null);
 
@@ -165,6 +171,18 @@ export default function ProjectDetailsPage() {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="primary"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+            onClick={() => {
+              setMoneyInSiteId(undefined);
+              setIsMoneyInModalOpen(true);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Receive Payment
+          </Button>
           <Button size="sm" variant="outline" onClick={fetchProjectDetails}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Refresh
@@ -178,7 +196,7 @@ export default function ProjectDetailsPage() {
 
       {/* Project Master Header */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-5 sm:p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex items-start gap-3.5">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold">
               <Building2 className="w-6 h-6" />
@@ -218,34 +236,134 @@ export default function ProjectDetailsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 border-t lg:border-t-0 border-slate-800 pt-3 lg:pt-0">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 border-t lg:border-t-0 border-slate-800 pt-3 lg:pt-0 lg:pl-6 lg:border-l">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
                 Project Value
               </p>
-              <p className="text-xl sm:text-2xl font-bold text-amber-400">
+              <p className="text-lg sm:text-xl font-bold text-amber-400">
                 {formatINR(project.projectValue)}
               </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
-                Target Quantity
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Target: {project.targetQuantity?.toLocaleString() || 0} {project.targetUnit || 'sq.ft.'}
               </p>
-              <p className="text-lg sm:text-xl font-bold text-white">
-                {project.targetQuantity?.toLocaleString() || 0}{' '}
-                <span className="text-xs text-slate-400">{project.targetUnit || 'sq.ft.'}</span>
+            </div>
+
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Payment Received
+              </p>
+              <p className="text-lg sm:text-xl font-bold text-emerald-400">
+                {formatINR(financials.totalPaymentReceived || 0)}
+              </p>
+              <span className="inline-block text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 mt-0.5">
+                {financials.collectionPercentage || 0}% Collected
+              </span>
+            </div>
+
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-amber-300 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                Remaining Due
+              </p>
+              <p className="text-lg sm:text-xl font-bold text-amber-300">
+                {formatINR(financials.remainingPayment || 0)}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                {Math.max(0, 100 - (financials.collectionPercentage || 0)).toFixed(1)}% Pending
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-sky-400 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                Net Cash in Hand
+              </p>
+              <p className={clsx(
+                "text-lg sm:text-xl font-bold",
+                (financials.netCashFlow || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {formatINR(financials.netCashFlow || 0)}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Received &minus; Spent
               </p>
             </div>
           </div>
         </div>
+
+        {/* Collection & Budget Progress Bar */}
+        <div className="mt-4 pt-3 border-t border-slate-800/80">
+          <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-400 mb-1.5">
+            <span className="flex items-center gap-1.5 font-medium text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Client Payment Collection Progress
+            </span>
+            <div className="flex items-center gap-3 font-medium">
+              <span className="text-emerald-400 font-semibold">
+                Received: {formatINR(financials.totalPaymentReceived || 0)} ({financials.collectionPercentage || 0}%)
+              </span>
+              <span className="text-slate-600">&bull;</span>
+              <span className="text-amber-300 font-semibold">
+                Remaining Due: {formatINR(financials.remainingPayment || 0)}
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-slate-800/90 rounded-full h-2.5 overflow-hidden border border-slate-700/60 flex">
+            <div
+              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, financials.collectionPercentage || 0)}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* 8 Financial Summary KPI Cards (Prompt Section 28) */}
+      {/* Financial Summary KPI Cards */}
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
           Live Project Financial Metrics
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <MetricCard
+            title="Payment Received (Client)"
+            value={formatINR(financials.totalPaymentReceived)}
+            subtitle={`${financials.collectionPercentage}% collected from client`}
+            icon={<IndianRupee className="w-5 h-5 text-emerald-400" />}
+            variant="emerald"
+          />
+
+          <MetricCard
+            title="Remaining Payment (Due)"
+            value={formatINR(financials.remainingPayment)}
+            subtitle={financials.remainingPayment === 0 ? 'Fully collected' : 'Pending from client'}
+            icon={<TrendingDown className="w-5 h-5 text-amber-400" />}
+            variant={financials.remainingPayment === 0 ? 'emerald' : 'amber'}
+          />
+
+          <MetricCard
+            title="Net Cash in Hand"
+            value={formatINR(financials.netCashFlow)}
+            subtitle="Received minus Actual Total Cost"
+            icon={<IndianRupee className={(financials.netCashFlow || 0) >= 0 ? "w-5 h-5 text-emerald-400" : "w-5 h-5 text-rose-400"} />}
+            variant={(financials.netCashFlow || 0) >= 0 ? 'emerald' : 'rose'}
+            isAlert={(financials.netCashFlow || 0) < 0}
+          />
+
+          <MetricCard
+            title="Actual Profit / Loss"
+            value={formatINR(financials.actualProfit)}
+            subtitle={`${financials.profitMarginPercentage}% profit margin`}
+            icon={
+              financials.actualProfit >= 0 ? (
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <TrendingDown className="w-5 h-5 text-rose-400" />
+              )
+            }
+            variant={financials.actualProfit >= 0 ? 'emerald' : 'rose'}
+          />
+
           <MetricCard
             title="Total Budget (Est.)"
             value={formatINR(financials.estimatedTotalCost)}
@@ -271,17 +389,10 @@ export default function ProjectDetailsPage() {
           />
 
           <MetricCard
-            title="Actual Profit / Loss"
-            value={formatINR(financials.actualProfit)}
-            subtitle={`${financials.profitMarginPercentage}% profit margin`}
-            icon={
-              financials.actualProfit >= 0 ? (
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-              ) : (
-                <TrendingDown className="w-5 h-5 text-rose-400" />
-              )
-            }
-            variant={financials.actualProfit >= 0 ? 'emerald' : 'rose'}
+            title="Project Sites / Towers"
+            value={project.sites?.length || 0}
+            subtitle="Active site breakdown"
+            icon={<Layers className="w-5 h-5 text-indigo-400" />}
           />
 
           <MetricCard
@@ -309,10 +420,10 @@ export default function ProjectDetailsPage() {
           />
 
           <MetricCard
-            title="Project Sites / Towers"
-            value={project.sites?.length || 0}
-            subtitle="Active site breakdown"
-            icon={<Layers className="w-5 h-5 text-indigo-400" />}
+            title="Target Quantity"
+            value={`${project.targetQuantity?.toLocaleString() || 0} ${project.targetUnit || 'sq.ft.'}`}
+            subtitle="Total project scope"
+            icon={<Building2 className="w-5 h-5 text-slate-400" />}
           />
         </div>
       </div>
@@ -382,12 +493,25 @@ export default function ProjectDetailsPage() {
           className={clsx(
             'px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5',
             activeTab === 'sites'
-              ? 'bg-amber-500 text-slate-950'
+              ? 'bg-amber-500 text-slate-950 font-bold'
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           )}
         >
           <Layers className="w-3.5 h-3.5" />
           Project Sites ({project.sites?.length || 0})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('receipts')}
+          className={clsx(
+            'px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5',
+            activeTab === 'receipts'
+              ? 'bg-amber-500 text-slate-950 font-bold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+          )}
+        >
+          <IndianRupee className="w-3.5 h-3.5 text-emerald-400" />
+          Client Payments Received ({data.receipts?.length || 0})
         </button>
         <button
           type="button"
@@ -594,12 +718,227 @@ export default function ProjectDetailsPage() {
                   )}
                 </div>
 
+                <div className="border-t border-slate-800/80 pt-2.5 text-xs space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium flex items-center gap-1">
+                      <ArrowDownLeft className="w-3 h-3 text-emerald-400" />
+                      Client Received:
+                    </span>
+                    <span className="font-bold text-emerald-400">
+                      {formatINR(site.totalReceived || 0)}
+                      {site.receiptsCount > 0 && (
+                        <span className="text-[10px] text-slate-400 font-normal ml-1">
+                          ({site.receiptsCount} rec)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium flex items-center gap-1">
+                      <Receipt className="w-3 h-3 text-rose-400" />
+                      Direct Expenses:
+                    </span>
+                    <span className="font-bold text-rose-400">
+                      {formatINR(site.totalExpenses || 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-800 pt-1 text-[11px]">
+                    <span className="text-slate-400 font-medium">Net Site Balance:</span>
+                    <span className={clsx(
+                      "font-bold",
+                      (site.totalReceived || 0) - (site.totalExpenses || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                    )}>
+                      {formatINR((site.totalReceived || 0) - (site.totalExpenses || 0))}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="border-t border-slate-800/80 pt-2 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>{site._count?.attendance || 0} attendance records</span>
-                  <span>{site._count?.expenses || 0} expenses</span>
+                  <span>{site._count?.attendance || 0} attendance &bull; {site._count?.expenses || 0} expenses</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoneyInSiteId(site.id);
+                      setIsMoneyInModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Receive
+                  </button>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: CLIENT PAYMENTS RECEIVED */}
+      {activeTab === 'receipts' && (
+        <div className="space-y-4 animate-fade-in">
+          {/* Summary & Action Toolbar */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <IndianRupee className="w-5 h-5 text-emerald-400" />
+                  Client Payments Received (Money IN)
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  All incoming client payments credited to partner wallets or bank accounts for {project.name}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Link href={`/hisaab?projectId=${project.id}`}>
+                  <Button size="sm" variant="outline" className="text-xs">
+                    View Hisaab Book
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+                  onClick={() => {
+                    setMoneyInSiteId(undefined);
+                    setIsMoneyInModalOpen(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Receive Payment
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-800">
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <p className="text-[11px] text-slate-400 font-medium">Project Value</p>
+                <p className="text-lg font-bold text-amber-400 mt-0.5">{formatINR(project.projectValue)}</p>
+              </div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <p className="text-[11px] text-emerald-400 font-medium">Total Received</p>
+                <p className="text-lg font-bold text-emerald-400 mt-0.5">{formatINR(financials.totalPaymentReceived)}</p>
+                <span className="text-[10px] text-emerald-400">({financials.collectionPercentage}% collected)</span>
+              </div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <p className="text-[11px] text-amber-300 font-medium">Remaining Due</p>
+                <p className="text-lg font-bold text-amber-300 mt-0.5">{formatINR(financials.remainingPayment)}</p>
+                <span className="text-[10px] text-slate-400">pending from client</span>
+              </div>
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                <p className="text-[11px] text-sky-400 font-medium">Net Cash in Hand</p>
+                <p className={clsx(
+                  "text-lg font-bold mt-0.5",
+                  (financials.netCashFlow || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                )}>
+                  {formatINR(financials.netCashFlow)}
+                </p>
+                <span className="text-[10px] text-slate-400">after all project expenses</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Receipts Table */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-white">Payment Transactions ({data.receipts?.length || 0})</h4>
+              <span className="text-xs text-slate-400">Auto-synced with Partner Hisaab &amp; Cash Book</span>
+            </div>
+
+            {data.receipts && data.receipts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
+                    <tr>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Client</th>
+                      <th className="py-2.5 px-3">Site / Tower</th>
+                      <th className="py-2.5 px-3">Received In</th>
+                      <th className="py-2.5 px-3">Received By</th>
+                      <th className="py-2.5 px-3">Method &amp; Purpose</th>
+                      <th className="py-2.5 px-3">Reference / Notes</th>
+                      <th className="py-2.5 px-3 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {data.receipts.map((r: any) => (
+                      <tr key={r.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">
+                          {new Date(r.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-white whitespace-nowrap">
+                          {r.clientName}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          {r.site?.name ? (
+                            <span className="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded text-[11px] font-medium border border-amber-500/20">
+                              {r.site.name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 italic">Entire Project</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          {r.receivedIn === 'BANK' ? (
+                            <span className="inline-flex items-center gap-1 text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded text-[11px] font-medium border border-sky-500/20">
+                              <Landmark className="w-3 h-3" />
+                              {r.bankAccount ? `${r.bankAccount.bankName || r.bankAccount.name}${r.bankAccount.accountLast4 ? ' (..' + r.bankAccount.accountLast4 + ')' : ''}` : 'Bank Account'}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded text-[11px] font-medium border border-emerald-500/20">
+                              <Wallet className="w-3 h-3" />
+                              Partner Wallet
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-slate-200 whitespace-nowrap">
+                          {r.receivedBy?.name || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-300">
+                              {r.paymentMethod}
+                            </span>
+                            <span className="text-slate-400 text-[11px]">
+                              {r.purpose?.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-400 max-w-[180px] truncate">
+                          {r.reference ? <span className="text-slate-300 font-mono text-[11px] mr-1">{r.reference}</span> : null}
+                          {r.notes || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-400 text-sm whitespace-nowrap">
+                          +{formatINR(r.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-10 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                  <IndianRupee className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-semibold text-white">No Client Payments Recorded Yet</p>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Record advance or running bill payments received from client to reflect collections against project value.
+                </p>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                  onClick={() => {
+                    setMoneyInSiteId(undefined);
+                    setIsMoneyInModalOpen(true);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Receive First Payment
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -773,6 +1112,19 @@ export default function ProjectDetailsPage() {
         onSuccess={fetchProjectDetails}
         projectId={project.id}
         initialData={editingSite}
+      />
+
+      {/* Receive Client Payment Modal */}
+      <MoneyInModal
+        isOpen={isMoneyInModalOpen}
+        onClose={() => {
+          setIsMoneyInModalOpen(false);
+          setMoneyInSiteId(undefined);
+        }}
+        onSuccess={fetchProjectDetails}
+        defaultProjectId={project.id}
+        defaultSiteId={moneyInSiteId}
+        defaultClientName={project.clientName}
       />
 
       {/* Delete Site Confirmation Modal */}

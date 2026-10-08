@@ -213,6 +213,7 @@ export interface ProjectCostInput {
   labourCost: number;
   materialCost: number;
   otherExpenses: number;
+  paymentReceived?: number;
   estimatedLabourCost?: number;
   estimatedMaterialCost?: number;
   estimatedOtherExpense?: number;
@@ -229,6 +230,10 @@ export interface ProjectCostResult {
   actualProfit: number;          // Project Value - Actual Total Cost
   estimatedProfit: number;       // Project Value - Estimated Total Cost
   profitMarginPercentage: number;// (Actual Profit / Project Value) * 100
+  totalPaymentReceived: number;  // Total payments received from client
+  remainingPayment: number;      // Project Value - Total Payment Received
+  collectionPercentage: number;  // (Total Received / Project Value) * 100
+  netCashFlow: number;           // Total Received - Actual Total Cost
 }
 
 /**
@@ -262,6 +267,13 @@ export function calculateProjectCost(input: ProjectCostInput): ProjectCostResult
     ? Math.round(((actualProfit / projectValue) * 100) * 100) / 100
     : 0;
 
+  const totalPaymentReceived = Math.round(Math.max(0, input.paymentReceived || 0) * 100) / 100;
+  const remainingPayment = Math.round(Math.max(0, projectValue - totalPaymentReceived) * 100) / 100;
+  const collectionPercentage = projectValue > 0
+    ? Math.round(((totalPaymentReceived / projectValue) * 100) * 10) / 10
+    : 0;
+  const netCashFlow = Math.round((totalPaymentReceived - actualTotalCost) * 100) / 100;
+
   return {
     actualLabourCost,
     actualMaterialCost,
@@ -273,6 +285,10 @@ export function calculateProjectCost(input: ProjectCostInput): ProjectCostResult
     actualProfit,
     estimatedProfit,
     profitMarginPercentage,
+    totalPaymentReceived,
+    remainingPayment,
+    collectionPercentage,
+    netCashFlow,
   };
 }
 

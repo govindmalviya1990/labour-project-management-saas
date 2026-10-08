@@ -31,6 +31,9 @@ interface MoneyInModalProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultDate?: string;
+  defaultProjectId?: string;
+  defaultSiteId?: string;
+  defaultClientName?: string;
   isOwnerOrManager?: boolean;
 }
 
@@ -39,17 +42,20 @@ export function MoneyInModal({
   onClose,
   onSuccess,
   defaultDate,
+  defaultProjectId,
+  defaultSiteId,
+  defaultClientName,
   isOwnerOrManager = false,
 }: MoneyInModalProps) {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [partners, setPartners] = useState<PartnerOption[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
-  const [selectedSiteId, setSelectedSiteId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId || '');
+  const [selectedSiteId, setSelectedSiteId] = useState(defaultSiteId || '');
   const [receivedById, setReceivedById] = useState('');
   const [receivedIn, setReceivedIn] = useState<'WALLET' | 'BANK'>('WALLET');
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
-  const [clientName, setClientName] = useState('');
+  const [clientName, setClientName] = useState(defaultClientName || '');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -64,10 +70,13 @@ export function MoneyInModal({
   useEffect(() => {
     if (isOpen) {
       setDate(defaultDate || new Date().toISOString().split('T')[0]);
+      if (defaultProjectId) setSelectedProjectId(defaultProjectId);
+      if (defaultSiteId) setSelectedSiteId(defaultSiteId);
+      if (defaultClientName && !clientName) setClientName(defaultClientName);
       setError(null);
       fetchDependencies();
     }
-  }, [isOpen, defaultDate]);
+  }, [isOpen, defaultDate, defaultProjectId, defaultSiteId, defaultClientName]);
 
   const fetchDependencies = async () => {
     setLoadingData(true);
@@ -81,8 +90,13 @@ export function MoneyInModal({
       if (projRes.ok) {
         const data = await projRes.json();
         setProjects(data.projects || []);
-        if (data.projects?.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(data.projects[0].id);
+        const targetId = defaultProjectId || selectedProjectId || (data.projects?.[0]?.id ?? '');
+        setSelectedProjectId(targetId);
+        if (defaultClientName && !clientName) {
+          setClientName(defaultClientName);
+        } else if (!clientName && targetId) {
+          const found = (data.projects || []).find((p: any) => p.id === targetId);
+          if (found?.clientName) setClientName(found.clientName);
         }
       }
 
