@@ -392,15 +392,16 @@ export async function GET(req: Request) {
       });
 
       transfersOut.forEach((t) => {
-        const recipientName = t.toUser?.name || t.toWorker?.name || 'Partner/Supervisor';
+        const isWorker = Boolean(t.toWorker);
+        const recipientName = t.toWorker?.name || t.toUser?.name || 'Partner/Supervisor';
         ledgerEntries.push({
           id: `trout-${t.id}`,
           rawId: t.id,
           date: t.date.toISOString(),
           type: 'TRANSFER_OUT',
-          categoryLabel: 'Transfer Out',
-          title: `To: ${recipientName}`,
-          subtitle: t.purpose + (t.project?.name ? ` • ${t.project.name}` : ''),
+          categoryLabel: isWorker ? `Worker Payment (${t.purpose || 'Labour'})` : 'Transfer Out',
+          title: `${isWorker ? 'Worker: ' : 'To: '}${recipientName}`,
+          subtitle: (t.purpose ? `${t.purpose}` : '') + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: 0,
           debit: t.amount,
           paymentMethod: t.paymentMethod,
@@ -730,6 +731,26 @@ export async function GET(req: Request) {
       periodPayments: bankPeriodPayments,
     };
 
+    // 8. Fetch active workers for "Send Money to Worker"
+    const workers = await prisma.worker.findMany({
+      where: { organizationId: orgId, deletedAt: null, status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+        workerCode: true,
+        category: true,
+        mobile: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // 9. Fetch custom purpose options (Expense categories & transfer reasons)
+    const purposeOptions = await prisma.purposeOption.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { id: true, name: true, type: true },
+      orderBy: { name: 'asc' },
+    });
+
     return NextResponse.json({
       partners: partnersSummary,
       selectedPartnerId: partnerId,
@@ -739,6 +760,8 @@ export async function GET(req: Request) {
       bankAccounts: accountsWithBalance,
       totalBankBalance,
       bankSummary,
+      workers,
+      purposeOptions,
       currentUserId: session.userId,
       userRole,
     });
@@ -765,12 +788,22 @@ export async function POST(req: Request) {
     const session = auth.session;
     const orgId = session.organizationId;
     const role = normalizeRole(session.role);
-    const isOwnerOrManager = ['OWNER', 'MANAGER'].includes(role);
+    const isOwnerOrManager = ['OWNER', 'MANAGER', 'ACCOUNTANT'].includes(role);
 
     const body = await req.json();
     const {
-      fromUserId: inputFromUserId,
-      toUserId,
+      sourceType = 'PARTNER', // 'PARTNER' or 'BANK'
+      sourceId, // partner userId or bankAccountId
+      fromUserId: legacyFromUserId,
+      destinationType = 'TO_PARTNER', // 'TO_PARTNER', 'INTERNAL_BANK_DEPOSIT', 'TO_WORKER', 'SELF_EXPENSE'
+      toUserId, // legacy support for TO_PARTNER
+      toPartnerId = toUserId,
+      toBankAccountId,
+      toWorkerId,
+      workerReason,
+      expenseCategory,
+      expenseDescription,
+      vendorName,
       amount,
       date,
       paymentMethod = 'CASH',
@@ -781,13 +814,6 @@ export async function POST(req: Request) {
       reference,
       notes,
     } = body;
-
-    if (!toUserId) {
-      return NextResponse.json(
-        { error: 'Please select the recipient partner or owner.' },
-        { status: 400 }
-      );
-    }
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -803,25 +829,36 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    const txDate = new Date(date);
 
-    const fromUserId = isOwnerOrManager && inputFromUserId ? inputFromUserId : session.userId;
-    const transferDate = new Date(date);
+    // Resolve source sender partner
+    let effectivePartnerId = session.userId;
+    if (sourceType === 'PARTNER') {
+      if (sourceId) {
+        effectivePartnerId = sourceId;
+      } else if (legacyFromUserId) {
+        effectivePartnerId = legacyFromUserId;
+      }
+    }
 
-    // Verify recipient belongs to the same organization
-    const recipientMembership = await prisma.organizationUser.findFirst({
-      where: {
-        organizationId: orgId,
-        userId: toUserId,
-        status: 'ACTIVE',
-      },
-      include: { user: true },
-    });
-
-    if (!recipientMembership) {
-      return NextResponse.json(
-        { error: 'Recipient partner not found in this organization.' },
-        { status: 404 }
-      );
+    // Resolve source bank account if source is BANK
+    let sourceBankAccount: any = null;
+    if (sourceType === 'BANK') {
+      if (!sourceId) {
+        return NextResponse.json(
+          { error: 'Please select the paying bank account.' },
+          { status: 400 }
+        );
+      }
+      sourceBankAccount = await prisma.bankAccount.findFirst({
+        where: { id: sourceId, organizationId: orgId, deletedAt: null },
+      });
+      if (!sourceBankAccount) {
+        return NextResponse.json(
+          { error: 'Source bank account not found.' },
+          { status: 404 }
+        );
+      }
     }
 
     // Optional receipt reference enrichment
@@ -832,43 +869,352 @@ export async function POST(req: Request) {
         include: { project: true },
       });
       if (receipt) {
-        const prefix = `[Transferred from Client Payment: ${receipt.clientName} (₹${receipt.amount}) - ${receipt.project.name}]`;
+        const prefix = `[From Client Payment: ${receipt.clientName} (₹${receipt.amount}) - ${receipt.project.name}]`;
         enrichedNotes = enrichedNotes ? `${prefix} ${enrichedNotes}` : prefix;
       }
     }
 
-    // Create FundTransfer
-    const transfer = await prisma.fundTransfer.create({
-      data: {
-        organizationId: orgId,
-        transferType: 'PARTNER_TO_PARTNER',
-        fromUserId,
-        toUserId,
-        projectId: projectId || null,
-        siteId: siteId || null,
-        amount: parsedAmount,
-        date: transferDate,
-        paymentMethod,
-        purpose,
-        reference: reference?.trim() || null,
-        notes: enrichedNotes || null,
-      },
-      include: {
-        fromUser: { select: { id: true, name: true } },
-        toUser: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true } },
-      },
-    });
+    // ==========================================
+    // DESTINATION 1: SEND TO ANOTHER PARTNER
+    // ==========================================
+    if (destinationType === 'TO_PARTNER') {
+      if (!toPartnerId) {
+        return NextResponse.json(
+          { error: 'Please select the recipient partner or owner.' },
+          { status: 400 }
+        );
+      }
 
-    return NextResponse.json({
-      success: true,
-      transfer,
-      message: `Successfully transferred ₹${parsedAmount.toLocaleString('en-IN')} to ${recipientMembership.user.name}!`,
-    });
-  } catch (error: any) {
-    console.error('Error creating partner transfer:', error);
+      const recipientMembership = await prisma.organizationUser.findFirst({
+        where: { organizationId: orgId, userId: toPartnerId, status: 'ACTIVE' },
+        include: { user: true },
+      });
+      if (!recipientMembership) {
+        return NextResponse.json(
+          { error: 'Recipient partner not found in this organization.' },
+          { status: 404 }
+        );
+      }
+
+      if (sourceType === 'PARTNER') {
+        const transfer = await prisma.fundTransfer.create({
+          data: {
+            organizationId: orgId,
+            transferType: 'PARTNER_TO_PARTNER',
+            fromUserId: effectivePartnerId,
+            toUserId: toPartnerId,
+            projectId: projectId || null,
+            siteId: siteId || null,
+            amount: parsedAmount,
+            date: txDate,
+            paymentMethod,
+            purpose: purpose || 'PARTNER_TRANSFER',
+            reference: reference?.trim() || null,
+            notes: enrichedNotes || null,
+          },
+          include: {
+            fromUser: { select: { id: true, name: true } },
+            toUser: { select: { id: true, name: true } },
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          transfer,
+          message: `Successfully transferred ₹${parsedAmount.toLocaleString('en-IN')} to ${recipientMembership.user.name}!`,
+        });
+      } else {
+        // Source is BANK
+        const bankTx = await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: sourceBankAccount.id,
+            type: 'TRANSFER_TO_PARTNER',
+            partnerId: toPartnerId,
+            amount: parsedAmount,
+            date: txDate,
+            projectId: projectId || null,
+            reference: reference?.trim() || null,
+            notes: enrichedNotes || `Transfer to ${recipientMembership.user.name}`,
+            createdById: session.userId,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          bankTx,
+          message: `Successfully transferred ₹${parsedAmount.toLocaleString('en-IN')} from ${sourceBankAccount.bankName} to ${recipientMembership.user.name}!`,
+        });
+      }
+    }
+
+    // ==========================================
+    // DESTINATION 2: INTERNAL BANK DEPOSIT / TRANSFER
+    // ==========================================
+    if (destinationType === 'INTERNAL_BANK_DEPOSIT') {
+      if (!toBankAccountId) {
+        return NextResponse.json(
+          { error: 'Please select the destination bank account for deposit.' },
+          { status: 400 }
+        );
+      }
+
+      const targetBank = await prisma.bankAccount.findFirst({
+        where: { id: toBankAccountId, organizationId: orgId, deletedAt: null },
+      });
+      if (!targetBank) {
+        return NextResponse.json(
+          { error: 'Target bank account not found.' },
+          { status: 404 }
+        );
+      }
+
+      if (sourceType === 'PARTNER') {
+        const bankTx = await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: targetBank.id,
+            type: 'TRANSFER_FROM_PARTNER',
+            partnerId: effectivePartnerId,
+            amount: parsedAmount,
+            date: txDate,
+            projectId: projectId || null,
+            reference: reference?.trim() || null,
+            notes: enrichedNotes || 'Partner cash deposited into bank',
+            createdById: session.userId,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          bankTx,
+          message: `Successfully deposited ₹${parsedAmount.toLocaleString('en-IN')} into ${targetBank.bankName} (${targetBank.name})!`,
+        });
+      } else {
+        // Bank-to-Bank Transfer
+        if (sourceBankAccount.id === targetBank.id) {
+          return NextResponse.json(
+            { error: 'Source and target bank accounts cannot be the same.' },
+            { status: 400 }
+          );
+        }
+
+        await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: sourceBankAccount.id,
+            type: 'WITHDRAWAL',
+            amount: parsedAmount,
+            date: txDate,
+            reference: reference?.trim() || null,
+            notes: `Internal transfer to ${targetBank.bankName} (${targetBank.name})${enrichedNotes ? ` • ${enrichedNotes}` : ''}`,
+            createdById: session.userId,
+          },
+        });
+
+        const depositTx = await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: targetBank.id,
+            type: 'DEPOSIT',
+            amount: parsedAmount,
+            date: txDate,
+            reference: reference?.trim() || null,
+            notes: `Internal transfer from ${sourceBankAccount.bankName} (${sourceBankAccount.name})${enrichedNotes ? ` • ${enrichedNotes}` : ''}`,
+            createdById: session.userId,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          depositTx,
+          message: `Successfully transferred ₹${parsedAmount.toLocaleString('en-IN')} from ${sourceBankAccount.bankName} to ${targetBank.bankName}!`,
+        });
+      }
+    }
+
+    // ==========================================
+    // DESTINATION 3: PAYMENT TO WORKER / LABOUR
+    // ==========================================
+    if (destinationType === 'TO_WORKER') {
+      if (!toWorkerId) {
+        return NextResponse.json(
+          { error: 'Please select the worker to pay.' },
+          { status: 400 }
+        );
+      }
+
+      const worker = await prisma.worker.findFirst({
+        where: { id: toWorkerId, organizationId: orgId, deletedAt: null },
+      });
+      if (!worker) {
+        return NextResponse.json(
+          { error: 'Worker not found in this organization.' },
+          { status: 404 }
+        );
+      }
+
+      const reasonText = workerReason?.trim() || purpose || 'Worker Payment';
+      const upperReason = reasonText.toUpperCase();
+      const txType = upperReason.includes('SALARY') ? 'SALARY' : upperReason.includes('ADVANCE') ? 'ADVANCE' : 'PAYMENT';
+
+      // 1. Create worker payment record
+      const payment = await prisma.payment.create({
+        data: {
+          organizationId: orgId,
+          workerId: worker.id,
+          projectId: projectId || null,
+          siteId: siteId || null,
+          date: txDate,
+          transactionType: txType,
+          amount: parsedAmount,
+          paymentMethod: sourceType === 'BANK' ? 'BANK' : paymentMethod,
+          reference: reference?.trim() || null,
+          notes: enrichedNotes ? `${reasonText} • ${enrichedNotes}` : reasonText,
+        },
+      });
+
+      if (sourceType === 'PARTNER') {
+        // 2. Create FundTransfer for partner wallet
+        const transfer = await prisma.fundTransfer.create({
+          data: {
+            organizationId: orgId,
+            transferType: 'PARTNER_TO_WORKER',
+            fromUserId: effectivePartnerId,
+            toWorkerId: worker.id,
+            linkedPaymentId: payment.id,
+            projectId: projectId || null,
+            siteId: siteId || null,
+            amount: parsedAmount,
+            date: txDate,
+            paymentMethod,
+            purpose: reasonText,
+            reference: reference?.trim() || null,
+            notes: enrichedNotes || `Payment to worker ${worker.name} (${reasonText})`,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          transfer,
+          message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} to worker ${worker.name} for ${reasonText}!`,
+        });
+      } else {
+        // 2. Create BankTransaction for bank account
+        const bankTx = await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: sourceBankAccount.id,
+            type: 'PAYMENT',
+            amount: parsedAmount,
+            date: txDate,
+            projectId: projectId || null,
+            reference: reference?.trim() || null,
+            notes: `Worker Payment: ${worker.name} (${reasonText})${enrichedNotes ? ` • ${enrichedNotes}` : ''}`,
+            createdById: session.userId,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          bankTx,
+          message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} from ${sourceBankAccount.bankName} to worker ${worker.name} (${reasonText})!`,
+        });
+      }
+    }
+
+    // ==========================================
+    // DESTINATION 4: SELF / BUSINESS EXPENSE
+    // ==========================================
+    if (destinationType === 'SELF_EXPENSE') {
+      const category = expenseCategory?.trim() || 'MISCELLANEOUS';
+      const description = expenseDescription?.trim() || category;
+
+      // Persist custom category to purposeOption if not exists
+      try {
+        const catExists = await prisma.purposeOption.findFirst({
+          where: { organizationId: orgId, type: 'EXPENSE', name: category },
+        });
+        if (!catExists) {
+          await prisma.purposeOption.create({
+            data: { organizationId: orgId, type: 'EXPENSE', name: category, isSystem: false },
+          });
+        }
+      } catch (e) {
+        // ignore duplicate
+      }
+
+      if (sourceType === 'PARTNER') {
+        const expense = await prisma.expense.create({
+          data: {
+            organizationId: orgId,
+            walletOwnerId: effectivePartnerId,
+            spentById: effectivePartnerId,
+            category,
+            description,
+            amount: parsedAmount,
+            date: txDate,
+            paymentMethod,
+            vendorName: vendorName?.trim() || null,
+            projectId: projectId || null,
+            siteId: siteId || null,
+            notes: enrichedNotes || null,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          expense,
+          message: `Successfully recorded expense of ₹${parsedAmount.toLocaleString('en-IN')} under ${category}!`,
+        });
+      } else {
+        // Bank direct expense
+        const expense = await prisma.expense.create({
+          data: {
+            organizationId: orgId,
+            category,
+            description,
+            amount: parsedAmount,
+            date: txDate,
+            paymentMethod: 'BANK',
+            vendorName: vendorName?.trim() || null,
+            projectId: projectId || null,
+            siteId: siteId || null,
+            notes: enrichedNotes || null,
+          },
+        });
+
+        const bankTx = await prisma.bankTransaction.create({
+          data: {
+            organizationId: orgId,
+            bankAccountId: sourceBankAccount.id,
+            type: 'PAYMENT',
+            amount: parsedAmount,
+            date: txDate,
+            projectId: projectId || null,
+            reference: vendorName?.trim() || null,
+            notes: `Expense: ${category} - ${description}${enrichedNotes ? ` • ${enrichedNotes}` : ''}`,
+            createdById: session.userId,
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          expense,
+          bankTx,
+          message: `Successfully recorded bank payment of ₹${parsedAmount.toLocaleString('en-IN')} under ${category}!`,
+        });
+      }
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Failed to record partner transfer' },
+      { error: 'Invalid destination type provided.' },
+      { status: 400 }
+    );
+  } catch (error: any) {
+    console.error('Error creating partner transaction:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to process transaction' },
       { status: 500 }
     );
   }

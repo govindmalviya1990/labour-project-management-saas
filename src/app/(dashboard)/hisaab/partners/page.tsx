@@ -24,6 +24,10 @@ import {
   Shield,
   ChevronRight,
   X,
+  Send,
+  Landmark,
+  User,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -85,6 +89,33 @@ interface ProjectItem {
   sites: { id: string; name: string }[];
 }
 
+interface WorkerItem {
+  id: string;
+  name: string;
+  workerCode?: string;
+  category?: string;
+  mobile?: string;
+}
+
+interface PurposeOptionItem {
+  id: string;
+  name: string;
+  type: string;
+}
+
+const DEFAULT_EXPENSE_CATEGORIES = [
+  'Food & Refreshments',
+  'Fuel & Travel',
+  'Site Materials / Hardware',
+  'Tools & Equipment',
+  'Site Maintenance & Repairs',
+  'Worker Food & Tea',
+  'Office & Printing',
+  'Logistics & Transport',
+  'Labour Wages / Kharcha',
+  'Miscellaneous',
+];
+
 export default function PartnerHisaabPage() {
   const [partners, setPartners] = useState<PartnerSummaryItem[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('ALL');
@@ -94,6 +125,9 @@ export default function PartnerHisaabPage() {
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   const [totalBankBalance, setTotalBankBalance] = useState<number>(0);
   const [bankSummary, setBankSummary] = useState<any>(null);
+  const [workers, setWorkers] = useState<WorkerItem[]>([]);
+  const [purposeOptions, setPurposeOptions] = useState<PurposeOptionItem[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -106,17 +140,32 @@ export default function PartnerHisaabPage() {
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState('ALL');
 
-  // Transfer Modal State
+  // Send Money Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
   const [transferError, setTransferError] = useState('');
 
-  // Transfer Form State
-  const [transferForm, setTransferForm] = useState({
-    fromUserId: '',
-    toUserId: '',
-    transferSourceType: 'DIRECT', // 'DIRECT' or 'FROM_RECEIPT'
+  // Send Money Form State
+  const [sendMoneyForm, setSendMoneyForm] = useState({
+    sourceType: 'PARTNER' as 'PARTNER' | 'BANK',
+    sourceId: '',
+    destinationType: 'TO_PARTNER' as 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE',
+    // Destination 1: Partner
+    toPartnerId: '',
+    transferSourceType: 'DIRECT' as 'DIRECT' | 'FROM_RECEIPT',
     receiptId: '',
+    // Destination 2: Bank Deposit
+    toBankAccountId: '',
+    // Destination 3: Worker
+    toWorkerId: '',
+    workerReasonSelect: 'Salary / Wages',
+    customWorkerReason: '',
+    // Destination 4: Self Expense
+    expenseCategorySelect: 'Site Materials / Hardware',
+    customCategoryName: '',
+    expenseDescription: '',
+    vendorName: '',
+    // Common
     amount: '',
     date: new Date().toISOString().split('T')[0],
     paymentMethod: 'CASH',
@@ -162,6 +211,9 @@ export default function PartnerHisaabPage() {
       setBankAccounts(data.bankAccounts || []);
       setTotalBankBalance(data.totalBankBalance || 0);
       setBankSummary(data.bankSummary || null);
+      setWorkers(data.workers || []);
+      setPurposeOptions(data.purposeOptions || []);
+      if (data.currentUserId) setCurrentUserId(data.currentUserId);
     } catch (err: any) {
       setError(err.message || 'Error loading data');
     } finally {
@@ -223,94 +275,225 @@ export default function PartnerHisaabPage() {
     });
   }, [ledger, ledgerTypeFilter, ledgerSearchQuery]);
 
-  // Open Transfer Modal for specific partner
-  const openTransferModal = (targetPartnerId?: string) => {
+  // Computed categories from system presets + custom DB purposeOptions
+  const availableExpenseCategories = useMemo(() => {
+    const customCats = purposeOptions
+      .filter((p) => p.type === 'EXPENSE')
+      .map((p) => p.name);
+    return Array.from(new Set([...DEFAULT_EXPENSE_CATEGORIES, ...customCats]));
+  }, [purposeOptions]);
+
+  // Computed source account available balance
+  const sourceAvailableBalance = useMemo(() => {
+    if (sendMoneyForm.sourceType === 'PARTNER') {
+      const partner = partners.find((p) => p.id === sendMoneyForm.sourceId);
+      return partner?.currentBalance ?? 0;
+    } else {
+      const bank = bankAccounts.find((b) => b.id === sendMoneyForm.sourceId);
+      return bank?.balance ?? 0;
+    }
+  }, [sendMoneyForm.sourceType, sendMoneyForm.sourceId, partners, bankAccounts]);
+
+  // Open Send Money Modal with smart defaults
+  const openSendMoneyModal = (opts?: {
+    defaultSourceType?: 'PARTNER' | 'BANK';
+    defaultSourceId?: string;
+    defaultDestType?: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE';
+    defaultTargetPartnerId?: string;
+  }) => {
     setTransferError('');
-    const defaultRecipient = targetPartnerId || (selectedPartner ? selectedPartner.id : '');
-    setTransferForm({
-      fromUserId: '',
-      toUserId: defaultRecipient,
+
+    let srcType: 'PARTNER' | 'BANK' = opts?.defaultSourceType || (isBankSelected ? 'BANK' : 'PARTNER');
+    let srcId: string = opts?.defaultSourceId || '';
+
+    if (!srcId) {
+      if (srcType === 'BANK') {
+        srcId = selectedBankAccount?.id || (bankAccounts[0]?.id || '');
+      } else {
+        if (selectedPartner) {
+          srcId = selectedPartner.id;
+        } else if (currentUserId && partners.some((p) => p.id === currentUserId)) {
+          srcId = currentUserId;
+        } else if (partners.length > 0) {
+          srcId = partners[0].id;
+        }
+      }
+    }
+
+    const destType: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE' =
+      opts?.defaultDestType || 'TO_PARTNER';
+
+    let toPartId = opts?.defaultTargetPartnerId || '';
+    if (!toPartId) {
+      const otherPartner = partners.find((p) => p.id !== srcId);
+      if (otherPartner) toPartId = otherPartner.id;
+    }
+
+    let toBankId = '';
+    if (bankAccounts.length > 0) {
+      const targetBank = bankAccounts.find((b) => b.id !== srcId) || bankAccounts[0];
+      toBankId = targetBank.id;
+    }
+
+    const toWorkId = workers.length > 0 ? workers[0].id : '';
+
+    setSendMoneyForm({
+      sourceType: srcType,
+      sourceId: srcId,
+      destinationType: destType,
+      toPartnerId: toPartId,
       transferSourceType: 'DIRECT',
       receiptId: '',
+      toBankAccountId: toBankId,
+      toWorkerId: toWorkId,
+      workerReasonSelect: 'Salary / Wages',
+      customWorkerReason: '',
+      expenseCategorySelect: 'Site Materials / Hardware',
+      customCategoryName: '',
+      expenseDescription: '',
+      vendorName: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
-      paymentMethod: isBankSelected ? 'BANK' : 'CASH',
+      paymentMethod: srcType === 'BANK' ? 'BANK' : 'CASH',
       purpose: 'PARTNER_TRANSFER',
       projectId: '',
       siteId: '',
       reference: '',
       notes: '',
     });
+
     setIsTransferModalOpen(true);
   };
 
-  // When selecting a receipt in the transfer form, auto-fill amount & details
+  // When selecting a receipt in the Send Money form, auto-fill amount & details
   const handleReceiptSelection = (rcptId: string) => {
     const rcpt = recentReceipts.find((r) => r.id === rcptId);
     if (rcpt) {
-      setTransferForm((prev) => ({
+      setSendMoneyForm((prev) => ({
         ...prev,
         receiptId: rcpt.id,
         amount: String(rcpt.amount),
         projectId: rcpt.project?.id || prev.projectId,
         paymentMethod: rcpt.paymentMethod || prev.paymentMethod,
-        notes: `Transfer of client receipt received from ${rcpt.clientName} (${rcpt.project?.name || ''})`,
+        notes: `Transfer of client payment received from ${rcpt.clientName} (${rcpt.project?.name || ''})`,
       }));
     } else {
-      setTransferForm((prev) => ({ ...prev, receiptId: '' }));
+      setSendMoneyForm((prev) => ({ ...prev, receiptId: '' }));
     }
   };
 
-  // Submit Partner Fund Transfer
-  const handleTransferSubmit = async (e: React.FormEvent) => {
+  // Submit Send Money Transaction
+  const handleSendMoneySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTransferError('');
 
-    if (!transferForm.toUserId) {
-      setTransferError('Please select the partner or owner who will receive this payment.');
-      return;
-    }
-
-    const parsedAmount = parseFloat(transferForm.amount);
+    const parsedAmount = parseFloat(sendMoneyForm.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setTransferError('Please enter a valid transfer amount greater than ₹0.');
+      setTransferError('Please enter a valid amount greater than ₹0.');
       return;
     }
 
-    if (!transferForm.date) {
-      setTransferError('Please select the transfer date.');
+    if (!sendMoneyForm.date) {
+      setTransferError('Please select a date.');
       return;
+    }
+
+    if (!sendMoneyForm.sourceId) {
+      setTransferError('Please select the paying source (Partner wallet or Bank account).');
+      return;
+    }
+
+    // Destination-specific validation
+    let finalWorkerReason = '';
+    if (sendMoneyForm.destinationType === 'TO_WORKER') {
+      if (!sendMoneyForm.toWorkerId) {
+        setTransferError('Please select the worker to pay.');
+        return;
+      }
+      finalWorkerReason =
+        sendMoneyForm.workerReasonSelect === 'CUSTOM'
+          ? sendMoneyForm.customWorkerReason.trim()
+          : sendMoneyForm.workerReasonSelect;
+      if (!finalWorkerReason) {
+        setTransferError('Please specify the payment reason for the worker.');
+        return;
+      }
+    }
+
+    let finalExpenseCategory = '';
+    if (sendMoneyForm.destinationType === 'SELF_EXPENSE') {
+      finalExpenseCategory =
+        sendMoneyForm.expenseCategorySelect === 'CUSTOM'
+          ? sendMoneyForm.customCategoryName.trim()
+          : sendMoneyForm.expenseCategorySelect;
+      if (!finalExpenseCategory) {
+        setTransferError('Please select or specify an expense category.');
+        return;
+      }
+    }
+
+    if (sendMoneyForm.destinationType === 'TO_PARTNER') {
+      if (!sendMoneyForm.toPartnerId) {
+        setTransferError('Please select the recipient partner or owner.');
+        return;
+      }
+      if (sendMoneyForm.sourceType === 'PARTNER' && sendMoneyForm.sourceId === sendMoneyForm.toPartnerId) {
+        setTransferError('Source and recipient partner cannot be the same person.');
+        return;
+      }
+    }
+
+    if (sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT') {
+      if (!sendMoneyForm.toBankAccountId) {
+        setTransferError('Please select the target bank account for deposit/transfer.');
+        return;
+      }
+      if (sendMoneyForm.sourceType === 'BANK' && sendMoneyForm.sourceId === sendMoneyForm.toBankAccountId) {
+        setTransferError('Source and destination bank accounts cannot be the same.');
+        return;
+      }
     }
 
     setIsSubmittingTransfer(true);
     try {
+      const payload = {
+        sourceType: sendMoneyForm.sourceType,
+        sourceId: sendMoneyForm.sourceId,
+        destinationType: sendMoneyForm.destinationType,
+        toPartnerId: sendMoneyForm.toPartnerId,
+        toBankAccountId: sendMoneyForm.toBankAccountId,
+        toWorkerId: sendMoneyForm.toWorkerId,
+        workerReason: finalWorkerReason,
+        expenseCategory: finalExpenseCategory,
+        expenseDescription: sendMoneyForm.expenseDescription.trim() || undefined,
+        vendorName: sendMoneyForm.vendorName.trim() || undefined,
+        amount: parsedAmount,
+        date: sendMoneyForm.date,
+        paymentMethod: sendMoneyForm.paymentMethod,
+        purpose: sendMoneyForm.purpose,
+        projectId: sendMoneyForm.projectId || null,
+        siteId: sendMoneyForm.siteId || null,
+        receiptId: sendMoneyForm.transferSourceType === 'FROM_RECEIPT' ? sendMoneyForm.receiptId || null : null,
+        reference: sendMoneyForm.reference.trim() || null,
+        notes: sendMoneyForm.notes.trim() || null,
+      };
+
       const res = await fetch('/api/finance/partner-hisaab', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toUserId: transferForm.toUserId,
-          amount: parsedAmount,
-          date: transferForm.date,
-          paymentMethod: transferForm.paymentMethod,
-          purpose: transferForm.purpose,
-          projectId: transferForm.projectId || null,
-          siteId: transferForm.siteId || null,
-          receiptId: transferForm.transferSourceType === 'FROM_RECEIPT' ? transferForm.receiptId || null : null,
-          reference: transferForm.reference.trim() || null,
-          notes: transferForm.notes.trim() || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to record partner transfer');
+        throw new Error(data.error || 'Failed to process transaction');
       }
 
-      setSuccessMessage(data.message || 'Payment successfully transferred to partner!');
+      setSuccessMessage(data.message || 'Payment successfully processed!');
       setIsTransferModalOpen(false);
       loadPartnerHisaab();
     } catch (err: any) {
-      setTransferError(err.message || 'Error processing transfer');
+      setTransferError(err.message || 'Error processing transaction');
     } finally {
       setIsSubmittingTransfer(false);
     }
@@ -423,10 +606,10 @@ export default function PartnerHisaabPage() {
             <Button
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-sm"
-              onClick={() => openTransferModal(selectedPartner?.id)}
+              onClick={() => openSendMoneyModal()}
             >
-              <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-              Transfer
+              <Send className="w-3.5 h-3.5 mr-1.5" />
+              Send Money
             </Button>
           </div>
         </div>
@@ -659,11 +842,11 @@ export default function PartnerHisaabPage() {
               </div>
               <Button
                 size="sm"
-                onClick={() => openTransferModal()}
+                onClick={() => openSendMoneyModal()}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
               >
-                <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />
-                Transfer Payment
+                <Send className="w-3.5 h-3.5 mr-1" />
+                Send Money
               </Button>
             </div>
 
@@ -739,10 +922,11 @@ export default function PartnerHisaabPage() {
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => openTransferModal(p.id)}
-                              className="text-xs h-7 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+                              onClick={() => openSendMoneyModal({ defaultSourceType: 'PARTNER', defaultSourceId: p.id })}
+                              className="text-xs h-7 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center"
                             >
-                              Transfer
+                              <Send className="w-3 h-3 mr-1" />
+                              Send Money
                             </Button>
                           </div>
                         </td>
@@ -862,11 +1046,11 @@ export default function PartnerHisaabPage() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => openTransferModal()}
+                  onClick={() => openSendMoneyModal({ defaultSourceType: 'BANK', defaultSourceId: selectedBankAccount?.id })}
                   className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                 >
-                  <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Transfer to Partner
+                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                  Send Money
                 </Button>
               </div>
             </div>
@@ -903,11 +1087,11 @@ export default function PartnerHisaabPage() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => openTransferModal(selectedPartner?.id)}
+                  onClick={() => openSendMoneyModal({ defaultSourceType: 'PARTNER', defaultSourceId: selectedPartner?.id })}
                   className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                 >
-                  <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
-                  Transfer to {selectedPartner?.name}
+                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                  Send Money
                 </Button>
               </div>
             </div>
@@ -1058,7 +1242,7 @@ export default function PartnerHisaabPage() {
                       <td colSpan={6} className="py-12 text-center text-slate-400">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
                         <p className="font-semibold">{isBankSelected ? 'No bank transactions recorded for this period' : 'No transactions recorded for this partner in this period'}</p>
-                        <p className="text-[11px] mt-1">Use the &quot;Transfer&quot; button above to record a new transaction.</p>
+                        <p className="text-[11px] mt-1">Use the &quot;Send Money&quot; button above to record a new transaction.</p>
                       </td>
                     </tr>
                   ) : (
@@ -1124,15 +1308,15 @@ export default function PartnerHisaabPage() {
         </div>
       )}
 
-      {/* 6. MODAL: TRANSFER PAYMENT TO PARTNER */}
+      {/* 6. MODAL: SEND MONEY / PAYMENT OUT */}
       <Modal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        title="Transfer Payment to Partner / Owner"
-        description="Transfer received site payments or company cash to a partner's wallet."
-        size="md"
+        title="Send Money / Transfer Payment"
+        description="Send money from partner wallet or company bank to partners, bank deposit, workers, or record expense."
+        size="lg"
       >
-        <form onSubmit={handleTransferSubmit} className="space-y-4">
+        <form onSubmit={handleSendMoneySubmit} className="space-y-4">
           {transferError && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1140,121 +1324,472 @@ export default function PartnerHisaabPage() {
             </div>
           )}
 
-          {/* Transfer Source Switch: Direct Transfer vs From Received Client Payment */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2">
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Transfer Type / Source:
-            </label>
+          {/* 1. PAY FROM (SOURCE ACCOUNT) */}
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5 text-indigo-500" />
+                Pay From (Source Account):
+              </span>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Available: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatINR(sourceAvailableBalance)}</strong>
+              </span>
+            </div>
+
+            {/* Source Type Toggle */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setTransferForm({ ...transferForm, transferSourceType: 'DIRECT', receiptId: '' })}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold text-center transition-all border ${
-                  transferForm.transferSourceType === 'DIRECT'
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold'
-                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                onClick={() => {
+                  const defId = (selectedPartner && !isBankSelected) ? selectedPartner.id : (partners[0]?.id || '');
+                  setSendMoneyForm((prev) => ({
+                    ...prev,
+                    sourceType: 'PARTNER',
+                    sourceId: defId,
+                    paymentMethod: 'CASH',
+                    toPartnerId: prev.toPartnerId === defId ? (partners.find((p) => p.id !== defId)?.id || '') : prev.toPartnerId,
+                  }));
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 ${
+                  sendMoneyForm.sourceType === 'PARTNER'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                💵 Direct Cash Transfer
+                <Users className="w-3.5 h-3.5" />
+                Partner / Owner Wallet
               </button>
               <button
                 type="button"
-                onClick={() => setTransferForm({ ...transferForm, transferSourceType: 'FROM_RECEIPT' })}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold text-center transition-all border ${
-                  transferForm.transferSourceType === 'FROM_RECEIPT'
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold'
-                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                onClick={() => {
+                  const defBankId = selectedBankAccount?.id || (bankAccounts[0]?.id || '');
+                  setSendMoneyForm((prev) => ({
+                    ...prev,
+                    sourceType: 'BANK',
+                    sourceId: defBankId,
+                    paymentMethod: 'BANK',
+                    toBankAccountId: prev.toBankAccountId === defBankId ? (bankAccounts.find((b) => b.id !== defBankId)?.id || '') : prev.toBankAccountId,
+                  }));
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5 ${
+                  sendMoneyForm.sourceType === 'BANK'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                📑 From Received Payment
+                <Landmark className="w-3.5 h-3.5" />
+                Company Bank Account
               </button>
             </div>
 
-            {/* If FROM_RECEIPT selected, show dropdown of client payments */}
-            {transferForm.transferSourceType === 'FROM_RECEIPT' && (
-              <div className="pt-2 animate-fade-in">
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Select Received Payment <span className="text-rose-500">*</span>
+            {/* Specific Source Dropdown */}
+            {sendMoneyForm.sourceType === 'PARTNER' ? (
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Select Paying Partner / Owner <span className="text-rose-500">*</span>
                 </label>
                 <select
-                  required={transferForm.transferSourceType === 'FROM_RECEIPT'}
-                  value={transferForm.receiptId}
-                  onChange={(e) => handleReceiptSelection(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                  value={sendMoneyForm.sourceId}
+                  onChange={(e) => {
+                    const newSourceId = e.target.value;
+                    setSendMoneyForm((prev) => ({
+                      ...prev,
+                      sourceId: newSourceId,
+                      toPartnerId: prev.toPartnerId === newSourceId ? (partners.find((p) => p.id !== newSourceId)?.id || '') : prev.toPartnerId,
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">-- Select Received Payment --</option>
-                  {recentReceipts.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.clientName} • {formatINR(r.amount)} • {r.project?.name || 'Site'} ({new Date(r.date).toLocaleDateString('en-IN')})
+                  {partners.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.role}) • Live Cash: {formatINR(p.currentBalance)}
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Selecting a receipt auto-fills the amount and links it to that client payment.
-                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Select Company Bank Account <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required
+                  value={sendMoneyForm.sourceId}
+                  onChange={(e) => {
+                    const newBankId = e.target.value;
+                    setSendMoneyForm((prev) => ({
+                      ...prev,
+                      sourceId: newBankId,
+                      toBankAccountId: prev.toBankAccountId === newBankId ? (bankAccounts.find((b) => b.id !== newBankId)?.id || '') : prev.toBankAccountId,
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {bankAccounts.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.bankName} ({b.name}){b.accountLast4 ? ` ..${b.accountLast4}` : ''} • Bal: {formatINR(b.balance)}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
 
-          {/* Recipient Partner / Owner */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Select Recipient Partner / Owner <span className="text-rose-500">*</span>
+          {/* 2. SEND MONEY TO (DESTINATION SELECTOR) */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Send Money To (Destination):
             </label>
-            <select
-              required
-              value={transferForm.toUserId}
-              onChange={(e) => setTransferForm({ ...transferForm, toUserId: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">-- Choose Partner or Owner --</option>
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.role}) — Current Balance: {formatINR(p.currentBalance)}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'TO_PARTNER' }))}
+                className={`p-2.5 rounded-xl text-center border transition-all flex flex-col items-center gap-1 ${
+                  sendMoneyForm.destinationType === 'TO_PARTNER'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20 font-bold'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold'
+                }`}
+              >
+                <Users className="w-4 h-4 text-indigo-500" />
+                <span className="text-xs">To Partner</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'INTERNAL_BANK_DEPOSIT' }))}
+                className={`p-2.5 rounded-xl text-center border transition-all flex flex-col items-center gap-1 ${
+                  sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT'
+                    ? 'bg-sky-50 dark:bg-sky-950/50 border-sky-500 text-sky-700 dark:text-sky-300 ring-2 ring-sky-500/20 font-bold'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold'
+                }`}
+              >
+                <Landmark className="w-4 h-4 text-sky-500" />
+                <span className="text-xs">{sendMoneyForm.sourceType === 'PARTNER' ? 'Bank Deposit' : 'Bank to Bank'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'TO_WORKER' }))}
+                className={`p-2.5 rounded-xl text-center border transition-all flex flex-col items-center gap-1 ${
+                  sendMoneyForm.destinationType === 'TO_WORKER'
+                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20 font-bold'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold'
+                }`}
+              >
+                <User className="w-4 h-4 text-amber-500" />
+                <span className="text-xs">To Worker</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'SELF_EXPENSE' }))}
+                className={`p-2.5 rounded-xl text-center border transition-all flex flex-col items-center gap-1 ${
+                  sendMoneyForm.destinationType === 'SELF_EXPENSE'
+                    ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-500 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20 font-bold'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold'
+                }`}
+              >
+                <Tag className="w-4 h-4 text-rose-500" />
+                <span className="text-xs">Self Expense</span>
+              </button>
+            </div>
           </div>
 
+          {/* 3. DESTINATION SPECIFIC FIELDS */}
+          {/* Destination: TO_PARTNER */}
+          {sendMoneyForm.destinationType === 'TO_PARTNER' && (
+            <div className="space-y-3 p-3.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Recipient Partner / Owner <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required={sendMoneyForm.destinationType === 'TO_PARTNER'}
+                  value={sendMoneyForm.toPartnerId}
+                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, toPartnerId: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Choose Recipient Partner --</option>
+                  {partners
+                    .filter((p) => sendMoneyForm.sourceType !== 'PARTNER' || p.id !== sendMoneyForm.sourceId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.role}) • Live Bal: {formatINR(p.currentBalance)}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Mode: Direct Funds vs From Client Receipt */}
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendMoneyForm((prev) => ({ ...prev, transferSourceType: 'DIRECT', receiptId: '' }))}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold text-center transition-all border ${
+                      sendMoneyForm.transferSourceType === 'DIRECT'
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    💵 Direct Funds
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSendMoneyForm((prev) => ({ ...prev, transferSourceType: 'FROM_RECEIPT' }))}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold text-center transition-all border ${
+                      sendMoneyForm.transferSourceType === 'FROM_RECEIPT'
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    📑 From Client Payment Receipt
+                  </button>
+                </div>
+
+                {sendMoneyForm.transferSourceType === 'FROM_RECEIPT' && (
+                  <div className="pt-1.5 animate-fade-in">
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Select Client Payment Receipt <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      required={sendMoneyForm.transferSourceType === 'FROM_RECEIPT'}
+                      value={sendMoneyForm.receiptId}
+                      onChange={(e) => handleReceiptSelection(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Select Received Client Payment --</option>
+                      {recentReceipts.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.clientName} • {formatINR(r.amount)} • {r.project?.name || 'Site'} ({new Date(r.date).toLocaleDateString('en-IN')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Transfer Purpose
+                </label>
+                <select
+                  value={sendMoneyForm.purpose}
+                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, purpose: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="PARTNER_TRANSFER">Site Expense Fund</option>
+                  <option value="RA_BILL_SHARE">Payment Distribution</option>
+                  <option value="ADVANCE">Partner Advance</option>
+                  <option value="SETTLEMENT">Partner Settlement</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Destination: INTERNAL_BANK_DEPOSIT */}
+          {sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT' && (
+            <div className="p-3.5 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/40 space-y-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {sendMoneyForm.sourceType === 'PARTNER' ? 'Select Target Company Bank (Deposit)' : 'Select Destination Bank Account'} <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required={sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT'}
+                value={sendMoneyForm.toBankAccountId}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, toBankAccountId: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="">-- Choose Company Bank Account --</option>
+                {bankAccounts
+                  .filter((b) => sendMoneyForm.sourceType !== 'BANK' || b.id !== sendMoneyForm.sourceId)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.bankName} ({b.name}){b.accountLast4 ? ` ..${b.accountLast4}` : ''} • Current Bal: {formatINR(b.balance)}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {sendMoneyForm.sourceType === 'PARTNER'
+                  ? 'Cash will be deducted from partner wallet and credited into this company bank account.'
+                  : 'Funds will be transferred from source bank account to this destination bank account.'}
+              </p>
+            </div>
+          )}
+
+          {/* Destination: TO_WORKER */}
+          {sendMoneyForm.destinationType === 'TO_WORKER' && (
+            <div className="p-3.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Worker / Labour <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  required={sendMoneyForm.destinationType === 'TO_WORKER'}
+                  value={sendMoneyForm.toWorkerId}
+                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, toWorkerId: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">-- Select Worker --</option>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} {w.workerCode ? `(${w.workerCode})` : ''} {w.category ? `• ${w.category}` : ''} {w.mobile ? `• ${w.mobile}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    Payment Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={sendMoneyForm.workerReasonSelect}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, workerReasonSelect: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Salary / Wages">Salary / Wages</option>
+                    <option value="Worker Advance">Worker Advance</option>
+                    <option value="Worker Expense">Worker Expense / Kharcha</option>
+                    <option value="Worker Food">Worker Food / Refreshments</option>
+                    <option value="Site Labour Payment">Site Labour Payment</option>
+                    <option value="Overtime Allowance">Overtime Allowance</option>
+                    <option value="CUSTOM">+ Custom Reason / Other</option>
+                  </select>
+                </div>
+
+                {sendMoneyForm.workerReasonSelect === 'CUSTOM' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Type Custom Reason <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required={sendMoneyForm.workerReasonSelect === 'CUSTOM'}
+                      placeholder="e.g. Tools allowance, travel fare..."
+                      value={sendMoneyForm.customWorkerReason}
+                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, customWorkerReason: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Destination: SELF_EXPENSE */}
+          {sendMoneyForm.destinationType === 'SELF_EXPENSE' && (
+            <div className="p-3.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Expense Category <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={sendMoneyForm.expenseCategorySelect}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, expenseCategorySelect: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  >
+                    {availableExpenseCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">+ Add New Custom Category...</option>
+                  </select>
+                </div>
+
+                {sendMoneyForm.expenseCategorySelect === 'CUSTOM' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      New Category Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required={sendMoneyForm.expenseCategorySelect === 'CUSTOM'}
+                      placeholder="e.g. Electrical fittings, Safety gear..."
+                      value={sendMoneyForm.customCategoryName}
+                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, customCategoryName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    Expense Description / Item
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Lunch for 5 persons, 10 bags plaster cement"
+                    value={sendMoneyForm.expenseDescription}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, expenseDescription: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    Vendor / Store / Person Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ram Hardware / Shell Petrol Pump"
+                    value={sendMoneyForm.vendorName}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, vendorName: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. COMMON TRANSACTION FIELDS */}
           {/* Amount & Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Amount to Transfer (₹) <span className="text-rose-500">*</span>
+                Amount to Send (₹) <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="number"
-                step="any"
-                required
-                placeholder="50000"
-                value={transferForm.amount}
-                onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  placeholder="5000"
+                  value={sendMoneyForm.amount}
+                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="w-full pl-7 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm font-black text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Transfer Date <span className="text-rose-500">*</span>
+                Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 required
-                value={transferForm.date}
-                onChange={(e) => setTransferForm({ ...transferForm, date: e.target.value })}
+                value={sendMoneyForm.date}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, date: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
-          {/* Payment Method & Purpose */}
+          {/* Payment Method & Project */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Payment Mode <span className="text-rose-500">*</span>
               </label>
               <select
-                value={transferForm.paymentMethod}
-                onChange={(e) => setTransferForm({ ...transferForm, paymentMethod: e.target.value })}
+                value={sendMoneyForm.paymentMethod}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="CASH">Cash</option>
@@ -1265,39 +1800,21 @@ export default function PartnerHisaabPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Transfer Purpose
+                Linked Project / Site (Optional)
               </label>
               <select
-                value={transferForm.purpose}
-                onChange={(e) => setTransferForm({ ...transferForm, purpose: e.target.value })}
+                value={sendMoneyForm.projectId}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, projectId: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="PARTNER_TRANSFER">Site Expense Fund</option>
-                <option value="RA_BILL_SHARE">Payment Distribution</option>
-                <option value="ADVANCE">Partner Advance</option>
-                <option value="SETTLEMENT">Partner Settlement</option>
-                <option value="OTHER">Other</option>
+                <option value="">-- No Project (General) --</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.projectCode})
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
-
-          {/* Optional Project / Site */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Linked Project / Site (Optional)
-            </label>
-            <select
-              value={transferForm.projectId}
-              onChange={(e) => setTransferForm({ ...transferForm, projectId: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">-- Select Project (Optional) --</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.projectCode})
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Reference & Notes */}
@@ -1309,8 +1826,8 @@ export default function PartnerHisaabPage() {
               <input
                 type="text"
                 placeholder="e.g. UPI-928103 or CHQ-4402"
-                value={transferForm.reference}
-                onChange={(e) => setTransferForm({ ...transferForm, reference: e.target.value })}
+                value={sendMoneyForm.reference}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, reference: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -1321,13 +1838,14 @@ export default function PartnerHisaabPage() {
               <input
                 type="text"
                 placeholder="e.g. For plaster materials & labour"
-                value={transferForm.notes}
-                onChange={(e) => setTransferForm({ ...transferForm, notes: e.target.value })}
+                value={sendMoneyForm.notes}
+                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, notes: e.target.value }))}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
+          {/* Footer Action Buttons */}
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button
               type="button"
@@ -1347,10 +1865,13 @@ export default function PartnerHisaabPage() {
               {isSubmittingTransfer ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Transferring...
+                  Sending Money...
                 </>
               ) : (
-                'Confirm & Transfer Money'
+                <>
+                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                  Confirm &amp; Send Money {sendMoneyForm.amount ? `(${formatINR(parseFloat(sendMoneyForm.amount) || 0)})` : ''}
+                </>
               )}
             </Button>
           </div>
