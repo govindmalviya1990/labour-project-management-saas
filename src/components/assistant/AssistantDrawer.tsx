@@ -24,6 +24,7 @@ import {
   SUPPORTED_VOICE_LANGUAGES,
   VoiceLanguage,
 } from '@/hooks/useSpeechRecognition';
+import { formatINR } from '@/lib/calculations';
 
 interface ChatMessage {
   id: string;
@@ -280,22 +281,69 @@ export function AssistantDrawer({
                     {msg.card.type === 'CONFIRMATION' && msg.card.draft ? (
                       <ConfirmationCard draft={msg.card.draft} />
                     ) : (
-                      <>
-                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-400 mb-1">
+                      <div className="space-y-2 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-200 shadow-sm">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-400">
                           <span>{msg.card.title}</span>
                         </div>
 
-                        {msg.card.linkUrl && (
-                          <Link
-                            href={msg.card.linkUrl}
-                            onClick={onClose}
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1.5 rounded-lg border border-amber-500/30 transition-colors mt-1"
-                          >
-                            <span>{msg.card.linkLabel || 'Open in App'}</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </Link>
+                        {/* PARTNERS LIVE BALANCES IN CHAT */}
+                        {msg.card.type === 'PARTNERS' && msg.card.data?.partners && (
+                          <div className="space-y-1.5 pt-1">
+                            {msg.card.data.partners.map((p: any) => (
+                              <div
+                                key={p.id || p.name}
+                                className="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-[10px] shrink-0 border border-indigo-500/20">
+                                    {p.name?.charAt(0) || 'P'}
+                                  </div>
+                                  <span className="font-semibold text-slate-200 truncate">{p.name}</span>
+                                </div>
+                                <span className="font-mono font-bold text-emerald-400 text-xs shrink-0">
+                                  {p.formattedBalance || formatINR(p.balance || p.cashInHand || 0)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                      </>
+
+                        {/* EXPENSES BREAKDOWN IN CHAT */}
+                        {msg.card.type === 'EXPENSES' && msg.card.data && (
+                          <div className="space-y-2 pt-1">
+                            <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-center justify-between">
+                              <span className="text-[11px] text-slate-400">Total Spent</span>
+                              <span className="font-mono font-black text-amber-400 text-sm">
+                                {msg.card.data.formattedTotal || formatINR(msg.card.data.total || 0)}
+                              </span>
+                            </div>
+                            {msg.card.data.expenses && msg.card.data.expenses.length > 0 && (
+                              <div className="space-y-1 max-h-36 overflow-y-auto pr-1 no-scrollbar text-[11px]">
+                                {msg.card.data.expenses.slice(0, 5).map((exp: any, i: number) => (
+                                  <div key={exp.id || i} className="flex items-center justify-between py-1 border-b border-slate-800/50">
+                                    <span className="text-slate-300 truncate max-w-[150px]">{exp.category || exp.reason || 'Expense'}</span>
+                                    <span className="font-mono text-slate-200 font-semibold">{formatINR(exp.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Optional subtle page shortcut link */}
+                        {msg.card.linkUrl && (
+                          <div className="pt-1 flex justify-end">
+                            <Link
+                              href={msg.card.linkUrl}
+                              onClick={onClose}
+                              className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 hover:text-amber-300 bg-slate-800/60 hover:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700/50 transition-colors"
+                            >
+                              <span>{msg.card.linkLabel || 'Open Page'}</span>
+                              <ArrowRight className="w-2.5 h-2.5" />
+                            </Link>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
