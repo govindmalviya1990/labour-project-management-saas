@@ -24,7 +24,10 @@ function normalizeSchema(schema: any): any {
 async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
   if (activeModelCache) return activeModelCache;
 
-  const initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
+  let initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
+  if (initial.includes('2.5-flash')) {
+    initial = 'gemini-3.8-flash';
+  }
 
   try {
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
@@ -32,9 +35,8 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
       const data = await listRes.json();
       const validModels: string[] = (data.models || [])
         .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-        .map((m: any) => m.name.replace(/^models\//, ''));
-
-      console.log('Gemini models available for this API key:', validModels);
+        .map((m: any) => m.name.replace(/^models\//, ''))
+        .filter((name: string) => !name.includes('2.5-flash')); // Google deprecated 2.5-flash in favor of 3.8-flash
 
       if (initial && validModels.includes(initial)) {
         activeModelCache = initial;
@@ -42,6 +44,7 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
       }
 
       const priorityOrder = [
+        'gemini-3.8-flash',
         'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
         'gemini-1.5-flash-latest',
