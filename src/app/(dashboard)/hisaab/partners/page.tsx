@@ -1314,7 +1314,7 @@ export default function PartnerHisaabPage() {
         onClose={() => setIsTransferModalOpen(false)}
         title="Send Money / Transfer Payment"
         description="Send money from partner wallet or company bank to partners, bank deposit, workers, or record expense."
-        size="lg"
+        size="xl"
       >
         <form onSubmit={handleSendMoneySubmit} className="space-y-4">
           {transferError && (
@@ -1845,8 +1845,8 @@ export default function PartnerHisaabPage() {
             </div>
           </div>
 
-          {/* Footer Action Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          {/* Footer Action Buttons (Sticky at bottom so always visible) */}
+          <div className="sticky bottom-0 -mx-4 sm:-mx-5 -mb-4 sm:-mb-5 px-4 sm:px-5 py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5 mt-5 z-20 shadow-lg">
             <Button
               type="button"
               variant="outline"
@@ -1859,7 +1859,7 @@ export default function PartnerHisaabPage() {
             <Button
               type="submit"
               size="sm"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
               disabled={isSubmittingTransfer}
             >
               {isSubmittingTransfer ? (
