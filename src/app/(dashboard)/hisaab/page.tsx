@@ -79,10 +79,19 @@ interface ProjectReceipt {
   };
 }
 
+interface PartnerOption {
+  id: string;
+  name: string;
+  email?: string;
+  role: string;
+  currentBalance?: number;
+}
+
 export default function HisaabPage() {
   const [receipts, setReceipts] = useState<ProjectReceipt[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [partners, setPartners] = useState<PartnerOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -93,6 +102,7 @@ export default function HisaabPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
+  const [selectedPartnerFilter, setSelectedPartnerFilter] = useState('ALL');
   const [selectedMethod, setSelectedMethod] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -106,6 +116,7 @@ export default function HisaabPage() {
   const [formData, setFormData] = useState({
     projectId: '',
     siteId: '',
+    receivedById: '',
     clientName: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -151,6 +162,28 @@ export default function HisaabPage() {
     return [];
   }, []);
 
+  // Load Partners helper
+  const loadPartners = useCallback(async () => {
+    try {
+      const res = await fetch('/api/finance/partner-hisaab');
+      if (res.ok) {
+        const data = await res.json();
+        const pList: PartnerOption[] = (data.partners || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          role: p.role,
+          currentBalance: p.currentBalance,
+        }));
+        setPartners(pList);
+        return pList;
+      }
+    } catch (err) {
+      console.error('Failed to load partners:', err);
+    }
+    return [];
+  }, []);
+
   // Handle bank accounts updated callback (e.g. from BankAccountManageModal)
   const handleBankAccountsUpdated = async () => {
     const accounts = await loadBankAccounts();
@@ -160,26 +193,34 @@ export default function HisaabPage() {
     }
   };
 
-  // Load Projects and Bank Accounts on mount
+  // Load Projects, Bank Accounts and Partners on mount
   useEffect(() => {
     const loadPrerequisites = async () => {
       try {
-        const [projRes] = await Promise.all([
+        const [projRes, , pList] = await Promise.all([
           fetch('/api/projects'),
           loadBankAccounts(),
+          loadPartners(),
         ]);
 
         if (projRes.ok) {
           const data = await projRes.json();
           setProjects(data.projects || []);
         }
+
+        if (pList && pList.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            receivedById: prev.receivedById || pList[0].id,
+          }));
+        }
       } catch (err) {
-        console.error('Failed to load projects/accounts:', err);
+        console.error('Failed to load projects/accounts/partners:', err);
       }
     };
 
     loadPrerequisites();
-  }, [loadBankAccounts]);
+  }, [loadBankAccounts, loadPartners]);
 
   // Fetch Receipts with filters
   const fetchReceipts = useCallback(async () => {
@@ -188,6 +229,7 @@ export default function HisaabPage() {
     try {
       const params = new URLSearchParams();
       if (selectedProjectId !== 'ALL') params.set('projectId', selectedProjectId);
+      if (selectedPartnerFilter !== 'ALL') params.set('receivedById', selectedPartnerFilter);
 
       // Period dates
       const now = new Date();
@@ -225,7 +267,7 @@ export default function HisaabPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedProjectId, period, startDate, endDate, searchQuery]);
+  }, [selectedProjectId, selectedPartnerFilter, period, startDate, endDate, searchQuery]);
 
   useEffect(() => {
     fetchReceipts();
@@ -305,6 +347,11 @@ export default function HisaabPage() {
       return;
     }
 
+    if (formData.receivedIn === 'WALLET' && !formData.receivedById) {
+      setFormError('Please select the partner / cash holder who received the payment.');
+      return;
+    }
+
     if (formData.receivedIn === 'BANK' && !formData.bankAccountId) {
       setFormError('Please select the bank account where funds were received.');
       return;
@@ -318,6 +365,7 @@ export default function HisaabPage() {
         body: JSON.stringify({
           projectId: formData.projectId,
           siteId: formData.siteId || null,
+          receivedById: formData.receivedById || undefined,
           clientName: formData.clientName.trim(),
           amount: parsedAmount,
           date: formData.date,
@@ -341,6 +389,7 @@ export default function HisaabPage() {
       setFormData({
         projectId: '',
         siteId: '',
+        receivedById: partners.length > 0 ? partners[0].id : '',
         clientName: '',
         amount: '',
         date: new Date().toISOString().split('T')[0],
@@ -352,6 +401,7 @@ export default function HisaabPage() {
         notes: '',
       });
       fetchReceipts();
+      loadPartners();
     } catch (err: any) {
       setFormError(err.message || 'Error recording receipt');
     } finally {
@@ -392,6 +442,7 @@ export default function HisaabPage() {
           reference: editingReceipt.reference || null,
           notes: editingReceipt.notes || null,
           siteId: editingReceipt.siteId || null,
+          receivedById: editingReceipt.receivedById || null,
         }),
       });
 
@@ -404,6 +455,7 @@ export default function HisaabPage() {
       setIsEditModalOpen(false);
       setEditingReceipt(null);
       fetchReceipts();
+      loadPartners();
     } catch (err: any) {
       setEditFormError(err.message || 'Error updating receipt');
     } finally {
@@ -683,7 +735,7 @@ export default function HisaabPage() {
         )}
 
         {/* Row 2: Secondary Dropdown & Search Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
           {/* Project Filter */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
@@ -698,6 +750,25 @@ export default function HisaabPage() {
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.projectCode})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Partner Filter */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+              Filter Partner / Recipient
+            </label>
+            <select
+              value={selectedPartnerFilter}
+              onChange={(e) => setSelectedPartnerFilter(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="ALL">All Partners &amp; Cash Holders</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.role})
                 </option>
               ))}
             </select>
@@ -911,7 +982,7 @@ export default function HisaabPage() {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Record Payment Received (साइट से भुगतान प्राप्त करें)"
+        title="Record Payment Received"
         description="Enter incoming client payment details received for a construction site or project."
         size="lg"
       >
@@ -1065,13 +1136,13 @@ export default function HisaabPage() {
           </div>
 
           {/* Deposit Account: Wallet or Bank Account */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 Deposit Into:
               </label>
-              <div className="flex items-center gap-3 mt-1">
-                <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer font-medium">
                   <input
                     type="radio"
                     name="receivedIn"
@@ -1082,7 +1153,7 @@ export default function HisaabPage() {
                   />
                   <span>Partner / Hand Cash</span>
                 </label>
-                <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                <label className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer font-medium">
                   <input
                     type="radio"
                     name="receivedIn"
@@ -1096,48 +1167,99 @@ export default function HisaabPage() {
               </div>
             </div>
 
-            {formData.receivedIn === 'BANK' && (
-              <div className="space-y-1.5">
+            {formData.receivedIn === 'WALLET' ? (
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Select Bank Account <span className="text-rose-500">*</span>
+                    Received By Partner / Cash Holder <span className="text-rose-500">*</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsBankManageModalOpen(true)}
-                    className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-500 flex items-center gap-1 hover:underline"
+                  <Link
+                    href="/hisaab/partners"
+                    className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                    target="_blank"
                   >
-                    <Plus className="w-3 h-3" /> Add Bank Account
-                  </button>
+                    <Users className="w-3 h-3" /> View Partner Wallets
+                  </Link>
+                </div>
+                <select
+                  required={formData.receivedIn === 'WALLET'}
+                  value={formData.receivedById}
+                  onChange={(e) => setFormData({ ...formData, receivedById: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                >
+                  <option value="">-- Select Partner / Hand Cash Holder --</option>
+                  {partners.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.role}) {p.currentBalance !== undefined ? `• Cash Bal: ${formatINR(p.currentBalance)}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Payment will be credited directly to this partner&apos;s wallet and will reflect in their Partner Hisaab and Dashboard.
+                </p>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Select Bank Account <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsBankManageModalOpen(true)}
+                      className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-500 flex items-center gap-1 hover:underline"
+                    >
+                      <Plus className="w-3 h-3" /> Add Bank Account
+                    </button>
+                  </div>
+
+                  {bankAccounts.length === 0 ? (
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between gap-2">
+                      <span>No bank accounts found.</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setIsBankManageModalOpen(true)}
+                        className="text-xs h-7 px-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0"
+                      >
+                        <Plus className="w-3 h-3 mr-1" /> Add Account Now
+                      </Button>
+                    </div>
+                  ) : (
+                    <select
+                      required={formData.receivedIn === 'BANK'}
+                      value={formData.bankAccountId}
+                      onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">-- Select Bank Account --</option>
+                      {bankAccounts.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.bankName} - {b.name} {b.accountLast4 ? `(..${b.accountLast4})` : ''} • Bal: {formatINR(b.balance ?? b.openingBalance ?? 0)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                {bankAccounts.length === 0 ? (
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 flex items-center justify-between gap-2">
-                    <span>No bank accounts found.</span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setIsBankManageModalOpen(true)}
-                      className="text-xs h-7 px-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0"
-                    >
-                      <Plus className="w-3 h-3 mr-1" /> Add Account Now
-                    </Button>
-                  </div>
-                ) : (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Handled By Partner (Optional)
+                  </label>
                   <select
-                    required={formData.receivedIn === 'BANK'}
-                    value={formData.bankAccountId}
-                    onChange={(e) => setFormData({ ...formData, bankAccountId: e.target.value })}
+                    value={formData.receivedById}
+                    onChange={(e) => setFormData({ ...formData, receivedById: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="">-- Select Bank Account --</option>
-                    {bankAccounts.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.bankName} - {b.name} {b.accountLast4 ? `(..${b.accountLast4})` : ''} • Bal: {formatINR(b.balance ?? b.openingBalance ?? 0)}
+                    <option value="">-- Select Partner (Optional) --</option>
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.role})
                       </option>
                     ))}
                   </select>
-                )}
+                </div>
               </div>
             )}
           </div>
@@ -1303,6 +1425,23 @@ export default function HisaabPage() {
                   <option value="OTHER">Other</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Received By (Partner / Cash Holder)
+              </label>
+              <select
+                value={editingReceipt.receivedById || ''}
+                onChange={(e) => setEditingReceipt({ ...editingReceipt, receivedById: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.role}) {p.currentBalance !== undefined ? `• Cash Bal: ${formatINR(p.currentBalance)}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

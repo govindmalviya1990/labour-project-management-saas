@@ -34,6 +34,7 @@ export async function PUT(
       reference,
       notes,
       siteId,
+      receivedById: inputReceivedById,
     } = body;
 
     const parsedAmount = amount !== undefined ? Math.max(0, parseFloat(amount)) : existing.amount;
@@ -56,6 +57,20 @@ export async function PUT(
       return NextResponse.json({ error: lockCheck.message }, { status: 403 });
     }
 
+    let targetReceivedById = existing.receivedById;
+    if (inputReceivedById && typeof inputReceivedById === 'string' && inputReceivedById.trim() && inputReceivedById !== existing.receivedById) {
+      const targetUser = await prisma.organizationUser.findFirst({
+        where: {
+          organizationId: orgId,
+          userId: inputReceivedById.trim(),
+          status: 'ACTIVE',
+        },
+      });
+      if (targetUser) {
+        targetReceivedById = targetUser.userId;
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const rec = await tx.projectReceipt.update({
         where: { id: receiptId },
@@ -68,6 +83,7 @@ export async function PUT(
           reference: reference !== undefined ? reference?.trim() || null : existing.reference,
           notes: notes !== undefined ? notes?.trim() || null : existing.notes,
           siteId: siteId !== undefined ? (siteId || null) : existing.siteId,
+          receivedById: targetReceivedById,
         },
         include: {
           project: { select: { id: true, name: true, projectCode: true } },

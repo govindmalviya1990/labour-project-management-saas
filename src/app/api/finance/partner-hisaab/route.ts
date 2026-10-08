@@ -159,6 +159,7 @@ export async function GET(req: Request) {
           organizationId: orgId,
           receivedById: uId,
           deletedAt: null,
+          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
         };
         const periodTransfersInWhere: any = {
           organizationId: orgId,
@@ -241,6 +242,7 @@ export async function GET(req: Request) {
         organizationId: orgId,
         receivedById: targetPartnerId,
         deletedAt: null,
+        OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
       };
       const transfersInWhere: any = {
         organizationId: orgId,

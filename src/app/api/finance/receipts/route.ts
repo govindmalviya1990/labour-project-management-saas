@@ -86,8 +86,6 @@ export async function POST(req: Request) {
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
-    const isOwnerOrManager = ['OWNER', 'MANAGER'].includes(normalizeRole(session.role));
-
     const body = await req.json();
     const {
       projectId,
@@ -119,7 +117,22 @@ export async function POST(req: Request) {
     }
 
     const receiptDate = new Date(date);
-    const receivedById = (isOwnerOrManager && inputReceivedById) ? inputReceivedById : session.userId;
+
+    // Resolve recipient partner/user (defaults to session.userId if not provided)
+    let receivedById = session.userId;
+    if (inputReceivedById && typeof inputReceivedById === 'string' && inputReceivedById.trim()) {
+      const targetUser = await prisma.organizationUser.findFirst({
+        where: {
+          organizationId: orgId,
+          userId: inputReceivedById.trim(),
+          status: 'ACTIVE',
+        },
+      });
+      if (targetUser) {
+        receivedById = targetUser.userId;
+      }
+    }
+
     const isBank = receivedIn === 'BANK' && Boolean(bankAccountId);
 
     // Check Day Lock on date if crediting partner wallet
