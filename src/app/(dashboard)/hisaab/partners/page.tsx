@@ -379,31 +379,44 @@ export default function PartnerHisaabPage() {
               onChange={(e) => setSelectedPartnerId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
             >
-              <optgroup label="Summary Views">
-                <option value="ALL">
-                  All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
-                </option>
-                <option value="BANK_ALL">
-                  Company Bank Accounts (Total Bank: {formatINR(totalBankBalance)})
-                </option>
-              </optgroup>
+              <option value="ALL">
+                All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
+              </option>
 
-              {bankAccounts.length > 0 && (
+              {/* Bank Account Option - shown only once */}
+              {bankAccounts.length <= 1 ? (
+                <option value={bankAccounts[0] ? `BANK_${bankAccounts[0].id}` : 'BANK_ALL'}>
+                  Bank: {bankAccounts[0]?.bankName || 'Company Bank'}{
+                    bankAccounts[0]?.name &&
+                    bankAccounts[0].name.toLowerCase() !== (bankAccounts[0].bankName || '').toLowerCase()
+                      ? ` - ${bankAccounts[0].name}`
+                      : ''
+                  }{bankAccounts[0]?.accountLast4 ? ` (..${bankAccounts[0].accountLast4})` : ''} • Bal: {formatINR(bankAccounts[0]?.balance ?? totalBankBalance)}
+                </option>
+              ) : (
                 <optgroup label="Company Bank Accounts">
+                  <option value="BANK_ALL">
+                    All Bank Accounts (Total: {formatINR(totalBankBalance)})
+                  </option>
                   {bankAccounts.map((b) => (
                     <option key={b.id} value={`BANK_${b.id}`}>
-                      {b.bankName} - {b.name} {b.accountLast4 ? `(..${b.accountLast4})` : ''} • Bal: {formatINR(b.balance)}
+                      {b.bankName}{
+                        b.name && b.name.toLowerCase() !== b.bankName.toLowerCase() ? ` - ${b.name}` : ''
+                      }{b.accountLast4 ? ` (..${b.accountLast4})` : ''} • Bal: {formatINR(b.balance)}
                     </option>
                   ))}
                 </optgroup>
               )}
 
               <optgroup label="Individual Partners &amp; Owners">
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.role}) • Cash Bal: {formatINR(p.currentBalance)}
-                  </option>
-                ))}
+                {partners.map((p) => {
+                  const hasRoleInName = p.name.toLowerCase().includes(p.role.toLowerCase());
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.name}{hasRoleInName ? '' : ` (${p.role})`} • Cash Bal: {formatINR(p.currentBalance)}
+                    </option>
+                  );
+                })}
               </optgroup>
             </select>
 
