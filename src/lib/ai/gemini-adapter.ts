@@ -1,12 +1,82 @@
 import { ILlmProvider, LlmRequest, LlmResponse } from './types';
 
+let activeModelCache: string | null = null;
+
+function normalizeSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema;
+  const copy: any = { ...schema };
+  if (typeof copy.type === 'string') {
+    copy.type = copy.type.toUpperCase();
+  }
+  if (copy.properties) {
+    const newProps: Record<string, any> = {};
+    for (const [k, v] of Object.entries(copy.properties)) {
+      newProps[k] = normalizeSchema(v);
+    }
+    copy.properties = newProps;
+  }
+  if (copy.items) {
+    copy.items = normalizeSchema(copy.items);
+  }
+  return copy;
+}
+
+async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
+  if (activeModelCache) return activeModelCache;
+
+  const initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
+
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (listRes.ok) {
+      const data = await listRes.json();
+      const validModels: string[] = (data.models || [])
+        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: any) => m.name.replace(/^models\//, ''));
+
+      console.log('Gemini models available for this API key:', validModels);
+
+      if (initial && validModels.includes(initial)) {
+        activeModelCache = initial;
+        return initial;
+      }
+
+      const priorityOrder = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b',
+        'gemini-1.5-pro-latest',
+        'gemini-1.5-pro',
+        'gemini-pro',
+      ];
+
+      for (const p of priorityOrder) {
+        if (validModels.includes(p)) {
+          activeModelCache = p;
+          return p;
+        }
+      }
+
+      if (validModels.length > 0) {
+        activeModelCache = validModels[0];
+        return validModels[0];
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to query Gemini models list:', err);
+  }
+
+  return initial || 'gemini-2.0-flash';
+}
+
 export class GeminiProvider implements ILlmProvider {
   name = 'gemini';
 
   async generateResponse(request: LlmRequest): Promise<LlmResponse> {
     const rawKey = process.env.GEMINI_API_KEY?.trim() || '';
     const apiKey = rawKey.replace(/^["']|["']$/g, '').trim();
-    const model = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim();
 
     if (!apiKey) {
       return {
@@ -15,6 +85,8 @@ export class GeminiProvider implements ILlmProvider {
         error: 'GEMINI_API_KEY is not set',
       };
     }
+
+    let model = await resolveWorkingModel(apiKey, process.env.GEMINI_MODEL);
 
     // Convert messages to Gemini contents format
     const contents: any[] = [];
@@ -53,14 +125,17 @@ export class GeminiProvider implements ILlmProvider {
       }
     }
 
-    // Format tool declarations for Gemini
+    // Format tool declarations for Gemini with normalized schema
     const tools = request.tools && request.tools.length > 0 ? [
       {
-        functionDeclarations: request.tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
-        })),
+        functionDeclarations: request.tools.map((t) => {
+          const hasProps = t.parameters?.properties && Object.keys(t.parameters.properties).length > 0;
+          return {
+            name: t.name,
+            description: t.description,
+            parameters: hasProps ? normalizeSchema(t.parameters) : undefined,
+          };
+        }),
       },
     ] : undefined;
 
@@ -86,20 +161,35 @@ export class GeminiProvider implements ILlmProvider {
     }
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
+      let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      let response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      // If 404, model name was rejected; discover valid model from list and retry once
+      if (response.status === 404) {
+        activeModelCache = null;
+        const freshModel = await resolveWorkingModel(apiKey);
+        if (freshModel && freshModel !== model) {
+          model = freshModel;
+          url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
+      }
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn(`Gemini API HTTP ${response.status}:`, errorText);
+        console.warn(`Gemini API HTTP ${response.status} (${model}):`, errorText);
         return {
           content: '',
           isFallback: true,
-          error: `Gemini API HTTP ${response.status}: ${errorText}`,
+          error: `Gemini API HTTP ${response.status} (${model}): ${errorText}`,
         };
       }
 
