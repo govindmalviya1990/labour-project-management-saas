@@ -24,10 +24,13 @@ import {
   ShieldAlert,
   Calendar,
   Filter,
+  LayoutDashboard,
+  Wallet,
 } from 'lucide-react';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { Button } from '@/components/ui/Button';
 import { formatINR } from '@/lib/calculations';
+import { PartnerHisaabSection } from '@/components/finance/PartnerHisaabSection';
 import {
   ResponsiveContainer,
   BarChart,
@@ -46,9 +49,30 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState('');
+  const [dashboardMode, setDashboardMode] = useState<'PARTNER_HISAAB' | 'EXECUTIVE' | 'COMBINED'>('PARTNER_HISAAB');
   const [period, setPeriod] = useState<'today' | 'weekly' | 'monthly' | 'custom' | 'all'>('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mw_main_dashboard_view');
+      if (saved === 'EXECUTIVE' || saved === 'PARTNER_HISAAB' || saved === 'COMBINED') {
+        setDashboardMode(saved as any);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  const handleDashboardModeChange = (mode: 'PARTNER_HISAAB' | 'EXECUTIVE' | 'COMBINED') => {
+    setDashboardMode(mode);
+    try {
+      localStorage.setItem('mw_main_dashboard_view', mode);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const fetchDashboardData = useCallback(
     async (
@@ -640,8 +664,84 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Top Banner & Quick Actions Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+      {/* 1. Dashboard Mode Switcher Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <LayoutDashboard className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight">
+                Select Dashboard View:
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wider">
+                Interactive
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Switch between Partner Cash Hisaab (Round Chart) and Projects Operations dashboards
+            </p>
+          </div>
+        </div>
+
+        <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 overflow-x-auto self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => handleDashboardModeChange('PARTNER_HISAAB')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+              dashboardMode === 'PARTNER_HISAAB'
+                ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Partner Hisaab &amp; Expense</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${dashboardMode === 'PARTNER_HISAAB' ? 'bg-indigo-700 text-indigo-100' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'}`}>
+              Round Chart
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleDashboardModeChange('EXECUTIVE')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+              dashboardMode === 'EXECUTIVE'
+                ? 'bg-amber-500 text-slate-950 shadow-sm font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <FolderKanban className="w-4 h-4" />
+            <span>Projects &amp; Operations</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleDashboardModeChange('COMBINED')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shrink-0 ${
+              dashboardMode === 'COMBINED'
+                ? 'bg-emerald-600 text-white shadow-sm font-extrabold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            <span>All-in-One View</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Partner Hisaab Section (Shown when PARTNER_HISAAB or COMBINED is active) */}
+      {(dashboardMode === 'PARTNER_HISAAB' || dashboardMode === 'COMBINED') && (
+        <div className="space-y-6">
+          <PartnerHisaabSection showHeaderTitle={false} />
+        </div>
+      )}
+
+      {/* 3. Executive Projects Dashboard (Shown when EXECUTIVE or COMBINED is active) */}
+      {(dashboardMode === 'EXECUTIVE' || dashboardMode === 'COMBINED') && (
+        <div className="space-y-8 pt-2">
+          {/* Top Banner & Quick Actions Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
@@ -864,5 +964,7 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  )}
+</div>
   );
 }
