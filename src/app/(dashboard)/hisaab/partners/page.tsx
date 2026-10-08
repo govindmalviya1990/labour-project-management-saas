@@ -91,6 +91,8 @@ export default function PartnerHisaabPage() {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [recentReceipts, setRecentReceipts] = useState<RecentReceipt[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [totalBankBalance, setTotalBankBalance] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -156,6 +158,8 @@ export default function PartnerHisaabPage() {
       setLedger(data.ledger || []);
       setRecentReceipts(data.recentReceipts || []);
       setProjects(data.projects || []);
+      setBankAccounts(data.bankAccounts || []);
+      setTotalBankBalance(data.totalBankBalance || 0);
     } catch (err: any) {
       setError(err.message || 'Error loading data');
     } finally {
@@ -304,64 +308,24 @@ export default function PartnerHisaabPage() {
   return (
     <div className="space-y-6 pb-16">
       {/* 1. Header Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Partner Hisaab
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-                  Cash Ledger &amp; Transfers
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Check individual hisaab of each owner &amp; partner, and transfer received client payments to partners
-              </p>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <Users className="w-6 h-6" />
           </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2">
-          {/* Submenu Pills */}
-          <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 mr-2">
-            <Link
-              href="/hisaab"
-              className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5"
-            >
-              <Receipt className="w-3.5 h-3.5 text-emerald-500" />
-              Receive Payment
-            </Link>
-            <div className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-sm flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5" />
-              Partner Hisaab
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Partner Hisaab
+              </h1>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
+                Cash Ledger &amp; Transfers
+              </span>
             </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Check individual hisaab of each owner &amp; partner, and transfer received client payments to partners
+            </p>
           </div>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={loadPartnerHisaab}
-            disabled={isRefreshing}
-            className="text-xs"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-
-          <Button
-            size="sm"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20"
-            onClick={() => openTransferModal()}
-          >
-            <ArrowRightLeft className="w-4 h-4 mr-1.5" />
-            Transfer to Partner
-          </Button>
         </div>
       </div>
 
@@ -380,70 +344,49 @@ export default function PartnerHisaabPage() {
         </div>
       )}
 
-      {/* 2. Partner / Owner Selector Bar (Check Hisaab One by One) */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-indigo-500" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Select Partner / Owner (Ek Ek Kar Ke Check Karein):
-            </span>
+      {/* 2. Partner / Owner Selector Dropdown */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <UserCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <label htmlFor="partner-hisaab-select" className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                Select Partner / Owner:
+              </label>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Choose a partner to inspect their individual hisaab statement &amp; cash ledger
+              </p>
+            </div>
           </div>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            {partners.length} Total Partners &amp; Owners
-          </span>
-        </div>
 
-        {/* Scrollable Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
-          {/* ALL Option */}
-          <button
-            type="button"
-            onClick={() => setSelectedPartnerId('ALL')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 border ${
-              selectedPartnerId === 'ALL'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20'
-                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>All Partners &amp; Owners (Total)</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-black/20 text-inherit">
-              {formatINR(allPartnersTotals.totalCash)}
-            </span>
-          </button>
+          <div className="flex items-center gap-2 sm:min-w-[340px]">
+            <select
+              id="partner-hisaab-select"
+              value={selectedPartnerId}
+              onChange={(e) => setSelectedPartnerId(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+            >
+              <option value="ALL">
+                All Partners &amp; Owners (Total Cash: {formatINR(allPartnersTotals.totalCash)})
+              </option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.role}) • Cash Bal: {formatINR(p.currentBalance)}
+                </option>
+              ))}
+            </select>
 
-          {/* Each Partner Pill */}
-          {partners.map((p) => {
-            const isSelected = selectedPartnerId === p.id;
-            const isPositive = p.currentBalance >= 0;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelectedPartnerId(p.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 flex items-center gap-2.5 border ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20 font-bold'
-                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
-                }`}
-              >
-                <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold uppercase text-slate-700 dark:text-slate-200">
-                  {p.name.charAt(0)}
-                </div>
-                <span>{p.name}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
-                  isSelected
-                    ? 'bg-white/20 text-white'
-                    : isPositive
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                }`}>
-                  {formatINR(p.currentBalance)}
-                </span>
-              </button>
-            );
-          })}
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-sm"
+              onClick={() => openTransferModal()}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5 mr-1.5" />
+              Transfer
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -563,31 +506,31 @@ export default function PartnerHisaabPage() {
         // Specific Partner KPI Cards
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title={`${selectedPartner.name}'s Cash in Hand`}
+            title={`${selectedPartner.name}'s Cash Balance`}
             value={formatINR(selectedPartner.currentBalance)}
             subtitle="Current live balance in hand"
             icon={<Wallet className="w-5 h-5 text-emerald-500" />}
             variant="emerald"
           />
           <MetricCard
-            title="Direct Site Collections"
-            value={formatINR(selectedPartner.period.receiptsTotal)}
-            subtitle={`${selectedPartner.period.receiptsCount} client payments collected`}
-            icon={<Receipt className="w-5 h-5 text-indigo-500" />}
+            title="Total Bank Balance"
+            value={formatINR(totalBankBalance)}
+            subtitle={`Available in ${bankAccounts.length} company bank account(s)`}
+            icon={<Building2 className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
-            title="Transfers Received (Aaya)"
+            title="Transfers Received"
             value={formatINR(selectedPartner.period.transfersInTotal)}
             subtitle={`${selectedPartner.period.transfersInCount} transfers received`}
             icon={<ArrowDownLeft className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
-            title="Expenses & Outflow (Diya)"
+            title="Expenses & Outflow"
             value={formatINR(selectedPartner.period.transfersOutTotal + selectedPartner.period.expensesTotal)}
             subtitle={`Exp: ${formatINR(selectedPartner.period.expensesTotal)} • Out: ${formatINR(selectedPartner.period.transfersOutTotal)}`}
-            icon={<ArrowUpRight className="w-5 h-5 text-amber-500" />}
+            icon={<CreditCard className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />
         </div>
@@ -595,30 +538,30 @@ export default function PartnerHisaabPage() {
         // Overall Organization Partners KPI Cards
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Total Partners Cash in Hand"
-            value={formatINR(allPartnersTotals.totalCash)}
-            subtitle={`Held across ${partners.length} partners & owners`}
+            title="Total Remaining Balance (Cash + Bank)"
+            value={formatINR(allPartnersTotals.totalCash + totalBankBalance)}
+            subtitle={`Cash: ${formatINR(allPartnersTotals.totalCash)} • Bank: ${formatINR(totalBankBalance)}`}
             icon={<Wallet className="w-5 h-5 text-emerald-500" />}
             variant="emerald"
           />
           <MetricCard
-            title="Direct Site Collections"
-            value={formatINR(allPartnersTotals.receipts)}
-            subtitle="Collected directly from clients"
-            icon={<Receipt className="w-5 h-5 text-indigo-500" />}
+            title="Total Bank Balance"
+            value={formatINR(totalBankBalance)}
+            subtitle={`Available across ${bankAccounts.length} company bank account(s)`}
+            icon={<Building2 className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
-            title="Internal Fund Transfers"
-            value={formatINR(allPartnersTotals.transfersIn)}
-            subtitle="Transferred between partners & bank"
-            icon={<ArrowRightLeft className="w-5 h-5 text-sky-500" />}
+            title="Total Partners Cash in Hand"
+            value={formatINR(allPartnersTotals.totalCash)}
+            subtitle={`Held across ${partners.length} partners & owners`}
+            icon={<Users className="w-5 h-5 text-indigo-500" />}
             variant="blue"
           />
           <MetricCard
-            title="Partner Site Expenses"
+            title="Total Partner Site Expenses"
             value={formatINR(allPartnersTotals.expenses)}
-            subtitle="Paid from partner wallets"
+            subtitle="Paid from partner wallets & sites"
             icon={<CreditCard className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
-import { calculateWalletBalance } from '@/lib/calculations';
+import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations';
 
 export const dynamic = 'force-dynamic';
 
@@ -359,7 +359,7 @@ export async function GET(req: Request) {
           rawId: t.id,
           date: t.date.toISOString(),
           type: 'TRANSFER_IN',
-          categoryLabel: 'Transfer Received (Aaya hua Transfer)',
+          categoryLabel: 'Transfer Received',
           title: `From: ${t.fromUser?.name || 'Owner/Partner'}`,
           subtitle: t.purpose + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: t.amount,
@@ -376,7 +376,7 @@ export async function GET(req: Request) {
           rawId: bt.id,
           date: bt.date.toISOString(),
           type: 'BANK_WITHDRAWAL',
-          categoryLabel: 'Bank Withdrawal (Bank se Nikala)',
+          categoryLabel: 'Bank Withdrawal',
           title: `Bank: ${bt.bankAccount?.bankName} (${bt.bankAccount?.name})`,
           subtitle: 'Cash withdrawn from company bank into wallet',
           credit: bt.amount,
@@ -394,7 +394,7 @@ export async function GET(req: Request) {
           rawId: t.id,
           date: t.date.toISOString(),
           type: 'TRANSFER_OUT',
-          categoryLabel: 'Transfer Out (Diya hua Transfer)',
+          categoryLabel: 'Transfer Out',
           title: `To: ${recipientName}`,
           subtitle: t.purpose + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: 0,
@@ -428,7 +428,7 @@ export async function GET(req: Request) {
           rawId: bt.id,
           date: bt.date.toISOString(),
           type: 'BANK_DEPOSIT',
-          categoryLabel: 'Bank Deposit (Bank me Jama)',
+          categoryLabel: 'Bank Deposit',
           title: `Bank: ${bt.bankAccount?.bankName} (${bt.bankAccount?.name})`,
           subtitle: 'Partner deposited cash into bank account',
           credit: 0,
@@ -473,12 +473,78 @@ export async function GET(req: Request) {
       orderBy: { name: 'asc' },
     });
 
+    // 7. Fetch Bank Accounts & compute runtime balances
+    const bankAccounts = await prisma.bankAccount.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const accountsWithBalance = await Promise.all(
+      bankAccounts.map(async (acc) => {
+        const [
+          depositsAgg,
+          receiptsAgg,
+          transferFromPartnerAgg,
+          withdrawalsAgg,
+          paymentsAgg,
+          transferToPartnerAgg,
+        ] = await Promise.all([
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'DEPOSIT', deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'RECEIPT', deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'WITHDRAWAL', deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'PAYMENT', deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: { bankAccountId: acc.id, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
+            _sum: { amount: true },
+          }),
+        ]);
+
+        const calc = calculateBankBalance({
+          openingBalance: acc.openingBalance,
+          totalDeposits: depositsAgg._sum.amount || 0,
+          totalReceipts: receiptsAgg._sum.amount || 0,
+          totalTransfersFromPartner: transferFromPartnerAgg._sum.amount || 0,
+          totalWithdrawals: withdrawalsAgg._sum.amount || 0,
+          totalPayments: paymentsAgg._sum.amount || 0,
+          totalTransfersToPartner: transferToPartnerAgg._sum.amount || 0,
+        });
+
+        return {
+          id: acc.id,
+          name: acc.name,
+          bankName: acc.bankName,
+          accountLast4: acc.accountLast4 || '',
+          balance: calc.balance,
+        };
+      })
+    );
+
+    const totalBankBalance = accountsWithBalance.reduce((sum, b) => sum + (b.balance || 0), 0);
+
     return NextResponse.json({
       partners: partnersSummary,
       selectedPartnerId: targetPartnerId,
       ledger: ledgerEntries,
       recentReceipts,
       projects,
+      bankAccounts: accountsWithBalance,
+      totalBankBalance,
       currentUserId: session.userId,
       userRole,
     });
