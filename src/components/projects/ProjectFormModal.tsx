@@ -14,6 +14,16 @@ interface ProjectFormModalProps {
   initialData?: any;
 }
 
+const formatDateForInput = (d: any) => {
+  if (!d) return '';
+  if (typeof d === 'string') return d.includes('T') ? d.split('T')[0] : d;
+  try {
+    return new Date(d).toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
 export function ProjectFormModal({
   isOpen,
   onClose,
@@ -67,10 +77,8 @@ export function ProjectFormModal({
         engineerMobile: initialData.engineerMobile || '',
         architectName: initialData.architectName || '',
         architectMobile: initialData.architectMobile || '',
-        startDate: initialData.startDate ? initialData.startDate.split('T')[0] : '',
-        expectedCompletionDate: initialData.expectedCompletionDate
-          ? initialData.expectedCompletionDate.split('T')[0]
-          : '',
+        startDate: formatDateForInput(initialData.startDate),
+        expectedCompletionDate: formatDateForInput(initialData.expectedCompletionDate),
         projectValue: initialData.projectValue || 0,
         estimatedLabourCost: initialData.estimatedLabourCost || 0,
         estimatedMaterialCost: initialData.estimatedMaterialCost || 0,
@@ -138,10 +146,28 @@ export function ProjectFormModal({
       const url = initialData ? `/api/projects/${initialData.id}` : '/api/projects';
       const method = initialData ? 'PUT' : 'POST';
 
+      const { initialSiteName, ...cleanFormData } = formData;
+      const payload: any = {
+        ...cleanFormData,
+        name: formData.name.trim(),
+        projectCode: formData.projectCode.trim(),
+        projectValue: Number(formData.projectValue) || 0,
+        estimatedLabourCost: Number(formData.estimatedLabourCost) || 0,
+        estimatedMaterialCost: Number(formData.estimatedMaterialCost) || 0,
+        estimatedOtherExpense: Number(formData.estimatedOtherExpense) || 0,
+        targetQuantity: Number(formData.targetQuantity) || 0,
+        startDate: formData.startDate || null,
+        expectedCompletionDate: formData.expectedCompletionDate || null,
+      };
+
+      if (!initialData && initialSiteName && initialSiteName.trim()) {
+        payload.initialSiteName = initialSiteName.trim();
+      }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();

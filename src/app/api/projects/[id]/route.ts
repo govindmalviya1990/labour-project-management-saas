@@ -126,7 +126,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
@@ -153,30 +153,59 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const estLabour = data.estimatedLabourCost !== undefined ? data.estimatedLabourCost : existing.estimatedLabourCost;
-    const estMaterial = data.estimatedMaterialCost !== undefined ? data.estimatedMaterialCost : existing.estimatedMaterialCost;
-    const estOther = data.estimatedOtherExpense !== undefined ? data.estimatedOtherExpense : existing.estimatedOtherExpense;
-    const estimatedTotal = estLabour + estMaterial + estOther;
+    // Strip out fields not belonging to Project model in Prisma
+    const { initialSiteName, ...cleanData } = data as any;
+
+    // Check projectCode uniqueness if updated
+    if (cleanData.projectCode && cleanData.projectCode !== existing.projectCode) {
+      const codeExists = await prisma.project.findFirst({
+        where: {
+          organizationId: orgId,
+          projectCode: cleanData.projectCode,
+          id: { not: projectId },
+          deletedAt: null,
+        },
+      });
+      if (codeExists) {
+        return NextResponse.json(
+          { error: `Project code '${cleanData.projectCode}' is already in use by another project in your organization.` },
+          { status: 409 }
+        );
+      }
+    }
+
+    const parseDateOrNull = (d: any) => {
+      if (!d || d === '' || d === 'null') return null;
+      const parsed = new Date(d);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const estLabour = cleanData.estimatedLabourCost !== undefined ? cleanData.estimatedLabourCost : existing.estimatedLabourCost;
+    const estMaterial = cleanData.estimatedMaterialCost !== undefined ? cleanData.estimatedMaterialCost : existing.estimatedMaterialCost;
+    const estOther = cleanData.estimatedOtherExpense !== undefined ? cleanData.estimatedOtherExpense : existing.estimatedOtherExpense;
+    const estimatedTotal = (estLabour || 0) + (estMaterial || 0) + (estOther || 0);
+
+    const updatePayload: any = {
+      ...cleanData,
+      estimatedTotalCost: estimatedTotal,
+    };
+
+    if (cleanData.startDate !== undefined) {
+      updatePayload.startDate = parseDateOrNull(cleanData.startDate);
+    }
+    if (cleanData.expectedCompletionDate !== undefined) {
+      updatePayload.expectedCompletionDate = parseDateOrNull(cleanData.expectedCompletionDate);
+    }
+    if (cleanData.actualCompletionDate !== undefined) {
+      updatePayload.actualCompletionDate = parseDateOrNull(cleanData.actualCompletionDate);
+    }
+    if (cleanData.clientEmail === '') {
+      updatePayload.clientEmail = null;
+    }
 
     const updated = await prisma.project.update({
       where: { id: projectId },
-      data: {
-        ...data,
-        startDate: data.startDate !== undefined ? (data.startDate ? new Date(data.startDate) : null) : undefined,
-        expectedCompletionDate:
-          data.expectedCompletionDate !== undefined
-            ? data.expectedCompletionDate
-              ? new Date(data.expectedCompletionDate)
-              : null
-            : undefined,
-        actualCompletionDate:
-          data.actualCompletionDate !== undefined
-            ? data.actualCompletionDate
-              ? new Date(data.actualCompletionDate)
-              : null
-            : undefined,
-        estimatedTotalCost: estimatedTotal,
-      },
+      data: updatePayload,
     });
 
     return NextResponse.json({
@@ -187,7 +216,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('Project PUT error:', error);
     return NextResponse.json(
-      { error: 'Failed to update project' },
+      { error: error.message || 'Failed to update project' },
       { status: 500 }
     );
   }

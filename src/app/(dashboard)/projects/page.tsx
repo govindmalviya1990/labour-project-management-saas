@@ -323,8 +323,14 @@ export default function ProjectsPage() {
       {/* Project Create/Edit Modal */}
       <ProjectFormModal
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
-        onSuccess={fetchProjects}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setEditingProject(null);
+        }}
+        onSuccess={() => {
+          setEditingProject(null);
+          fetchProjects();
+        }}
         initialData={editingProject}
       />
 
