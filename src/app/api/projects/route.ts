@@ -76,10 +76,79 @@ export async function GET(req: Request) {
 
     const totalPortfolioValue = allOrgProjects.reduce((sum, p) => sum + (p.projectValue || 0), 0);
 
+    // Fetch all active ProjectReceipts in this organization
+    const allOrgReceipts = await prisma.projectReceipt.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: {
+        id: true,
+        projectId: true,
+        siteId: true,
+        amount: true,
+      },
+    });
+
+    // Total received across whole portfolio
+    const totalPaymentReceived = allOrgReceipts.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const totalRemainingPayment = Math.max(0, totalPortfolioValue - totalPaymentReceived);
+    const overallCollectionPercentage = totalPortfolioValue > 0
+      ? Math.round(((totalPaymentReceived / totalPortfolioValue) * 100) * 10) / 10
+      : 0;
+
+    // Fetch all active Expenses to compute project-level cash flow
+    const allOrgExpenses = await prisma.expense.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { amount: true, projectId: true },
+    });
+    const totalProjectExpenses = allOrgExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalNetCashInHand = totalPaymentReceived - totalProjectExpenses;
+
+    // Map receipts & expenses per project
+    const projectReceiptMap: Record<string, { totalReceived: number; receiptsCount: number }> = {};
+    for (const r of allOrgReceipts) {
+      if (r.projectId) {
+        if (!projectReceiptMap[r.projectId]) {
+          projectReceiptMap[r.projectId] = { totalReceived: 0, receiptsCount: 0 };
+        }
+        projectReceiptMap[r.projectId].totalReceived += (r.amount || 0);
+        projectReceiptMap[r.projectId].receiptsCount += 1;
+      }
+    }
+
+    const projectExpenseMap: Record<string, number> = {};
+    for (const e of allOrgExpenses) {
+      if (e.projectId) {
+        projectExpenseMap[e.projectId] = (projectExpenseMap[e.projectId] || 0) + (e.amount || 0);
+      }
+    }
+
+    // Enrich projects list with received & remaining payment
+    const enrichedProjects = projects.map((p) => {
+      const received = projectReceiptMap[p.id]?.totalReceived || 0;
+      const count = projectReceiptMap[p.id]?.receiptsCount || 0;
+      const expenses = projectExpenseMap[p.id] || 0;
+      const val = p.projectValue || 0;
+      const remaining = Math.max(0, val - received);
+      const collectionPct = val > 0 ? Math.round(((received / val) * 100) * 10) / 10 : 0;
+      return {
+        ...p,
+        totalReceived: received,
+        receiptsCount: count,
+        totalExpenses: expenses,
+        remainingPayment: remaining,
+        collectionPercentage: collectionPct,
+        netCashInHand: received - expenses,
+      };
+    });
+
     return NextResponse.json({
-      projects,
+      projects: enrichedProjects,
       statusCounts,
       totalPortfolioValue,
+      totalPaymentReceived,
+      totalRemainingPayment,
+      overallCollectionPercentage,
+      totalProjectExpenses,
+      totalNetCashInHand,
     });
   } catch (error: any) {
     console.error('Projects GET error:', error);

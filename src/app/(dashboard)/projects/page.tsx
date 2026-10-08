@@ -7,6 +7,7 @@ import {
   FolderKanban,
   Plus,
   ArrowUpRight,
+  ArrowDownLeft,
   Edit2,
   Trash2,
   Building2,
@@ -14,6 +15,7 @@ import {
   Phone,
   User,
   IndianRupee,
+  TrendingDown,
   RefreshCw,
   AlertTriangle,
 } from 'lucide-react';
@@ -22,6 +24,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { Modal } from '@/components/ui/Modal';
 import { ProjectFormModal } from '@/components/projects/ProjectFormModal';
+import { MoneyInModal } from '@/components/finance/MoneyInModal';
 import { formatINR } from '@/lib/calculations';
 import { clsx } from 'clsx';
 
@@ -34,11 +37,17 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [totalPortfolioValue, setTotalPortfolioValue] = useState<number>(0);
+  const [totalPaymentReceived, setTotalPaymentReceived] = useState<number>(0);
+  const [totalRemainingPayment, setTotalRemainingPayment] = useState<number>(0);
+  const [overallCollectionPercentage, setOverallCollectionPercentage] = useState<number>(0);
+  const [totalNetCashInHand, setTotalNetCashInHand] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
 
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isMoneyInModalOpen, setIsMoneyInModalOpen] = useState(false);
+  const [selectedProjectForMoneyIn, setSelectedProjectForMoneyIn] = useState<any>(null);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [deletingProject, setDeletingProject] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -67,6 +76,10 @@ export default function ProjectsPage() {
       setProjects(data.projects || []);
       setStatusCounts(data.statusCounts || {});
       setTotalPortfolioValue(data.totalPortfolioValue || 0);
+      setTotalPaymentReceived(data.totalPaymentReceived || 0);
+      setTotalRemainingPayment(data.totalRemainingPayment || 0);
+      setOverallCollectionPercentage(data.overallCollectionPercentage || 0);
+      setTotalNetCashInHand(data.totalNetCashInHand || 0);
     } catch (err: any) {
       setError(err.message || 'Error fetching projects');
     } finally {
@@ -185,6 +198,47 @@ export default function ProjectsPage() {
       ),
     },
     {
+      header: 'Payment Received',
+      className: 'text-right',
+      cell: (item) => (
+        <div className="text-right">
+          <p className="font-bold text-emerald-400 text-xs sm:text-sm">
+            {formatINR(item.totalReceived || 0)}
+          </p>
+          <div className="flex items-center justify-end gap-1 text-[11px] text-slate-400">
+            <span className="text-emerald-400 font-medium">{item.collectionPercentage || 0}%</span>
+            <span>rec</span>
+            {item.receiptsCount > 0 && <span className="text-slate-500">({item.receiptsCount})</span>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Remaining Due',
+      className: 'text-right',
+      cell: (item) => {
+        const remaining = item.remainingPayment ?? Math.max(0, (item.projectValue || 0) - (item.totalReceived || 0));
+        const isPaid = remaining <= 0 && (item.projectValue || 0) > 0;
+        return (
+          <div className="text-right">
+            <p className={clsx(
+              "font-bold text-xs sm:text-sm",
+              isPaid ? "text-emerald-400" : "text-amber-300"
+            )}>
+              {formatINR(remaining)}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {isPaid ? (
+                <span className="text-emerald-400 font-medium">100% Cleared</span>
+              ) : (
+                <span>{Math.max(0, 100 - (item.collectionPercentage || 0)).toFixed(0)}% pending</span>
+              )}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
       header: 'Status',
       className: 'text-center',
       cell: (item) => (
@@ -198,6 +252,19 @@ export default function ProjectsPage() {
       className: 'text-right',
       cell: (item) => (
         <div className="flex items-center justify-end gap-1.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+            onClick={() => {
+              setSelectedProjectForMoneyIn(item);
+              setIsMoneyInModalOpen(true);
+            }}
+            title="Receive Payment for this Project"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            <span className="hidden sm:inline">Receive</span>
+          </Button>
           <Link href={`/projects/${item.id}`}>
             <Button size="sm" variant="ghost" className="h-8 px-2 text-xs">
               <ArrowUpRight className="w-4 h-4 text-amber-400" />
@@ -241,7 +308,19 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="primary"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+            onClick={() => {
+              setSelectedProjectForMoneyIn(null);
+              setIsMoneyInModalOpen(true);
+            }}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Receive Payment
+          </Button>
           <Button size="sm" variant="outline" onClick={fetchProjects} isLoading={isLoading}>
             <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Refresh
@@ -254,26 +333,103 @@ export default function ProjectsPage() {
       </div>
 
       {/* Metric Counters Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Total Projects
           </p>
           <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{statusCounts.ALL || 0}</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">{statusCounts.RUNNING || 0} active running</p>
         </div>
+
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            Running Projects
-          </p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{statusCounts.RUNNING || 0}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl col-span-2 sm:col-span-1 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
             Portfolio Contract Value
           </p>
-          <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{formatINR(totalPortfolioValue)}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">
+            {formatINR(totalPortfolioValue)}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Total across all sites</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-emerald-500/30 dark:border-emerald-500/20 p-4 rounded-xl shadow-sm bg-emerald-500/5">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Payment Received
+            </p>
+            <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+              {overallCollectionPercentage}%
+            </span>
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            {formatINR(totalPaymentReceived)}
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Total collected from clients
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 p-4 rounded-xl shadow-sm bg-amber-500/5">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-300 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+              Remaining Due
+            </p>
+            <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+              {Math.max(0, 100 - overallCollectionPercentage).toFixed(1)}%
+            </span>
+          </div>
+          <p className="mt-1 text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-300">
+            {formatINR(totalRemainingPayment)}
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Pending from clients
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl col-span-2 sm:col-span-1 shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+            Net Cash in Hand
+          </p>
+          <p className={clsx(
+            "mt-1 text-xl sm:text-2xl font-bold",
+            totalNetCashInHand >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+          )}>
+            {formatINR(totalNetCashInHand)}
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Received &minus; Site Expenses
+          </p>
         </div>
       </div>
+
+      {/* Collection Progress Bar */}
+      {totalPortfolioValue > 0 && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-3 rounded-xl shadow-sm -mt-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+            <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Portfolio Client Collection Progress (All Sites &amp; Projects)
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                Received: {formatINR(totalPaymentReceived)} ({overallCollectionPercentage}%)
+              </span>
+              <span className="text-slate-400 dark:text-slate-600">&bull;</span>
+              <span className="text-amber-600 dark:text-amber-300 font-semibold">
+                Remaining Due: {formatINR(totalRemainingPayment)}
+              </span>
+            </div>
+          </div>
+          <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-300 dark:border-slate-700/60">
+            <div
+              className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, overallCollectionPercentage)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800/80 scrollbar-none">
@@ -332,6 +488,20 @@ export default function ProjectsPage() {
           fetchProjects();
         }}
         initialData={editingProject}
+      />
+
+      {/* Receive Client Payment Modal */}
+      <MoneyInModal
+        isOpen={isMoneyInModalOpen}
+        onClose={() => {
+          setIsMoneyInModalOpen(false);
+          setSelectedProjectForMoneyIn(null);
+        }}
+        onSuccess={() => {
+          fetchProjects();
+        }}
+        defaultProjectId={selectedProjectForMoneyIn?.id}
+        defaultClientName={selectedProjectForMoneyIn?.clientName}
       />
 
       {/* Delete Confirmation Modal */}
