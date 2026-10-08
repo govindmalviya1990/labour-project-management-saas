@@ -48,6 +48,7 @@ export function Sidebar({
   const currentRole = normalizeRole(userRole);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    Hisaab: true,
     Projects: true,
     Workers: true,
     Finance: true,
@@ -100,6 +101,13 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
         },
         {
+          title: 'Hisaab',
+          icon: <Receipt className="w-4 h-4 text-emerald-400" />,
+          children: [
+            { title: 'Payment Received', href: '/hisaab' },
+          ],
+        },
+        {
           title: 'Site Projects',
           href: '/projects',
           icon: <FolderKanban className="w-4 h-4 text-blue-400" />,
@@ -141,6 +149,13 @@ export function Sidebar({
           title: 'Partner Dashboard',
           href: '/',
           icon: <LayoutDashboard className="w-4 h-4 text-amber-400" />,
+        },
+        {
+          title: 'Hisaab',
+          icon: <Receipt className="w-4 h-4 text-emerald-400" />,
+          children: [
+            { title: 'Payment Received', href: '/hisaab' },
+          ],
         },
         {
           title: 'Assigned Sites & Projects',
@@ -190,6 +205,13 @@ export function Sidebar({
           icon: <LayoutDashboard className="w-4 h-4 text-purple-400" />,
         },
         {
+          title: 'Hisaab',
+          icon: <Receipt className="w-4 h-4 text-emerald-400" />,
+          children: [
+            { title: 'Payment Received', href: '/hisaab' },
+          ],
+        },
+        {
           title: 'Projects',
           icon: <FolderKanban className="w-4 h-4" />,
           children: [
@@ -237,6 +259,13 @@ export function Sidebar({
         title: 'Dashboard',
         href: '/',
         icon: <LayoutDashboard className="w-4 h-4" />,
+      },
+      {
+        title: 'Hisaab',
+        icon: <Receipt className="w-4 h-4 text-emerald-400" />,
+        children: [
+          { title: 'Payment Received', href: '/hisaab' },
+        ],
       },
       {
         title: 'Projects',

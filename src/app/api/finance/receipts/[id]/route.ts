@@ -5,64 +5,51 @@ import { verifyDayLock } from '@/lib/auth/day-lock';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'ACCOUNTANT']);
-    if (!auth.authorized) return auth.response;
-    const session = auth.session;
-
-    const receipt = await prisma.projectReceipt.findFirst({
-      where: {
-        id: params.id,
-        organizationId: session.organizationId,
-        deletedAt: null,
-      },
-      include: {
-        project: { select: { id: true, name: true, projectCode: true, projectValue: true } },
-        site: { select: { id: true, name: true } },
-        receivedBy: { select: { id: true, name: true, email: true } },
-      },
-    });
-
-    if (!receipt) {
-      return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ receipt });
-  } catch (error: any) {
-    console.error('Error fetching receipt:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch receipt' }, { status: 500 });
-  }
-}
-
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
+    const receiptId = params.id;
 
-    const receipt = await prisma.projectReceipt.findFirst({
-      where: { id: params.id, organizationId: orgId, deletedAt: null },
+    const existing = await prisma.projectReceipt.findFirst({
+      where: { id: receiptId, organizationId: orgId, deletedAt: null },
     });
 
-    if (!receipt) {
+    if (!existing) {
       return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
     }
 
     const body = await req.json();
+    const {
+      clientName,
+      amount,
+      date,
+      paymentMethod,
+      purpose,
+      reference,
+      notes,
+      siteId,
+    } = body;
+
+    const parsedAmount = amount !== undefined ? Math.max(0, parseFloat(amount)) : existing.amount;
+    const receiptDate = date ? new Date(date) : existing.date;
 
     // Check Day Lock on existing receipt date
     const lockCheck = await verifyDayLock({
       organizationId: orgId,
-      userId: receipt.receivedById,
-      date: receipt.date,
+      userId: existing.receivedById,
+      date: receiptDate,
       actorUserId: session.userId,
       actorRole: session.role,
       entityType: 'ProjectReceipt',
-      entityId: receipt.id,
+      entityId: existing.id,
       action: 'UPDATE',
-      details: { oldAmount: receipt.amount, oldClient: receipt.clientName },
+      details: { oldAmount: existing.amount, newAmount: parsedAmount },
     });
 
     if (lockCheck.locked) {
@@ -70,98 +57,90 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      const up = await tx.projectReceipt.update({
-        where: { id: params.id },
+      const rec = await tx.projectReceipt.update({
+        where: { id: receiptId },
         data: {
-          clientName: body.clientName !== undefined ? body.clientName.trim() : receipt.clientName,
-          amount: body.amount !== undefined ? parseFloat(body.amount) : receipt.amount,
-          date: body.date ? new Date(body.date) : receipt.date,
-          paymentMethod: body.paymentMethod || receipt.paymentMethod,
-          purpose: body.purpose || receipt.purpose,
-          reference: body.reference !== undefined ? body.reference : receipt.reference,
-          notes: body.notes !== undefined ? body.notes : receipt.notes,
+          clientName: clientName !== undefined ? clientName.trim() : existing.clientName,
+          amount: parsedAmount,
+          date: receiptDate,
+          paymentMethod: paymentMethod || existing.paymentMethod,
+          purpose: purpose || existing.purpose,
+          reference: reference !== undefined ? reference?.trim() || null : existing.reference,
+          notes: notes !== undefined ? notes?.trim() || null : existing.notes,
+          siteId: siteId !== undefined ? (siteId || null) : existing.siteId,
+        },
+        include: {
+          project: { select: { id: true, name: true, projectCode: true } },
+          site: { select: { id: true, name: true } },
+          receivedBy: { select: { id: true, name: true } },
         },
       });
 
-      return up;
+      return rec;
     });
 
     return NextResponse.json({
+      success: true,
       receipt: updated,
-      warning: lockCheck.isVerifiedDay ? 'Modified entry on a verified closed day (Audit logged)' : undefined,
+      message: 'Receipt updated successfully',
     });
   } catch (error: any) {
-    console.error('Error updating receipt:', error);
+    console.error('Receipt PUT error:', error);
     return NextResponse.json({ error: error.message || 'Failed to update receipt' }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER']);
+    const auth = await checkRolePermission(['OWNER', 'MANAGER', 'PARTNER', 'SITE_SUPERVISOR', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
     const session = auth.session;
     const orgId = session.organizationId;
+    const receiptId = params.id;
 
-    const receipt = await prisma.projectReceipt.findFirst({
-      where: { id: params.id, organizationId: orgId, deletedAt: null },
+    const existing = await prisma.projectReceipt.findFirst({
+      where: { id: receiptId, organizationId: orgId, deletedAt: null },
     });
 
-    if (!receipt) {
+    if (!existing) {
       return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
     }
 
     // Check Day Lock on receipt date
     const lockCheck = await verifyDayLock({
       organizationId: orgId,
-      userId: receipt.receivedById,
-      date: receipt.date,
+      userId: existing.receivedById,
+      date: existing.date,
       actorUserId: session.userId,
       actorRole: session.role,
       entityType: 'ProjectReceipt',
-      entityId: receipt.id,
+      entityId: existing.id,
       action: 'DELETE',
-      details: { amount: receipt.amount, clientName: receipt.clientName },
+      details: { amount: existing.amount },
     });
 
     if (lockCheck.locked) {
       return NextResponse.json({ error: lockCheck.message }, { status: 403 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.projectReceipt.update({
-        where: { id: params.id },
-        data: {
-          deletedAt: new Date(),
-          deletedById: session.userId,
-        },
-      });
-
-      // If this receipt was linked to a bank account, soft delete the bank transaction as well
-      if (receipt.bankAccountId || receipt.receivedIn === 'BANK') {
-        await tx.bankTransaction.updateMany({
-          where: {
-            organizationId: orgId,
-            OR: [
-              { reference: receipt.id },
-              ...(receipt.reference ? [{ reference: receipt.reference }] : []),
-            ],
-            deletedAt: null,
-          },
-          data: {
-            deletedAt: new Date(),
-          },
-        });
-      }
+    // Soft delete
+    await prisma.projectReceipt.update({
+      where: { id: receiptId },
+      data: {
+        deletedAt: new Date(),
+        deletedById: session.userId,
+      },
     });
 
     return NextResponse.json({
       success: true,
       message: 'Receipt deleted successfully',
-      warning: lockCheck.isVerifiedDay ? 'Deleted entry from a verified closed day (Audit logged)' : undefined,
     });
   } catch (error: any) {
-    console.error('Error deleting receipt:', error);
+    console.error('Receipt DELETE error:', error);
     return NextResponse.json({ error: error.message || 'Failed to delete receipt' }, { status: 500 });
   }
 }

@@ -51,9 +51,9 @@ export function MobileNav({ userRole = 'OWNER' }: { userRole?: string }) {
 
     return [
       { label: 'Dashboard', href: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
+      { label: 'Hisaab', href: '/hisaab', icon: <Receipt className="w-5 h-5" /> },
       { label: 'Projects', href: '/projects', icon: <FolderKanban className="w-5 h-5" /> },
       { label: 'Attendance', href: '/attendance', icon: <CalendarCheck className="w-5 h-5" /> },
-      { label: 'Khata', href: '/khata', icon: <BookOpen className="w-5 h-5" /> },
       { label: 'More', href: '/settings', icon: <Menu className="w-5 h-5" /> },
     ];
   };
