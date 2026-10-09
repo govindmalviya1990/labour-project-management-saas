@@ -713,29 +713,14 @@ export default function DashboardPage() {
               <span className="truncate">Projects</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => handleDashboardModeChange('COMBINED')}
-              className={`flex items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all text-center ${
-                dashboardMode === 'COMBINED'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
+            <Link
+              href="/attendance"
+              className="flex items-center justify-center gap-1.5 px-2 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all text-center bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
             >
-              <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">All-in-One</span>
-            </button>
+              <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Mark Attendance</span>
+            </Link>
           </div>
-
-          <Link href="/attendance?action=new" className="hidden sm:inline-flex shrink-0">
-            <Button
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 px-3 py-2 rounded-xl"
-            >
-              <CalendarCheck className="w-3.5 h-3.5" />
-              <span>Mark Attendance</span>
-            </Button>
-          </Link>
         </div>
       </div>
 
@@ -767,12 +752,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/attendance?action=new">
-            <Button size="sm" variant="outline">
-              <CalendarCheck className="w-4 h-4 mr-1.5 text-emerald-500" />
-              Mark Attendance
-            </Button>
-          </Link>
           <Link href="/projects?action=new">
             <Button size="sm" variant="primary" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
               <Plus className="w-4 h-4 mr-1.5" />
