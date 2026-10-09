@@ -6,57 +6,163 @@ import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations
 export const dynamic = 'force-dynamic';
 
 const CATEGORY_COLORS: Record<string, string> = {
-  GOODS_PURCHASE: '#3b82f6', // blue
-  CHAY_NASTA: '#f59e0b', // amber
-  TRAVEL_PETROL: '#ef4444', // red
-  LABOUR_FOOD: '#10b981', // emerald
-  GROCERY_WORKER: '#06b6d4', // cyan
-  GROCERY_SELF: '#8b5cf6', // purple
-  PERSONAL: '#ec4899', // pink
-  EQUIPMENT_TOOLS: '#6366f1', // indigo
+  'FUEL & TRAVEL': '#3b82f6', // blue
+  FUEL_TRAVEL: '#3b82f6',
+  'WORKER SALARY & WAGES': '#f59e0b', // amber
+  WORKER_SALARY: '#f59e0b',
+  'WORKER ADVANCE': '#8b5cf6', // purple
+  WORKER_ADVANCE: '#8b5cf6',
+  'WORKER FOOD & TEA': '#10b981', // emerald
+  WORKER_FOOD_TEA: '#10b981',
+  'WORKER EXPENSES & PAYOUTS': '#ec4899', // pink
+  WORKER_EXPENSE: '#ec4899',
+  'GOODS & MATERIAL PURCHASE': '#06b6d4', // cyan
+  GOODS_PURCHASE: '#06b6d4',
+  'EQUIPMENT & TOOLS': '#6366f1', // indigo
+  EQUIPMENT_TOOLS: '#6366f1',
   RENT: '#14b8a6', // teal
-  MOBILE_RECHARGE: '#0284c7', // light blue
+  PERSONAL: '#f43f5e', // rose
   MISCELLANEOUS: '#64748b', // slate
-  OTHER: '#94a3b8', // light slate
-  MATERIAL: '#3b82f6',
-  FUEL: '#ef4444',
-  ELECTRICITY: '#f97316',
-  LABOUR: '#10b981',
 };
 
 const COLOR_PALETTE = [
-  '#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
-  '#84cc16', '#a855f7', '#64748b', '#0ea5e9', '#d946ef', '#eab308'
+  '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899',
+  '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#84cc16',
+  '#a855f7', '#64748b', '#0ea5e9', '#d946ef', '#eab308'
 ];
 
 function formatCategoryLabel(cat: string): string {
   if (!cat) return 'Miscellaneous';
   const mapping: Record<string, string> = {
-    GOODS_PURCHASE: 'Goods Purchase',
-    CHAY_NASTA: 'Chay-Nasta',
-    TRAVEL_PETROL: 'Petrol & Travel',
-    LABOUR_FOOD: 'Labour Food',
+    GOODS_PURCHASE: 'Goods & Material Purchase',
+    CHAY_NASTA: 'Worker Food & Tea',
+    TRAVEL_PETROL: 'Fuel & Travel',
+    LABOUR_FOOD: 'Worker Food & Tea',
     GROCERY_WORKER: 'Worker Grocery',
     GROCERY_SELF: 'Self Grocery',
     PERSONAL: 'Self / Personal',
-    EQUIPMENT_TOOLS: 'Equipment / Tools',
+    EQUIPMENT_TOOLS: 'Equipment & Tools',
     RENT: 'Rent',
     MOBILE_RECHARGE: 'Mobile Recharge',
     MISCELLANEOUS: 'Miscellaneous',
     OTHER: 'Other',
     MATERIAL: 'Material',
-    FUEL: 'Fuel',
+    FUEL: 'Fuel & Travel',
+    PETROL: 'Fuel & Travel',
     ELECTRICITY: 'Electricity',
-    LABOUR: 'Labour Wages',
+    LABOUR: 'Worker Salary & Wages',
   };
   if (mapping[cat.toUpperCase()]) return mapping[cat.toUpperCase()];
   if (mapping[cat]) return mapping[cat];
   return cat.replace(/_/g, ' ');
 }
 
+function normalizeCategory(cat: string): { key: string; label: string } {
+  if (!cat) return { key: 'MISCELLANEOUS', label: 'Miscellaneous' };
+  const clean = cat.trim();
+  const upper = clean.toUpperCase().replace(/[\s&/_-]+/g, '_');
+
+  // Unified Fuel & Travel: Petrol, Fuel, Travel, Diesel
+  if (
+    upper === 'PETROL' ||
+    upper === 'FUEL' ||
+    upper === 'TRAVEL' ||
+    upper === 'DIESEL' ||
+    upper === 'FUEL_TRAVEL' ||
+    upper === 'TRAVEL_PETROL' ||
+    upper.includes('PETROL') ||
+    upper.includes('FUEL') ||
+    upper.includes('TRAVEL') ||
+    upper.includes('DIESEL')
+  ) {
+    return { key: 'FUEL_TRAVEL', label: 'Fuel & Travel' };
+  }
+
+  // Worker Salary & Wages
+  if (
+    upper === 'SALARY' ||
+    upper === 'WORKER_SALARY' ||
+    upper === 'LABOUR' ||
+    upper === 'LABOUR_WAGES' ||
+    upper === 'WAGE' ||
+    upper === 'WAGES' ||
+    upper.includes('SALARY') ||
+    upper.includes('WAGE')
+  ) {
+    return { key: 'WORKER_SALARY', label: 'Worker Salary & Wages' };
+  }
+
+  // Worker Advance
+  if (
+    upper === 'ADVANCE' ||
+    upper === 'WORKER_ADVANCE' ||
+    upper.includes('ADVANCE')
+  ) {
+    return { key: 'WORKER_ADVANCE', label: 'Worker Advance' };
+  }
+
+  // Worker Food & Tea
+  if (
+    upper === 'CHAY_NASTA' ||
+    upper === 'CHAI_NASTA' ||
+    upper === 'TEA' ||
+    upper === 'CHAY' ||
+    upper === 'NASTA' ||
+    upper === 'SNACKS' ||
+    upper === 'LABOUR_FOOD' ||
+    upper === 'WORKER_FOOD' ||
+    upper === 'WORKER_FOOD_TEA' ||
+    upper.includes('FOOD') ||
+    upper.includes('NASTA') ||
+    upper.includes('CHAY') ||
+    upper.includes('TEA')
+  ) {
+    return { key: 'WORKER_FOOD_TEA', label: 'Worker Food & Tea' };
+  }
+
+  // Worker General Expense / Payout
+  if (
+    upper === 'WORKER_EXPENSE' ||
+    upper === 'WORKER_PAYMENT' ||
+    upper.includes('WORKER') ||
+    upper.includes('LABOUR')
+  ) {
+    return { key: 'WORKER_EXPENSE', label: 'Worker Expenses & Payouts' };
+  }
+
+  // Goods & Material Purchase
+  if (
+    upper === 'GOODS_PURCHASE' ||
+    upper === 'MATERIAL' ||
+    upper === 'MATERIALS' ||
+    upper.includes('MATERIAL') ||
+    upper.includes('PURCHASE') ||
+    upper.includes('CEMENT') ||
+    upper.includes('CHEMICAL')
+  ) {
+    return { key: 'GOODS_PURCHASE', label: 'Goods & Material Purchase' };
+  }
+
+  // Equipment & Tools
+  if (upper === 'EQUIPMENT_TOOLS' || upper.includes('EQUIPMENT') || upper.includes('TOOLS')) {
+    return { key: 'EQUIPMENT_TOOLS', label: 'Equipment & Tools' };
+  }
+
+  // Rent
+  if (upper === 'RENT' || upper.includes('RENT')) {
+    return { key: 'RENT', label: 'Rent' };
+  }
+
+  // Grocery
+  if (upper.includes('GROCERY')) {
+    return { key: 'GROCERY', label: 'Grocery & Supplies' };
+  }
+
+  return { key: upper, label: formatCategoryLabel(clean) };
+}
+
 function getCategoryColor(categoryKey: string, index: number): string {
-  const upper = (categoryKey || '').toUpperCase();
+  const upper = (categoryKey || '').toUpperCase().trim();
   if (CATEGORY_COLORS[upper]) return CATEGORY_COLORS[upper];
   return COLOR_PALETTE[index % COLOR_PALETTE.length];
 }
@@ -66,17 +172,17 @@ function buildCategoryBreakdown(expensesList: Array<{ category: string; amount: 
   const grouped: Record<string, { category: string; label: string; amount: number; count: number }> = {};
 
   for (const e of expensesList) {
-    const rawCat = (e.category || 'MISCELLANEOUS').trim();
-    if (!grouped[rawCat]) {
-      grouped[rawCat] = {
-        category: rawCat,
-        label: formatCategoryLabel(rawCat),
+    const { key, label } = normalizeCategory(e.category);
+    if (!grouped[key]) {
+      grouped[key] = {
+        category: label,
+        label,
         amount: 0,
         count: 0,
       };
     }
-    grouped[rawCat].amount += e.amount || 0;
-    grouped[rawCat].count += 1;
+    grouped[key].amount += e.amount || 0;
+    grouped[key].count += 1;
   }
 
   const sorted = Object.values(grouped).sort((a, b) => b.amount - a.amount);
@@ -86,7 +192,7 @@ function buildCategoryBreakdown(expensesList: Array<{ category: string; amount: 
     categories: sorted.map((item, idx) => ({
       ...item,
       percentage: total > 0 ? Number(((item.amount / total) * 100).toFixed(1)) : 0,
-      color: getCategoryColor(item.category, idx),
+      color: getCategoryColor(item.label, idx),
     })),
   };
 }
@@ -170,7 +276,7 @@ export async function GET(req: Request) {
       ['PARTNER', 'OWNER', 'MANAGER'].includes(normalizeRole(m.role))
     );
 
-    // 3. Fetch all expenses in organization for category breakdown
+    // 3. Fetch all expenses & worker payouts in organization for category breakdown
     const orgPeriodExpensesWhere: any = {
       organizationId: orgId,
       deletedAt: null,
@@ -179,19 +285,109 @@ export async function GET(req: Request) {
       orgPeriodExpensesWhere.date = dateFilter;
     }
 
-    const allPeriodExpenses = await prisma.expense.findMany({
-      where: orgPeriodExpensesWhere,
-      select: {
-        id: true,
-        amount: true,
-        category: true,
-        description: true,
-        walletOwnerId: true,
-        spentById: true,
-      },
-    });
+    const [allPeriodExpenses, allPeriodPayments, allPeriodTransfersToWorker] = await Promise.all([
+      prisma.expense.findMany({
+        where: orgPeriodExpensesWhere,
+        select: {
+          id: true,
+          amount: true,
+          category: true,
+          description: true,
+          walletOwnerId: true,
+          spentById: true,
+        },
+      }),
+      prisma.payment.findMany({
+        where: {
+          organizationId: orgId,
+          deletedAt: null,
+          ...(hasDateFilter ? { date: dateFilter } : {}),
+        },
+        select: {
+          id: true,
+          amount: true,
+          transactionType: true,
+          notes: true,
+          fundTransferId: true,
+          fundTransfer: {
+            select: {
+              fromUserId: true,
+            },
+          },
+        },
+      }),
+      prisma.fundTransfer.findMany({
+        where: {
+          organizationId: orgId,
+          deletedAt: null,
+          ...(hasDateFilter ? { date: dateFilter } : {}),
+          OR: [
+            { toWorkerId: { not: null } },
+            { transferType: 'PARTNER_TO_WORKER' },
+            { transferType: 'SUPERVISOR_TO_WORKER' },
+          ],
+        },
+        select: {
+          id: true,
+          amount: true,
+          purpose: true,
+          notes: true,
+          fromUserId: true,
+          linkedPaymentId: true,
+        },
+      }),
+    ]);
 
-    const overallExpensesBreakdown = buildCategoryBreakdown(allPeriodExpenses);
+    // Build unified expenses list including worker salaries, advances & payouts
+    const allPeriodCombinedExpenses: Array<{
+      category: string;
+      amount: number;
+      walletOwnerId?: string | null;
+      spentById?: string | null;
+    }> = [
+      ...allPeriodExpenses.map((e) => ({
+        category: e.category,
+        amount: e.amount,
+        walletOwnerId: e.walletOwnerId,
+        spentById: e.spentById,
+      })),
+      ...allPeriodPayments.map((p) => {
+        let cat = 'Worker Expenses & Payouts';
+        const tType = (p.transactionType || '').toUpperCase();
+        const notesUpper = (p.notes || '').toUpperCase();
+        if (tType === 'SALARY' || notesUpper.includes('SALARY') || notesUpper.includes('WAGE')) {
+          cat = 'Worker Salary & Wages';
+        } else if (tType === 'ADVANCE' || notesUpper.includes('ADVANCE')) {
+          cat = 'Worker Advance';
+        }
+        return {
+          category: cat,
+          amount: p.amount,
+          walletOwnerId: p.fundTransfer?.fromUserId || null,
+          spentById: p.fundTransfer?.fromUserId || null,
+        };
+      }),
+      ...allPeriodTransfersToWorker
+        .filter((t) => !t.linkedPaymentId)
+        .map((t) => {
+          let cat = 'Worker Expenses & Payouts';
+          const pUpper = (t.purpose || '').toUpperCase();
+          const notesUpper = (t.notes || '').toUpperCase();
+          if (pUpper.includes('SALARY') || notesUpper.includes('SALARY') || notesUpper.includes('WAGE')) {
+            cat = 'Worker Salary & Wages';
+          } else if (pUpper.includes('ADVANCE') || notesUpper.includes('ADVANCE')) {
+            cat = 'Worker Advance';
+          }
+          return {
+            category: cat,
+            amount: t.amount,
+            walletOwnerId: t.fromUserId,
+            spentById: t.fromUserId,
+          };
+        }),
+    ];
+
+    const overallExpensesBreakdown = buildCategoryBreakdown(allPeriodCombinedExpenses);
 
     // 4. For each partner/owner, compute live balance and period metrics
     const partnersSummary = await Promise.all(
@@ -316,7 +512,7 @@ export async function GET(req: Request) {
           }),
         ]);
 
-        const partnerExpensesList = allPeriodExpenses.filter(
+        const partnerExpensesList = allPeriodCombinedExpenses.filter(
           (e) => e.walletOwnerId === uId || (!e.walletOwnerId && e.spentById === uId)
         );
         const partnerExpenseBreakdown = buildCategoryBreakdown(partnerExpensesList);

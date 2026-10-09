@@ -64,9 +64,38 @@ export async function GET(req: Request) {
       attendanceMap.set(att.workerId, att);
     });
 
-    // Merge active workers with attendance record
+    // 2b. Get existing work records for this day & project
+    const existingWorkRecords = await prisma.workRecord.findMany({
+      where: {
+        organizationId: orgId,
+        date: { gte: queryDate, lte: endOfQueryDate },
+        ...(projectId ? { projectId } : {}),
+        ...(siteId ? { siteId } : {}),
+        ...(isLabour && session.workerId ? { workerId: session.workerId } : {}),
+      },
+      select: {
+        id: true,
+        workerId: true,
+        task: true,
+        description: true,
+        quantity: true,
+        unit: true,
+        rate: true,
+        totalWorkValue: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const workMap = new Map<string, any[]>();
+    existingWorkRecords.forEach((wr) => {
+      if (!workMap.has(wr.workerId)) workMap.set(wr.workerId, []);
+      workMap.get(wr.workerId)!.push(wr);
+    });
+
+    // Merge active workers with attendance record and work logs
     const sheet = activeWorkers.map((worker) => {
       const att = attendanceMap.get(worker.id);
+      const workLogs = workMap.get(worker.id) || [];
       return {
         workerId: worker.id,
         workerCode: worker.workerCode,
@@ -83,6 +112,7 @@ export async function GET(req: Request) {
         projectName: att?.project?.name || null,
         siteId: att?.siteId || siteId || null,
         siteName: att?.site?.name || null,
+        workLogs,
       };
     });
 

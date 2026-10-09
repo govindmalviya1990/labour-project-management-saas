@@ -17,8 +17,11 @@ import {
   ChevronRight,
   RotateCcw,
   Trash2,
+  Hammer,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { formatINR } from '@/lib/calculations';
 import { clsx } from 'clsx';
 
@@ -46,6 +49,20 @@ export default function AttendancePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [error, setError] = useState('');
+
+  // Work Record Modal states
+  const [selectedWorkerForWork, setSelectedWorkerForWork] = useState<any | null>(null);
+  const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+  const [workForm, setWorkForm] = useState({
+    task: 'Waterproofing',
+    quantity: '',
+    unit: 'sq.ft',
+    rate: '',
+    description: '',
+  });
+  const [isSavingWork, setIsSavingWork] = useState(false);
+  const [workActionError, setWorkActionError] = useState('');
+  const [workActionSuccess, setWorkActionSuccess] = useState('');
 
   // Fetch projects for dropdown
   useEffect(() => {
@@ -153,6 +170,133 @@ export default function AttendancePage() {
       );
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Work Record Handlers
+  const openWorkModal = (item: any) => {
+    setSelectedWorkerForWork(item);
+    setWorkActionError('');
+    setWorkActionSuccess('');
+    setWorkForm({
+      task: 'Waterproofing',
+      quantity: '',
+      unit: 'sq.ft',
+      rate: '',
+      description: '',
+    });
+    setIsWorkModalOpen(true);
+  };
+
+  const handleSaveWorkRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedWorkerForWork || !selectedProjectId) return;
+    const qty = Number(workForm.quantity);
+    const rate = Number(workForm.rate);
+    if (!workForm.task.trim()) {
+      setWorkActionError('Please enter a task name.');
+      return;
+    }
+    if (isNaN(qty) || qty <= 0) {
+      setWorkActionError('Please enter a valid positive quantity.');
+      return;
+    }
+    if (isNaN(rate) || rate < 0) {
+      setWorkActionError('Please enter a valid rate.');
+      return;
+    }
+
+    setIsSavingWork(true);
+    setWorkActionError('');
+    setWorkActionSuccess('');
+
+    try {
+      const res = await fetch('/api/work', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date,
+          projectId: selectedProjectId,
+          workerId: selectedWorkerForWork.workerId,
+          task: workForm.task.trim(),
+          quantity: qty,
+          unit: workForm.unit.trim() || 'sq.ft',
+          rate: rate,
+          description: workForm.description.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save work record');
+
+      const createdRecord = data.record;
+
+      // Update worker's workLogs in the sheet state
+      setSheet((prev) =>
+        prev.map((item) => {
+          if (item.workerId !== selectedWorkerForWork.workerId) return item;
+          const currentLogs = item.workLogs || [];
+          return {
+            ...item,
+            workLogs: [createdRecord, ...currentLogs],
+          };
+        })
+      );
+
+      // Update currently opened worker's logs
+      setSelectedWorkerForWork((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              workLogs: [createdRecord, ...(prev.workLogs || [])],
+            }
+          : null
+      );
+
+      setWorkActionSuccess('Work record added successfully!');
+      setWorkForm({
+        task: 'Waterproofing',
+        quantity: '',
+        unit: 'sq.ft',
+        rate: '',
+        description: '',
+      });
+    } catch (err: any) {
+      setWorkActionError(err.message || 'Error saving work record');
+    } finally {
+      setIsSavingWork(false);
+    }
+  };
+
+  const handleDeleteWorkRecord = async (recordId: string) => {
+    if (!selectedWorkerForWork) return;
+    try {
+      const res = await fetch(`/api/work/${recordId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete work record');
+      }
+
+      setSheet((prev) =>
+        prev.map((item) => {
+          if (item.workerId !== selectedWorkerForWork.workerId) return item;
+          return {
+            ...item,
+            workLogs: (item.workLogs || []).filter((w: any) => w.id !== recordId),
+          };
+        })
+      );
+
+      setSelectedWorkerForWork((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              workLogs: (prev.workLogs || []).filter((w: any) => w.id !== recordId),
+            }
+          : null
+      );
+    } catch (err: any) {
+      setWorkActionError(err.message || 'Error deleting work record');
     }
   };
 
@@ -406,6 +550,7 @@ export default function AttendancePage() {
                 <th className="py-3 px-3">Daily Wage</th>
                 <th className="py-3 px-3 text-center">Turnout Status</th>
                 <th className="py-3 px-3 text-center">Overtime (Hours)</th>
+                <th className="py-3 px-3 text-center">Work Record</th>
                 <th className="py-3 px-4 text-right">Calculated Wage</th>
                 <th className="py-3 px-3 text-center">Reset</th>
               </tr>
@@ -496,6 +641,34 @@ export default function AttendancePage() {
                     />
                   </td>
 
+                  {/* Work Record Action */}
+                  <td className="py-3 px-3 text-center whitespace-nowrap">
+                    {item.workLogs && item.workLogs.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => openWorkModal(item)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all group"
+                        title="View or add work entries"
+                      >
+                        <Hammer className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                        <span>{item.workLogs.length} Log{item.workLogs.length > 1 ? 's' : ''}</span>
+                        <span className="text-[10px] text-amber-400/80 font-mono">
+                          ({formatINR(item.workLogs.reduce((s: number, r: any) => s + (r.totalWorkValue || 0), 0))})
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openWorkModal(item)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-amber-300 border border-slate-700/80 text-xs font-medium transition-colors"
+                        title="Add work record"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Work</span>
+                      </button>
+                    )}
+                  </td>
+
                   {/* Wage For Day */}
                   <td className="py-3 px-4 text-right">
                     <p className="font-bold text-amber-400 text-sm">
@@ -526,6 +699,214 @@ export default function AttendancePage() {
           </table>
         </div>
       </div>
+
+      {/* Work Record Modal */}
+      {selectedWorkerForWork && (
+        <Modal
+          isOpen={isWorkModalOpen}
+          onClose={() => {
+            setIsWorkModalOpen(false);
+            setSelectedWorkerForWork(null);
+          }}
+          title={`Work Record — ${selectedWorkerForWork.name}`}
+          description={`Date: ${date} • ${selectedWorkerForWork.category} (${selectedWorkerForWork.workerCode})`}
+          size="lg"
+        >
+          <div className="space-y-5">
+            {/* Alerts inside modal */}
+            {workActionError && (
+              <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-400">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{workActionError}</span>
+              </div>
+            )}
+            {workActionSuccess && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-400">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>{workActionSuccess}</span>
+              </div>
+            )}
+
+            {/* List of existing work records logged for this worker today */}
+            {selectedWorkerForWork.workLogs && selectedWorkerForWork.workLogs.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                  <span>Logged Work for Today ({selectedWorkerForWork.workLogs.length})</span>
+                  <span className="text-amber-400 font-mono">
+                    Total: {formatINR(selectedWorkerForWork.workLogs.reduce((s: number, r: any) => s + (r.totalWorkValue || 0), 0))}
+                  </span>
+                </h4>
+                <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+                  {selectedWorkerForWork.workLogs.map((log: any) => (
+                    <div key={log.id} className="p-3 flex items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-white">{log.task}</span>
+                          <span className="text-[11px] text-slate-400">
+                            {log.quantity} {log.unit} @ {formatINR(log.rate)}/{log.unit}
+                          </span>
+                        </div>
+                        {log.description && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">{log.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-bold text-amber-400 font-mono">
+                          {formatINR(log.totalWorkValue || log.quantity * log.rate)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteWorkRecord(log.id)}
+                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition"
+                          title="Delete work record"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add New Work Record Form */}
+            <form onSubmit={handleSaveWorkRecord} className="space-y-4 rounded-xl border border-slate-800/80 bg-slate-950/40 p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" />
+                Add Work Entry for this Date
+              </h4>
+
+              {/* Quick Task Chips */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-slate-400">Activity / Task</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[
+                    'Waterproofing',
+                    'PU Coating',
+                    'Epoxy Flooring',
+                    'Brickwork',
+                    'Plaster',
+                    'Tile Fixing',
+                    'Painting',
+                    'Site Labour',
+                  ].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setWorkForm((prev) => ({ ...prev, task: tag }))}
+                      className={clsx(
+                        'px-2 py-0.5 rounded text-[11px] font-medium transition-colors border',
+                        workForm.task === tag
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-white'
+                      )}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Task name (e.g. Waterproofing, Flooring, etc.)"
+                  value={workForm.task}
+                  onChange={(e) => setWorkForm((prev) => ({ ...prev, task: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500"
+                />
+              </div>
+
+              {/* Quantity, Unit & Rate */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">Quantity</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.01"
+                    required
+                    placeholder="e.g. 250"
+                    value={workForm.quantity}
+                    onChange={(e) => setWorkForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">Unit</label>
+                  <select
+                    value={workForm.unit}
+                    onChange={(e) => setWorkForm((prev) => ({ ...prev, unit: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500 h-[34px]"
+                  >
+                    <option value="sq.ft">sq.ft (Square Feet)</option>
+                    <option value="sq.m">sq.m (Square Meter)</option>
+                    <option value="rft">rft (Running Feet)</option>
+                    <option value="meter">meter (Meter)</option>
+                    <option value="bags">bags (Bags)</option>
+                    <option value="nos">nos (Numbers/Units)</option>
+                    <option value="hours">hours (Hours)</option>
+                    <option value="trips">trips (Trips)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400">Rate (₹ / Unit)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    required
+                    placeholder="e.g. 15"
+                    value={workForm.rate}
+                    onChange={(e) => setWorkForm((prev) => ({ ...prev, rate: e.target.value }))}
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Total Calculation Display */}
+              <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs">
+                <span className="text-slate-300 font-medium">Estimated Work Value:</span>
+                <span className="text-sm font-bold text-amber-400 font-mono">
+                  {formatINR((Number(workForm.quantity) || 0) * (Number(workForm.rate) || 0))}
+                </span>
+              </div>
+
+              {/* Description / Notes */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-400">Description / Area Notes (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Terrace parapet waterproofing, block B"
+                  value={workForm.description}
+                  onChange={(e) => setWorkForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsWorkModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSavingWork}
+                >
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                  Save Work Entry
+                </Button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
