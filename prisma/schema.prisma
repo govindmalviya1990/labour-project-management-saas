@@ -53,6 +53,7 @@ model Organization {
   dailyClosings      DailyClosing[]
   notifications      Notification[]
   auditLogs          AuditLog[]
+  loginHistories     LoginHistory[]
   subscriptions      Subscription[]
   quotations         Quotation[]
   purposeOptions     PurposeOption[]
@@ -90,6 +91,7 @@ model User {
   purchasedReceipts  MaterialReceipt[]   @relation("ReceiptPurchaser")
   dailyClosings      DailyClosing[]
   auditLogs          AuditLog[]
+  loginHistories     LoginHistory[]
   notifications      Notification[]
   createdPurposeOptions PurposeOption[] @relation("UserCreatedPurposes")
   createdBankAccounts   BankAccount[]   @relation("UserCreatedBankAccounts")
@@ -270,6 +272,8 @@ model Attendance {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+  deletedById    String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -641,23 +645,55 @@ model Notification {
 }
 
 model AuditLog {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   userId         String?
-  entityType     String   // Project, Worker, Payment, Expense, Material, Attendance
+  userName       String?
+  userEmail      String?
+  userRole       String?
+  entityType     String    // Expense, Attendance, Payment, Worker, Project, MaterialReceipt, Voucher, etc.
   entityId       String
-  action         String   // CREATE, UPDATE, DELETE, RESTORE
-  oldValue       String?  // JSON string
-  newValue       String?  // JSON string
+  action         String    // CREATE, UPDATE, DELETE, RESTORE
+  oldValue       String?   // JSON string
+  newValue       String?   // JSON string
+  details        String?   // Human-readable summary in Hindi/English
   ipAddress      String?
-  createdAt      DateTime @default(now())
+  canUndoUntil   DateTime? // Set to createdAt + 48 hours
+  isReverted     Boolean   @default(false)
+  revertedAt     DateTime?
+  revertedById   String?
+  revertedByName String?
+  status         String    @default("ACTIVE") // ACTIVE, REVERTED, PERMANENT_EXPIRED
+  createdAt      DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, entityType, entityId])
   @@index([organizationId, createdAt])
+  @@index([organizationId, isReverted, canUndoUntil])
   @@map("audit_logs")
+}
+
+model LoginHistory {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String?
+  userEmail      String
+  userName       String?
+  role           String?
+  portal         String?       // OWNER, SUPERVISOR, WORKER, ACCOUNTANT
+  ipAddress      String?
+  userAgent      String?
+  status         String        @default("SUCCESS") // SUCCESS, FAILED
+  loginAt        DateTime      @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, loginAt])
+  @@index([userId, loginAt])
+  @@map("login_history")
 }
 
 model SubscriptionPlan {

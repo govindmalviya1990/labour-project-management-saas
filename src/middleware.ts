@@ -11,11 +11,12 @@ const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/worker-portal
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Skip static assets, Next internal files, and favicon
+  // 1. Skip static assets, Next internal files, public APIs, and favicon
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/register') ||
+    pathname.startsWith('/api/auth/logout') ||
     pathname.startsWith('/api/worker-portal') ||
     pathname.startsWith('/api/public') ||
     pathname.includes('.')
@@ -25,14 +26,19 @@ export async function middleware(request: NextRequest) {
 
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
-  // 2. Handle requests to public routes
+  // 2. Handle requests to public routes (Prevent circular redirect loops permanently)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    if (token && !pathname.startsWith('/worker-portal')) {
-      const payload = await verifyJWT(token);
-      if (payload?.userId) {
-        return NextResponse.redirect(new URL('/', request.url));
-      }
+    // If redirected to login due to session invalidation or explicit logout, delete the cookie cleanly
+    if (
+      request.nextUrl.searchParams.get('reason') === 'no_session' ||
+      request.nextUrl.searchParams.get('logout') === 'true' ||
+      request.nextUrl.searchParams.get('clear') === '1'
+    ) {
+      const response = NextResponse.next();
+      response.cookies.delete(AUTH_COOKIE_NAME);
+      return response;
     }
+    // Allow public routes (/login, /register, /forgot-password, /worker-portal) to render cleanly
     return NextResponse.next();
   }
 
