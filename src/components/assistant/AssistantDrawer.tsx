@@ -44,8 +44,10 @@ interface ChatMessage {
 }
 
 const QUICK_CHIPS = [
+  { label: '📋 Aaj Ki Attendance', query: 'aaj ki attendance kya hai' },
   { label: '📊 Aaj Ka Kharch', query: 'Aaj ka kharch kitna hua?' },
   { label: '👥 Partner Cash', query: 'Sabhi partners ka cash balance dikhao' },
+  { label: '👷 Worker Hisaab', query: 'Worker ka hisab batao' },
   { label: '💳 Pending Payments', query: 'Pending payment report dikhao' },
   { label: '🔒 Din Ka Hisaab', query: 'Din ka hisaab verify kaise karein?' },
   { label: '📦 Dr Fixit Stock', query: 'Dr Fixit ka stock kitna bacha hai?' },

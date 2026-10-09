@@ -373,6 +373,99 @@ export async function matchRuleBased(
     }
   }
 
+  // 2f. Pattern: Attendance Query: "aaj ki attendance kya hai", "attendance batao", "haziri kitni hai", "હાજરી"
+  if (
+    lower.includes('attendance') ||
+    lower.includes('haziri') ||
+    lower.includes('hajiri') ||
+    lower.includes('હાજરી') ||
+    (lower.includes('worker') && (lower.includes('aaye') || lower.includes('turnout') || lower.includes('aavya')))
+  ) {
+    const isMarking = lower.includes('present') || lower.includes('absent') || lower.includes('half day') || lower.includes('lagao');
+    if (!isMarking) {
+      try {
+        const attData = await executeTool('getAttendance', { date: targetDateStr }, ctx);
+        const heading = lang === 'GUJARATI'
+          ? `📋 આજની હાજરી (Attendance Summary - ${attData.date}):`
+          : `📋 आज की हाज़िरी रिपोर्ट (Attendance Summary - ${attData.date}):`;
+
+        let text = `${heading}\n\n`;
+        text += `• Total Workers: ${attData.totalWorkers}\n`;
+        text += `• Present (હાજર): **${attData.present}** workers ✅\n`;
+        text += `• Half Day: **${attData.halfDay}** workers ⏳\n`;
+        text += `• Absent (ગેરહાજર): **${attData.absent}** workers ❌\n`;
+        if (attData.leave) text += `• Leave: ${attData.leave} workers 🏖️\n`;
+        text += `• Total Labour Cost: **${attData.formattedLabourCost || formatINR(attData.totalLabourCost)}**\n`;
+
+        if (attData.workersList && attData.workersList.length > 0) {
+          text += `\n**Worker List:**\n`;
+          attData.workersList.slice(0, 10).forEach((w: any) => {
+            const statusLabel = w.status === 'PRESENT' ? '✅ Present' : w.status === 'HALF_DAY' ? '⏳ Half Day' : w.status === 'ABSENT' ? '❌ Absent' : w.status;
+            text += `• ${w.name} (${w.category || 'Worker'}): ${statusLabel} (${formatINR(w.wageForDay)})\n`;
+          });
+        }
+
+        return {
+          matched: true,
+          content: text,
+          card: {
+            type: 'SUMMARY',
+            title: `Attendance (${attData.date})`,
+            data: attData,
+            linkUrl: '/attendance',
+            linkLabel: 'Open Attendance Sheet',
+          },
+        };
+      } catch (e) {
+        // Fallback to page link
+      }
+    }
+  }
+
+  // 2g. Pattern: Worker Khata / Hisaab: "worker 1 ka hisab", "Ramesh ka hisab kya hai", "Mukesh ka khata"
+  const workerHisabMatch =
+    lower.match(/(.+?)\s+ka\s+(?:hisab|hisaab|khata|ledger|baqi|baki)/i) ||
+    lower.match(/(?:hisab|hisaab|khata|ledger)\s+(?:of\s+|for\s+)?(.+)/i);
+
+  if (workerHisabMatch) {
+    const candidateName = workerHisabMatch[1].trim().replace(/\b(?:batao|kya\s+hai|dikhao|karo)\b/gi, '').trim();
+    if (candidateName && candidateName.length >= 2 && !['partner', 'partners', 'din', 'aaj', 'kal'].includes(candidateName.toLowerCase())) {
+      try {
+        const workerData = await executeTool('getWorkerKhata', { workerName: candidateName }, ctx);
+        if (!workerData.error) {
+          let text = `👷 **Worker Khata — ${workerData.name}**`;
+          if (workerData.workerCode) text += ` (${workerData.workerCode})`;
+          text += `:\n\n`;
+          text += `• Category: ${workerData.category || 'Worker'}\n`;
+          text += `• Daily Wage: ${formatINR(workerData.dailyWage)}/day\n`;
+          text += `• Hajiri (Attendance): ${workerData.presentDays || 0} Present, ${workerData.halfDays || 0} Half Day\n`;
+          text += `• Total Earned: **${formatINR(workerData.totalEarned)}**\n`;
+          text += `• Total Paid / Advance: **${formatINR(workerData.totalPaid)}**\n`;
+          const duesLabel = workerData.pendingDues > 0
+            ? `⚠️ **${workerData.formattedPendingDues}** (Baqi Dena Hai)`
+            : workerData.pendingDues < 0
+            ? `ℹ️ **${formatINR(Math.abs(workerData.pendingDues))}** (Advance Wapis Lena Hai)`
+            : `✅ **₹0** (Hisaab Clear Hai)`;
+          text += `• Net Balance: ${duesLabel}`;
+
+          return {
+            matched: true,
+            content: text,
+            card: {
+              type: 'SUMMARY',
+              title: `Worker Ledger: ${workerData.name}`,
+              data: workerData,
+              linkUrl: `/workers/${workerData.workerId}`,
+              linkLabel: 'View Worker Passbook',
+            },
+          };
+        }
+      } catch (e) {
+        // Continue
+      }
+    }
+  }
+
   // 3. Pattern: "Aaj ka kharch" / "Today's expense" / "ખર્ચ"
   if (
     lower.includes('kharch') ||

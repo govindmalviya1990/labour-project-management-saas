@@ -24,14 +24,14 @@ function normalizeSchema(schema: any): any {
 export let lastDiscoveredModels: string[] = [];
 
 async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
-  if (activeModelCache && !activeModelCache.includes('2.5-flash')) {
+  if (activeModelCache && !activeModelCache.includes('2.5-flash') && !activeModelCache.includes('3.8-flash')) {
     return activeModelCache;
   }
   activeModelCache = null;
 
   let initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
-  if (initial.includes('2.5-flash')) {
-    initial = 'gemini-3.8-flash';
+  if (initial.includes('2.5-flash') || initial.includes('3.8-flash') || initial.includes('3.5-flash')) {
+    initial = 'gemini-2.0-flash';
   }
 
   try {
@@ -43,7 +43,7 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
         .map((m: any) => m.name.replace(/^models\//, ''));
 
       lastDiscoveredModels = rawModels;
-      const validModels = rawModels.filter((name: string) => !name.includes('2.5-flash'));
+      const validModels = rawModels.filter((name: string) => !name.includes('2.5-flash') && !name.includes('3.8-flash'));
 
       if (initial && validModels.includes(initial)) {
         activeModelCache = initial;
@@ -51,12 +51,11 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
       }
 
       const priorityOrder = [
-        'gemini-3.8-flash',
         'gemini-2.0-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-flash-latest',
         'gemini-1.5-flash',
+        'gemini-1.5-flash-latest',
         'gemini-1.5-flash-8b',
+        'gemini-2.0-flash-exp',
         'gemini-1.5-pro-latest',
         'gemini-1.5-pro',
         'gemini-pro',
@@ -78,7 +77,7 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
     console.warn('Failed to query Gemini models list:', err);
   }
 
-  return initial || 'gemini-3.8-flash';
+  return initial || 'gemini-2.0-flash';
 }
 
 export class GeminiProvider implements ILlmProvider {
@@ -104,13 +103,21 @@ export class GeminiProvider implements ILlmProvider {
       if (msg.role === 'system') continue; // Handled in system_instruction
 
       if (msg.role === 'function' && msg.name) {
+        let functionResponseData: any;
+        try {
+          functionResponseData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+        } catch {
+          functionResponseData = { output: msg.content };
+        }
         contents.push({
           role: 'function',
           parts: [
             {
               functionResponse: {
                 name: msg.name,
-                response: { output: msg.content },
+                response: typeof functionResponseData === 'object' && functionResponseData !== null
+                  ? functionResponseData
+                  : { output: functionResponseData },
               },
             },
           ],
@@ -172,11 +179,11 @@ export class GeminiProvider implements ILlmProvider {
 
     const candidateModels = [
       model,
-      'gemini-3.5-flash',
-      'gemini-3.5-flash-lite',
-      'gemini-3.7-flash',
-      'gemini-3.6-flash',
-      'gemini-3.8-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash-8b',
+      'gemini-1.5-pro',
     ];
     const uniqueModels = Array.from(new Set(candidateModels));
 

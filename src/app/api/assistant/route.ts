@@ -6,7 +6,136 @@ import { ALL_ASSISTANT_TOOL_DEFINITIONS, executeTool } from '@/lib/ai/tools';
 import { matchRuleBased } from '@/lib/ai/rule-based';
 import { ToolExecutionContext, LlmMessage } from '@/lib/ai/types';
 
+import { formatINR } from '@/lib/calculations';
+
 export const dynamic = 'force-dynamic';
+
+function formatToolDataToAnswer(toolName: string, data: any, query: string): string {
+  if (!data) return 'Aapki query ka koi data nahi mila.';
+  if (data.error) return `⚠️ ${data.error}`;
+
+  switch (toolName) {
+    case 'getAttendance': {
+      const isToday = !data.date || data.date === new Date().toISOString().split('T')[0];
+      const dateLabel = isToday ? 'Aaj' : data.date;
+      let text = `📋 **${dateLabel} Ki Attendance Sheet (${data.date}):**\n\n`;
+      text += `• Total Workers: ${data.totalWorkers}\n`;
+      text += `• Present (Hajir): **${data.present}** workers ✅\n`;
+      text += `• Half Day: **${data.halfDay}** workers ⏳\n`;
+      text += `• Absent (Gair-Hajir): **${data.absent}** workers ❌\n`;
+      if (data.leave) text += `• Leave (Chhutti): **${data.leave}** workers 🏖️\n`;
+      text += `• Estimated Labour Cost: **${data.formattedLabourCost || formatINR(data.totalLabourCost || 0)}**\n`;
+
+      if (data.workersList && data.workersList.length > 0) {
+        text += `\n**Worker Turnout Details:**\n`;
+        data.workersList.slice(0, 15).forEach((w: any) => {
+          const statusBadge = w.status === 'PRESENT' ? '✅ Present' : w.status === 'HALF_DAY' ? '⏳ Half Day' : w.status === 'ABSENT' ? '❌ Absent' : w.status;
+          text += `• **${w.name}** (${w.category || 'Worker'}): ${statusBadge} (Hajiri: ${formatINR(w.wageForDay)})\n`;
+        });
+      }
+      return text;
+    }
+
+    case 'getWorkerKhata': {
+      let text = `👷 **Worker Khata Hisaab — ${data.name}**`;
+      if (data.workerCode) text += ` (${data.workerCode})`;
+      text += `:\n\n`;
+      text += `• Category / Kaam: ${data.category || 'Worker'}\n`;
+      text += `• Daily Wage: ${formatINR(data.dailyWage)}/day\n`;
+      text += `• Hajiri (Attendance): ${data.presentDays || 0} Present, ${data.halfDays || 0} Half Day, ${data.absentDays || 0} Absent\n`;
+      text += `• Total Wage Earned: **${formatINR(data.totalEarned)}**\n`;
+      text += `• Total Paid / Advance: **${formatINR(data.totalPaid)}**\n`;
+      const duesText = data.pendingDues > 0
+        ? `⚠️ **${data.formattedPendingDues}** (Baqi Dena Hai)`
+        : data.pendingDues < 0
+        ? `ℹ️ **${formatINR(Math.abs(data.pendingDues))}** (Worker ke pas advance jama hai)`
+        : `✅ **₹0** (Hisaab clear / barabar hai)`;
+      text += `• Net Balance: ${duesText}`;
+      return text;
+    }
+
+    case 'getPartnerWallets': {
+      let text = `🤝 **Partners Live Cash In Hand (Hisaab):**\n\n`;
+      if (data.partners && data.partners.length > 0) {
+        data.partners.forEach((p: any) => {
+          text += `• **${p.name}** (${p.role}): **${p.formattedBalance || p.formattedCashInHand || formatINR(p.cashInHand || p.balance || 0)}**\n`;
+        });
+      }
+      if (data.formattedTotalCashInHand || data.totalCashInHand) {
+        text += `\n**Total Team Cash In Hand**: **${data.formattedTotalCashInHand || formatINR(data.totalCashInHand)}**`;
+      }
+      return text;
+    }
+
+    case 'getCashBookSummary': {
+      let text = `💼 **Cash Book / Wallet Summary (${data.user || 'Aapka'}):**\n\n`;
+      text += `• Current Cash In Hand: **${data.formattedCashInHand || formatINR(data.cashInHand || 0)}**\n`;
+      text += `• Aaj Aaya (Money In): ${formatINR(data.today?.moneyIn || 0)}\n`;
+      text += `• Aaj Gaya (Money Out): ${formatINR(data.today?.moneyOut || 0)}\n`;
+      text += `• Closing Hisaab Status: ${data.closingStatus === 'VERIFIED' ? '✅ Verified & Locked' : '⏳ Pending Closing Verification'}`;
+      return text;
+    }
+
+    case 'getExpenses': {
+      let text = `💰 **Kharch Ka Hisaab (${data.period || 'Total'}):**\n\n`;
+      text += `• Total Kharch: **${data.formattedTotal || formatINR(data.totalAmount || 0)}** (${data.count || 0} entries)\n`;
+      if (data.breakdown && data.breakdown.length > 0) {
+        text += `\n**Top Categories:**\n`;
+        data.breakdown.slice(0, 6).forEach((b: any) => {
+          text += `• ${b.category}: ${formatINR(b.amount)}\n`;
+        });
+      }
+      return text;
+    }
+
+    case 'getDailyReport': {
+      let text = `📊 **Daily Summary Report (${data.date}):**\n\n`;
+      text += `• Workers Present: ${data.workersPresent} log\n`;
+      if (data.financials) {
+        text += `• Client Receipts In: ${formatINR(data.financials.clientReceiptsIn || 0)}\n`;
+        text += `• Expenses Out: ${formatINR(data.financials.expensesOut || 0)}\n`;
+        text += `• Transfers Out: ${formatINR(data.financials.transfersOut || 0)}\n`;
+        text += `• Net Cash Flow: **${data.financials.formattedNetCashFlow || formatINR(data.financials.netCashFlow || 0)}**\n`;
+      }
+      return text;
+    }
+
+    case 'getMaterialStock': {
+      let text = `🏗️ **Waterproofing Materials Stock:**\n\n`;
+      if (data.materials && data.materials.length > 0) {
+        data.materials.slice(0, 8).forEach((m: any) => {
+          text += `• **${m.name}**: Bacha = **${m.bachaStock} ${m.unit}** (Aaya: ${m.aayaInward}, Use: ${m.useHuaConsumed})\n`;
+        });
+      } else {
+        text += `Koi material record nahi mila.`;
+      }
+      return text;
+    }
+
+    case 'getProjectSummary': {
+      let text = `🏢 **Project Summary — ${data.projectName || data.name}:**\n\n`;
+      text += `• Contract Value: ${formatINR(data.contractValue || data.projectValue || 0)}\n`;
+      text += `• Client Se Aaya (Received): ${formatINR(data.received || 0)}\n`;
+      text += `• Pending Client Receivable: **${data.formattedPending || formatINR(data.pending || 0)}**\n`;
+      text += `• Total Site Expenses: ${formatINR(data.expenses || 0)}`;
+      return text;
+    }
+
+    case 'getPendingPayments': {
+      let text = `⏳ **Pending Client Receivables:**\n\n`;
+      text += `• Total Baqi Rakam: **${data.formattedTotal || formatINR(data.totalPending || 0)}**\n`;
+      if (data.projects && data.projects.length > 0) {
+        data.projects.slice(0, 5).forEach((p: any) => {
+          text += `• ${p.projectName}: ${p.formattedPending || formatINR(p.pending)}\n`;
+        });
+      }
+      return text;
+    }
+
+    default:
+      return typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  }
+}
 
 // Sliding-window in-memory rate limiter: max 25 requests per minute per user
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -221,16 +350,33 @@ CORE BEHAVIOR & RULES:
         const secondLlmResponse = await defaultLlmProvider.generateResponse({
           systemInstruction,
           messages: secondTurnMessages,
+          tools: ALL_ASSISTANT_TOOL_DEFINITIONS,
           temperature: 0.2,
           maxTokens: 800,
         });
 
+        const fallbackAnswer = formatToolDataToAnswer(name, toolOutput, trimmedMessage);
+        const finalAnswer = (secondLlmResponse.content && !secondLlmResponse.isFallback)
+          ? secondLlmResponse.content
+          : fallbackAnswer;
+
+        const defaultCard =
+          name === 'getPartnerWallets'
+            ? { type: 'PARTNERS', title: 'Partners Live Cash Overview', data: toolOutput, linkUrl: '/dashboard', linkLabel: 'Open Dashboard' }
+            : name === 'getExpenses'
+            ? { type: 'EXPENSES', title: 'Expenses Breakdown', data: toolOutput, linkUrl: '/finance/expenses', linkLabel: 'View Expenses' }
+            : name === 'getAttendance'
+            ? { type: 'SUMMARY', title: `Attendance (${toolOutput.date})`, data: toolOutput, linkUrl: '/attendance', linkLabel: 'Open Attendance Sheet' }
+            : name === 'getWorkerKhata'
+            ? { type: 'SUMMARY', title: `Worker Ledger: ${toolOutput.name}`, data: toolOutput, linkUrl: `/workers/${toolOutput.workerId}`, linkLabel: 'Worker Passbook' }
+            : undefined;
+
         return NextResponse.json({
-          answer: secondLlmResponse.content || 'Aapki query ka data nikal liya gaya hai.',
+          answer: finalAnswer,
           toolCalled: name,
           toolData: toolOutput,
-          card: toolOutput.card || (name === 'getPartnerWallets' ? { type: 'PARTNERS', title: 'Partners Live Cash Overview', data: toolOutput } : name === 'getExpenses' ? { type: 'EXPENSES', title: 'Expenses Breakdown', data: toolOutput } : undefined),
-          source: 'GEMINI',
+          card: toolOutput.card || defaultCard,
+          source: (secondLlmResponse.content && !secondLlmResponse.isFallback) ? 'GEMINI' : 'DATA_ENGINE',
         });
       }
 

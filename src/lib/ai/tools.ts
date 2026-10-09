@@ -23,6 +23,23 @@ import { DraftConfirmationPayload } from '@/lib/assistant/draft-types';
 
 export const READ_ONLY_TOOL_DEFINITIONS: LlmToolDefinition[] = [
   {
+    name: 'getAttendance',
+    description: 'Get live daily worker turnout and attendance for today or a specific date, project, or site. Returns present, half day, absent counts, labour cost, and names of workers.',
+    parameters: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'Date in YYYY-MM-DD format (defaults to today).',
+        },
+        projectId: {
+          type: 'string',
+          description: 'Filter by specific project ID.',
+        },
+      },
+    },
+  },
+  {
     name: 'getCashBookSummary',
     description: 'Get live Cash Book and wallet balance for a user on a given date (default today). Shows cash in hand, money in, money out, and closing hisaab status.',
     parameters: {
@@ -405,6 +422,65 @@ export async function executeTool(
 
   switch (toolName) {
     // ---------------------------------------------------------
+    // 0. getAttendance
+    // ---------------------------------------------------------
+    case 'getAttendance': {
+      const dateStr = args.date || new Date().toISOString().split('T')[0];
+      const targetDate = new Date(dateStr);
+      const dayStart = getStartOfDayUTC(targetDate);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+      const where: any = {
+        organizationId: ctx.organizationId,
+        date: { gte: dayStart, lte: dayEnd },
+      };
+      if (args.projectId) where.projectId = args.projectId;
+
+      const [attendanceRecords, totalWorkersCount] = await Promise.all([
+        prisma.attendance.findMany({
+          where,
+          include: {
+            worker: { select: { id: true, name: true, workerCode: true, category: true, dailyWage: true } },
+            project: { select: { id: true, name: true, projectCode: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.worker.count({
+          where: { organizationId: ctx.organizationId, status: 'ACTIVE', deletedAt: null },
+        }),
+      ]);
+
+      const present = attendanceRecords.filter((a) => a.status === 'PRESENT').length;
+      const halfDay = attendanceRecords.filter((a) => a.status === 'HALF_DAY').length;
+      const absent = attendanceRecords.filter((a) => a.status === 'ABSENT').length;
+      const leave = attendanceRecords.filter((a) => a.status === 'LEAVE').length;
+      const totalLabourCost = attendanceRecords.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+
+      const workersList = attendanceRecords.map((a) => ({
+        name: a.worker?.name || 'Worker',
+        workerCode: a.worker?.workerCode,
+        category: a.worker?.category,
+        status: a.status,
+        wageForDay: a.wageForDay,
+        overtimeHours: a.overtimeHours,
+        projectName: a.project?.name,
+      }));
+
+      return {
+        date: dateStr,
+        totalWorkers: totalWorkersCount,
+        markedCount: attendanceRecords.length,
+        present,
+        halfDay,
+        absent,
+        leave,
+        totalLabourCost,
+        formattedLabourCost: formatINR(totalLabourCost),
+        workersList,
+      };
+    }
+
+    // ---------------------------------------------------------
     // 1. getCashBookSummary
     // ---------------------------------------------------------
     case 'getCashBookSummary': {
@@ -695,33 +771,68 @@ export async function executeTool(
           where: { id: args.workerId, organizationId: ctx.organizationId },
         });
       } else if (args.workerName) {
-        worker = await prisma.worker.findFirst({
-          where: {
-            organizationId: ctx.organizationId,
-            name: { contains: args.workerName },
-          },
-        });
+        // Try fuzzy matching first
+        const matchRes = await matchWorker(args.workerName, ctx.organizationId);
+        if (matchRes.match) {
+          worker = await prisma.worker.findFirst({
+            where: { id: matchRes.match.id, organizationId: ctx.organizationId },
+          });
+        } else {
+          worker = await prisma.worker.findFirst({
+            where: {
+              organizationId: ctx.organizationId,
+              deletedAt: null,
+              OR: [
+                { name: { contains: args.workerName, mode: 'insensitive' } },
+                { workerCode: { contains: args.workerName, mode: 'insensitive' } },
+              ],
+            },
+          });
+        }
       }
 
       if (!worker) {
         return { error: `No worker found matching "${args.workerName || args.workerId || ''}"` };
       }
 
-      // Fetch wage earnings (salary records) and payouts
-      const [earningsAgg, paymentsAgg] = await Promise.all([
+      // Fetch live attendance earnings, salary records, allowances, and payments/transfers
+      const [attendanceRecords, salaryRecordsAgg, allowancesAgg, paymentsAgg, fundTransfersAgg] = await Promise.all([
+        prisma.attendance.findMany({
+          where: { organizationId: ctx.organizationId, workerId: worker.id },
+          select: { status: true, wageForDay: true },
+        }),
         prisma.salaryRecord.aggregate({
           where: { organizationId: ctx.organizationId, workerId: worker.id },
           _sum: { netPayable: true, totalGrossSalary: true },
+        }),
+        prisma.allowance.aggregate({
+          where: { organizationId: ctx.organizationId, workerId: worker.id, deletedAt: null },
+          _sum: { amount: true },
         }),
         prisma.payment.aggregate({
           where: { organizationId: ctx.organizationId, workerId: worker.id, deletedAt: null },
           _sum: { amount: true },
         }),
+        prisma.fundTransfer.aggregate({
+          where: { organizationId: ctx.organizationId, toWorkerId: worker.id, deletedAt: null, linkedPaymentId: null },
+          _sum: { amount: true },
+        }),
       ]);
 
-      const earned = (earningsAgg._sum?.netPayable ?? earningsAgg._sum?.totalGrossSalary) || 0;
-      const paid = paymentsAgg._sum.amount || 0;
-      const remainingDues = Math.round((earned - paid) * 100) / 100;
+      const attendanceEarned = attendanceRecords.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+      const salaryEarned = (salaryRecordsAgg._sum?.netPayable ?? salaryRecordsAgg._sum?.totalGrossSalary) || 0;
+      const earnedBase = Math.max(attendanceEarned, salaryEarned);
+      const totalAllowances = allowancesAgg._sum.amount || 0;
+      const totalEarned = earnedBase + totalAllowances;
+
+      const directPaid = paymentsAgg._sum.amount || 0;
+      const transferPaid = fundTransfersAgg._sum.amount || 0;
+      const totalPaid = directPaid + transferPaid;
+      const remainingDues = Math.round((totalEarned - totalPaid) * 100) / 100;
+
+      const presentDays = attendanceRecords.filter((a) => a.status === 'PRESENT').length;
+      const halfDays = attendanceRecords.filter((a) => a.status === 'HALF_DAY').length;
+      const absentDays = attendanceRecords.filter((a) => a.status === 'ABSENT').length;
 
       return {
         workerId: worker.id,
@@ -729,8 +840,11 @@ export async function executeTool(
         workerCode: worker.workerCode,
         category: worker.category,
         dailyWage: worker.dailyWage,
-        totalEarned: earned,
-        totalPaid: paid,
+        presentDays,
+        halfDays,
+        absentDays,
+        totalEarned,
+        totalPaid,
         pendingDues: remainingDues,
         formattedPendingDues: formatINR(remainingDues),
         status: remainingDues <= 0 ? 'FULLY_PAID' : 'PENDING_DUES',
