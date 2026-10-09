@@ -308,7 +308,7 @@ function ExpenseDonutChart({
 export interface PartnerHisaabSectionProps {
   showHeaderTitle?: boolean;
   initialPartnerId?: string;
-  initialPeriod?: 'today' | 'weekly' | 'monthly' | 'custom' | 'all';
+  initialPeriod?: 'today' | 'single_day' | 'weekly' | 'monthly' | 'custom' | 'all';
 }
 
 export function PartnerHisaabSection({
@@ -340,13 +340,40 @@ export function PartnerHisaabSection({
   }, []);
 
   // Period Filters
-  const [period, setPeriod] = useState<'today' | 'weekly' | 'monthly' | 'custom' | 'all'>(initialPeriod);
+  const [period, setPeriod] = useState<'today' | 'single_day' | 'weekly' | 'monthly' | 'custom' | 'all'>(initialPeriod);
+  const [selectedSingleDate, setSelectedSingleDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState('');
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState('ALL');
   const [showMobileTableMatrix, setShowMobileTableMatrix] = useState(false);
   const [showMobileTableLedger, setShowMobileTableLedger] = useState(false);
+
+  // Single Day quick helper functions
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  };
+  const shiftSingleDate = (days: number) => {
+    const base = selectedSingleDate ? new Date(selectedSingleDate) : new Date();
+    base.setDate(base.getDate() + days);
+    setSelectedSingleDate(base.toISOString().split('T')[0]);
+  };
+  const formatReadableDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        return d.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+      }
+      return new Date(dateStr).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
 
   // Send Money Modal State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -400,7 +427,10 @@ export function PartnerHisaabSection({
       const params = new URLSearchParams();
       if (selectedPartnerId) params.set('partnerId', selectedPartnerId);
       if (period) params.set('period', period);
-      if (period === 'custom') {
+      if (period === 'single_day') {
+        params.set('startDate', selectedSingleDate);
+        params.set('endDate', selectedSingleDate);
+      } else if (period === 'custom') {
         if (startDate) params.set('startDate', startDate);
         if (endDate) params.set('endDate', endDate);
       }
@@ -430,7 +460,7 @@ export function PartnerHisaabSection({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedPartnerId, period, startDate, endDate]);
+  }, [selectedPartnerId, period, selectedSingleDate, startDate, endDate]);
 
   useEffect(() => {
     loadPartnerHisaab();
@@ -452,18 +482,29 @@ export function PartnerHisaabSection({
 
   // Combined Totals when "ALL" is selected
   const allPartnersTotals = useMemo(() => {
-    return partners.reduce(
+    const res = partners.reduce(
       (acc, p) => {
         acc.totalCash += p.currentBalance || 0;
         acc.receipts += p.period.receiptsTotal || 0;
         acc.transfersIn += p.period.transfersInTotal || 0;
         acc.transfersOut += p.period.transfersOutTotal || 0;
-        acc.expenses += p.period.expensesTotal || 0;
         return acc;
       },
       { totalCash: 0, receipts: 0, transfersIn: 0, transfersOut: 0, expenses: 0 }
     );
-  }, [partners]);
+    // Align total company expenses with overallExpensesTotal to match chart & all categories
+    res.expenses = overallExpensesTotal;
+    return res;
+  }, [partners, overallExpensesTotal]);
+
+  const periodTotalInflow = useMemo(() => {
+    return (allPartnersTotals.receipts || 0) + (bankSummary?.periodInflow || 0);
+  }, [allPartnersTotals.receipts, bankSummary?.periodInflow]);
+
+  const isSingleDayView =
+    period === 'today' ||
+    period === 'single_day' ||
+    (period === 'custom' && Boolean(startDate && endDate && startDate === endDate));
 
   // Filtered Ledger entries
   const displayedLedger = useMemo(() => {
@@ -849,7 +890,10 @@ export function PartnerHisaabSection({
           <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-x-auto no-scrollbar scroll-smooth w-full md:w-auto">
             <button
               type="button"
-              onClick={() => setPeriod('today')}
+              onClick={() => {
+                setPeriod('today');
+                setSelectedSingleDate(getTodayStr());
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap ${
                 period === 'today'
                   ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
@@ -857,6 +901,21 @@ export function PartnerHisaabSection({
               }`}
             >
               Today
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPeriod('single_day');
+                if (!selectedSingleDate) setSelectedSingleDate(getTodayStr());
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 whitespace-nowrap flex items-center gap-1.5 ${
+                period === 'single_day'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Single Day (Ek Din)
             </button>
             <button
               type="button"
@@ -898,7 +957,7 @@ export function PartnerHisaabSection({
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              Custom Date
+              Custom Range
             </button>
             <button
               type="button"
@@ -914,7 +973,76 @@ export function PartnerHisaabSection({
           </div>
         </div>
 
-        {/* Custom Date Pickers */}
+        {/* Dedicated Single Day (Ek Din) Quick Picker */}
+        {period === 'single_day' && (
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 border border-amber-500/40 rounded-xl px-3 py-1.5 shadow-sm">
+                <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  Date:
+                </span>
+                <input
+                  type="date"
+                  value={selectedSingleDate}
+                  onChange={(e) => setSelectedSingleDate(e.target.value)}
+                  className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              {/* Quick Jump Buttons: Prev, Kal, Aaj, Next */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => shiftSingleDate(-1)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                  title="Pichla Din"
+                >
+                  ◀ Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSingleDate(getYesterdayStr())}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  Kal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSingleDate(getTodayStr())}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-colors"
+                >
+                  Aaj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shiftSingleDate(1)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                  title="Agla Din"
+                >
+                  Next ▶
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Date Badge & Refresh */}
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 truncate">
+                📅 {formatReadableDate(selectedSingleDate)}
+              </span>
+              <Button
+                size="sm"
+                onClick={loadPartnerHisaab}
+                className="text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shrink-0 h-8"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Check Hisaab
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Custom Date Range Pickers */}
         {period === 'custom' && (
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2.5 animate-fade-in">
             <div className="flex items-center gap-2">
@@ -1013,37 +1141,72 @@ export function PartnerHisaabSection({
           />
         </div>
       ) : (
-        // 3) ALL PARTNERS & OWNERS OVERVIEW: Summary cards (Total Remaining Balance, Bank Balance, Cash in Hand, Expenses)
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Total Remaining Balance (Cash + Bank)"
-            value={formatINR(allPartnersTotals.totalCash + totalBankBalance)}
-            subtitle={`Cash: ${formatINR(allPartnersTotals.totalCash)} • Bank: ${formatINR(totalBankBalance)}`}
-            icon={<Wallet className="w-5 h-5 text-emerald-500" />}
-            variant="emerald"
-          />
-          <MetricCard
-            title="Total Bank Balance"
-            value={formatINR(totalBankBalance)}
-            subtitle={`Available across ${bankAccounts.length} company bank account(s)`}
-            icon={<Building2 className="w-5 h-5 text-sky-500" />}
-            variant="blue"
-          />
-          <MetricCard
-            title="Total Partners Cash in Hand"
-            value={formatINR(allPartnersTotals.totalCash)}
-            subtitle={`Held across ${partners.length} partners & owners`}
-            icon={<Users className="w-5 h-5 text-indigo-500" />}
-            variant="blue"
-          />
-          <MetricCard
-            title="Total Partner Site Expenses"
-            value={formatINR(allPartnersTotals.expenses)}
-            subtitle="Paid from partner wallets & sites"
-            icon={<CreditCard className="w-5 h-5 text-amber-500" />}
-            variant="amber"
-          />
-        </div>
+        // 3) ALL PARTNERS & OWNERS OVERVIEW: Period-specific metrics vs All-Time Summary
+        period !== 'all' ? (
+          // A) FILTERED PERIOD / DAY VIEW: Shows exact expenses, inflow, and net flow for the chosen day/range
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+            <MetricCard
+              title={isSingleDayView ? "Day's Total Expenses (Kul Kharch)" : "Period Total Expenses"}
+              value={formatINR(overallExpensesTotal)}
+              subtitle={`${overallExpensesByCategory.length} categories on site, workers & fuel`}
+              icon={<CreditCard className="w-5 h-5 text-amber-500" />}
+              variant="amber"
+            />
+            <MetricCard
+              title={isSingleDayView ? "Day's Inflow / Receipts (Aaya Paisa)" : "Period Inflow / Receipts"}
+              value={formatINR(periodTotalInflow)}
+              subtitle="Client receipts & bank inflow in period"
+              icon={<ArrowDownLeft className="w-5 h-5 text-emerald-500" />}
+              variant="emerald"
+            />
+            <MetricCard
+              title={isSingleDayView ? "Day's Net Cash Movement" : "Period Net Cash Movement"}
+              value={formatINR(periodTotalInflow - overallExpensesTotal)}
+              subtitle="Total Inflow minus Total Expenses"
+              icon={<ArrowRightLeft className="w-5 h-5 text-indigo-500" />}
+              variant={periodTotalInflow - overallExpensesTotal >= 0 ? "emerald" : "rose"}
+            />
+            <MetricCard
+              title="Live Cash in Hand (Physical)"
+              value={formatINR(allPartnersTotals.totalCash)}
+              subtitle={`Current physical cash across ${partners.length} partners`}
+              icon={<Wallet className="w-5 h-5 text-sky-500" />}
+              variant="blue"
+            />
+          </div>
+        ) : (
+          // B) ALL-TIME LIFETIME VIEW
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+            <MetricCard
+              title="Total Remaining Balance (Cash + Bank)"
+              value={formatINR(allPartnersTotals.totalCash + totalBankBalance)}
+              subtitle={`Cash: ${formatINR(allPartnersTotals.totalCash)} • Bank: ${formatINR(totalBankBalance)}`}
+              icon={<Wallet className="w-5 h-5 text-emerald-500" />}
+              variant="emerald"
+            />
+            <MetricCard
+              title="Total Bank Balance"
+              value={formatINR(totalBankBalance)}
+              subtitle={`Available across ${bankAccounts.length} company bank account(s)`}
+              icon={<Building2 className="w-5 h-5 text-sky-500" />}
+              variant="blue"
+            />
+            <MetricCard
+              title="Total Partners Cash in Hand"
+              value={formatINR(allPartnersTotals.totalCash)}
+              subtitle={`Held across ${partners.length} partners & owners`}
+              icon={<Users className="w-5 h-5 text-indigo-500" />}
+              variant="blue"
+            />
+            <MetricCard
+              title="Total All-Time Site Expenses"
+              value={formatINR(overallExpensesTotal)}
+              subtitle="Total site & material expenses recorded"
+              icon={<CreditCard className="w-5 h-5 text-amber-500" />}
+              variant="amber"
+            />
+          </div>
+        )
       )}
 
       {/* 5. Main Content: ALL PARTNERS SUMMARY or BANK LEDGER or INDIVIDUAL PARTNER LEDGER */}

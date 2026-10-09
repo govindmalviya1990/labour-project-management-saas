@@ -5,6 +5,55 @@ import { calculateProjectCost, calculateCostPerUnit, calculateMaterialStock, cal
 
 export const dynamic = 'force-dynamic';
 
+function parseDateParts(dateStr: string): { year: number; month: number; day: number } | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const parts = clean.split('T')[0].split('-');
+    return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
+  }
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(clean)) {
+    const parts = clean.split(/[-/]/);
+    return { day: parseInt(parts[0], 10), month: parseInt(parts[1], 10), year: parseInt(parts[2], 10) };
+  }
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
+function resolveReportDateBounds(
+  startDateStr?: string | null,
+  endDateStr?: string | null
+): { startDate: Date | null; endDate: Date | null; hasDateFilter: boolean } {
+  const s = (startDateStr || '').trim();
+  const e = (endDateStr || '').trim();
+  if (!s && !e) return { startDate: null, endDate: null, hasDateFilter: false };
+
+  const now = new Date();
+  if (s && (!e || s === e)) {
+    // Single Day (e.g. "2026-10-08" or "08-10-2026")
+    const parts = parseDateParts(s);
+    if (!parts) return { startDate: null, endDate: null, hasDateFilter: false };
+    const { year, month, day } = parts;
+    const startIST = new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+    const endUTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    return { startDate: startIST, endDate: endUTC, hasDateFilter: true };
+  }
+
+  const sParts = parseDateParts(s);
+  const eParts = parseDateParts(e);
+  const startDate = sParts
+    ? new Date(Date.UTC(sParts.year, sParts.month - 1, sParts.day - 1, 18, 30, 0, 0))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endDate = eParts
+    ? new Date(Date.UTC(eParts.year, eParts.month - 1, eParts.day, 23, 59, 59, 999))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  return { startDate, endDate, hasDateFilter: true };
+}
+
 export async function GET(req: Request) {
   try {
     const auth = await checkRolePermission(['OWNER', 'MANAGER', 'ACCOUNTANT']);
@@ -24,16 +73,14 @@ export async function GET(req: Request) {
       select: { name: true, mobile: true, email: true, address: true, gstNumber: true, logoUrl: true },
     });
 
+    const { startDate: resolvedStart, endDate: resolvedEnd, hasDateFilter } = resolveReportDateBounds(
+      startDate,
+      endDate
+    );
+
     const dateFilter: any = {};
-    if (startDate && endDate) {
-      dateFilter.gte = new Date(startDate);
-      dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
-    } else if (startDate) {
-      dateFilter.gte = new Date(startDate);
-    } else if (endDate) {
-      dateFilter.lte = new Date(`${endDate}T23:59:59.999Z`);
-    }
-    const hasDateFilter = Boolean(startDate || endDate);
+    if (resolvedStart) dateFilter.gte = resolvedStart;
+    if (resolvedEnd) dateFilter.lte = resolvedEnd;
 
     // 1. LABOUR REPORT
     if (type === 'labour') {
@@ -47,20 +94,20 @@ export async function GET(req: Request) {
           attendance: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
               ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
             },
           },
           payments: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
           allowances: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
         },
@@ -117,7 +164,7 @@ export async function GET(req: Request) {
           organizationId: orgId,
           ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
           ...(workerId && workerId !== 'ALL' ? { workerId } : {}),
-          ...(startDate && endDate ? { date: dateFilter } : {}),
+          ...(hasDateFilter ? { date: dateFilter } : {}),
         },
         include: {
           worker: { select: { workerCode: true, name: true, category: true, dailyWage: true } },
@@ -161,7 +208,7 @@ export async function GET(req: Request) {
           organizationId: orgId,
           ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
           ...(workerId && workerId !== 'ALL' ? { workerId } : {}),
-          ...(startDate && endDate ? { date: dateFilter } : {}),
+          ...(hasDateFilter ? { date: dateFilter } : {}),
         },
         include: {
           worker: { select: { workerCode: true, name: true, category: true } },
@@ -221,7 +268,7 @@ export async function GET(req: Request) {
           organizationId: orgId,
           ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
           ...(workerId && workerId !== 'ALL' ? { workerId } : {}),
-          ...(startDate && endDate ? { date: dateFilter } : {}),
+          ...(hasDateFilter ? { date: dateFilter } : {}),
         },
         include: {
           worker: { select: { workerCode: true, name: true, category: true } },
@@ -440,20 +487,20 @@ export async function GET(req: Request) {
           attendance: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
               ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
             },
           },
           allowances: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
           payments: {
             where: {
               organizationId: orgId,
-              ...(startDate && endDate ? { date: dateFilter } : {}),
+              ...(hasDateFilter ? { date: dateFilter } : {}),
             },
           },
         },

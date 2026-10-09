@@ -197,6 +197,125 @@ function buildCategoryBreakdown(expensesList: Array<{ category: string; amount: 
   };
 }
 
+function parseDateParts(dateStr: string): { year: number; month: number; day: number } | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  // Check YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const parts = clean.split('T')[0].split('-');
+    return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
+  }
+  // Check DD-MM-YYYY or DD/MM/YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(clean)) {
+    const parts = clean.split(/[-/]/);
+    return { day: parseInt(parts[0], 10), month: parseInt(parts[1], 10), year: parseInt(parts[2], 10) };
+  }
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
+function createSingleDayBounds(dateStr: string): { startDate: Date; endDate: Date } {
+  const parts = parseDateParts(dateStr);
+  if (!parts) {
+    const now = new Date();
+    const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startDate: s, endDate: e };
+  }
+  const { year, month, day } = parts;
+  // Start of day IST is 18:30 UTC of previous day
+  const startIST = new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+  // End of day UTC is 23:59:59.999 UTC of selected day (envelopes both IST day and UTC timestamps)
+  const endUTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  return { startDate: startIST, endDate: endUTC };
+}
+
+function createRangeBounds(startStr: string, endStr: string): { startDate: Date; endDate: Date } {
+  const sParts = parseDateParts(startStr);
+  const eParts = parseDateParts(endStr);
+  const now = new Date();
+  const startDate = sParts
+    ? new Date(Date.UTC(sParts.year, sParts.month - 1, sParts.day - 1, 18, 30, 0, 0))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endDate = eParts
+    ? new Date(Date.UTC(eParts.year, eParts.month - 1, eParts.day, 23, 59, 59, 999))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  return { startDate, endDate };
+}
+
+function resolvePeriodDateRange(
+  period: string,
+  customStartDate?: string | null,
+  customEndDate?: string | null
+): { startDate: Date | null; endDate: Date | null; hasDateFilter: boolean; isSingleDay: boolean } {
+  if (period === 'all' && !customStartDate && !customEndDate) {
+    return { startDate: null, endDate: null, hasDateFilter: false, isSingleDay: false };
+  }
+
+  const now = new Date();
+  const istFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayISTStr = istFormatter.format(now); // e.g. "2026-10-09"
+
+  if (period === 'today') {
+    const { startDate, endDate } = createSingleDayBounds(todayISTStr);
+    return { startDate, endDate, hasDateFilter: true, isSingleDay: true };
+  }
+
+  if (period === 'single_day') {
+    const target = customStartDate || customEndDate || todayISTStr;
+    const { startDate, endDate } = createSingleDayBounds(target);
+    return { startDate, endDate, hasDateFilter: true, isSingleDay: true };
+  }
+
+  if (period === 'weekly') {
+    const [y, m, d] = todayISTStr.split('-').map(Number);
+    const istNowDate = new Date(Date.UTC(y, m - 1, d));
+    const dayOfWeek = istNowDate.getUTCDay();
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const mondayDate = new Date(istNowDate);
+    mondayDate.setUTCDate(mondayDate.getUTCDate() - diffToMonday);
+    const mondayStr = mondayDate.toISOString().split('T')[0];
+    const { startDate, endDate } = createRangeBounds(mondayStr, todayISTStr);
+    return { startDate, endDate, hasDateFilter: true, isSingleDay: false };
+  }
+
+  if (period === 'monthly') {
+    const [y, m] = todayISTStr.split('-').map(Number);
+    const monthStartStr = `${y}-${String(m).padStart(2, '0')}-01`;
+    const { startDate, endDate } = createRangeBounds(monthStartStr, todayISTStr);
+    return { startDate, endDate, hasDateFilter: true, isSingleDay: false };
+  }
+
+  if (period === 'custom' || customStartDate || customEndDate) {
+    const s = (customStartDate || '').trim();
+    const e = (customEndDate || '').trim();
+    if (s && e && s === e) {
+      const { startDate, endDate } = createSingleDayBounds(s);
+      return { startDate, endDate, hasDateFilter: true, isSingleDay: true };
+    }
+    if (s && !e) {
+      const { startDate, endDate } = createSingleDayBounds(s);
+      return { startDate, endDate, hasDateFilter: true, isSingleDay: true };
+    }
+    if (!s && e) {
+      const { startDate, endDate } = createSingleDayBounds(e);
+      return { startDate, endDate, hasDateFilter: true, isSingleDay: true };
+    }
+    const { startDate, endDate } = createRangeBounds(s, e);
+    return { startDate, endDate, hasDateFilter: true, isSingleDay: false };
+  }
+
+  return { startDate: null, endDate: null, hasDateFilter: false, isSingleDay: false };
+}
+
 export async function GET(req: Request) {
   try {
     const auth = await checkRolePermission([
@@ -218,40 +337,16 @@ export async function GET(req: Request) {
     const customStartDate = searchParams.get('startDate');
     const customEndDate = searchParams.get('endDate');
 
-    // 1. Calculate Date Range Filters
-    let startDate: Date | null = null;
-    let endDate: Date | null = null;
-
-    const now = new Date();
-    if (period === 'today') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    } else if (period === 'weekly') {
-      const dayOfWeek = now.getDay();
-      const diffToMonday = (dayOfWeek + 6) % 7;
-      startDate = new Date(now);
-      startDate.setDate(now.getDate() - diffToMonday);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(now);
-      endDate.setHours(23, 59, 59, 999);
-    } else if (period === 'monthly') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    } else if (period === 'custom') {
-      if (customStartDate) {
-        startDate = new Date(customStartDate);
-        startDate.setHours(0, 0, 0, 0);
-      }
-      if (customEndDate) {
-        endDate = new Date(customEndDate);
-        endDate.setHours(23, 59, 59, 999);
-      }
-    }
+    // 1. Calculate Date Range Filters with IST Timezone boundary safety
+    const { startDate, endDate, hasDateFilter, isSingleDay } = resolvePeriodDateRange(
+      period,
+      customStartDate,
+      customEndDate
+    );
 
     const dateFilter: any = {};
     if (startDate) dateFilter.gte = startDate;
     if (endDate) dateFilter.lte = endDate;
-    const hasDateFilter = startDate !== null || endDate !== null;
 
     // 2. Fetch all Partners & Owners in Organization
     const memberships = await prisma.organizationUser.findMany({
@@ -295,6 +390,7 @@ export async function GET(req: Request) {
           description: true,
           walletOwnerId: true,
           spentById: true,
+          paidBy: true,
         },
       }),
       prisma.payment.findMany({
@@ -344,12 +440,14 @@ export async function GET(req: Request) {
       amount: number;
       walletOwnerId?: string | null;
       spentById?: string | null;
+      paidBy?: string | null;
     }> = [
       ...allPeriodExpenses.map((e) => ({
         category: e.category,
         amount: e.amount,
         walletOwnerId: e.walletOwnerId,
         spentById: e.spentById,
+        paidBy: e.paidBy,
       })),
       ...allPeriodPayments.map((p) => {
         let cat = 'Worker Expenses & Payouts';
@@ -512,9 +610,13 @@ export async function GET(req: Request) {
           }),
         ]);
 
-        const partnerExpensesList = allPeriodCombinedExpenses.filter(
-          (e) => e.walletOwnerId === uId || (!e.walletOwnerId && e.spentById === uId)
-        );
+        const partnerExpensesList = allPeriodCombinedExpenses.filter((e) => {
+          if (partnerMembers.length === 1) return true;
+          if (e.walletOwnerId === uId) return true;
+          if (!e.walletOwnerId && e.spentById === uId) return true;
+          if (e.paidBy && m.user?.name && (e.paidBy.toLowerCase().includes(m.user.name.toLowerCase()) || m.user.name.toLowerCase().includes(e.paidBy.toLowerCase()))) return true;
+          return false;
+        });
         const partnerExpenseBreakdown = buildCategoryBreakdown(partnerExpensesList);
 
         return {
@@ -1081,6 +1183,10 @@ export async function GET(req: Request) {
       selectedPartnerExpensesByCategory: targetPartnerId
         ? (partnersSummary.find((p) => p.id === targetPartnerId)?.expensesByCategory || [])
         : [],
+      period,
+      startDate: startDate ? startDate.toISOString() : null,
+      endDate: endDate ? endDate.toISOString() : null,
+      isSingleDay,
     });
   } catch (error: any) {
     console.error('Error fetching partner hisaab:', error);

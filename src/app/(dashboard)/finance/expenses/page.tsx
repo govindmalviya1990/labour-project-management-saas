@@ -30,6 +30,7 @@ export default function ExpensesPage() {
     categoryTotals: {},
   });
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -49,10 +50,10 @@ export default function ExpensesPage() {
     setIsLoading(true);
     setError('');
     try {
-      const url =
-        selectedCategory && selectedCategory !== 'ALL'
-          ? `/api/finance/expenses?category=${selectedCategory}`
-          : '/api/finance/expenses';
+      const params = new URLSearchParams();
+      if (selectedCategory && selectedCategory !== 'ALL') params.set('category', selectedCategory);
+      if (selectedDate) params.set('date', selectedDate);
+      const url = params.toString() ? `/api/finance/expenses?${params.toString()}` : '/api/finance/expenses';
       const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to load expenses');
       const data = await res.json();
@@ -63,7 +64,7 @@ export default function ExpensesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedDate]);
 
   useEffect(() => {
     fetchExpenses();
@@ -244,6 +245,56 @@ export default function ExpensesPage() {
           </p>
           <p className="mt-1 text-2xl font-bold text-white">{summary.totalRecords || 0}</p>
         </div>
+      </div>
+
+      {/* Date Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900 border border-slate-800 rounded-xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>📅</span> Filter by Date:
+          </span>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+          />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setDate(d.getDate() - 1);
+                setSelectedDate(d.toISOString().split('T')[0]);
+              }}
+              className="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            >
+              Kal
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              className="px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition"
+            >
+              Aaj
+            </button>
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate('')}
+                className="px-2.5 py-1 rounded text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 transition"
+              >
+                Clear / All Dates
+              </button>
+            )}
+          </div>
+        </div>
+
+        {selectedDate && (
+          <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+            Showing for: {new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+          </span>
+        )}
       </div>
 
       {/* Category Filter Pills */}

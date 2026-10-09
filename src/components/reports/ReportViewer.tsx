@@ -93,7 +93,8 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
   const [selectedProjectId, setSelectedProjectId] = useState('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [activePeriod, setActivePeriod] = useState<'all' | 'daily' | 'weekly' | 'monthly' | 'custom'>('all');
+  const [selectedSingleDate, setSelectedSingleDate] = useState<string>(() => formatDateToISO(new Date()));
+  const [activePeriod, setActivePeriod] = useState<'all' | 'daily' | 'single_day' | 'weekly' | 'monthly' | 'custom'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -106,6 +107,22 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
     reportType === 'weekly-expense' ||
     reportType === 'monthly-expense' ||
     reportType === 'expense';
+
+  const getTodayStr = () => formatDateToISO(new Date());
+  const getYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return formatDateToISO(d);
+  };
+  const shiftSingleDate = (days: number) => {
+    const base = selectedSingleDate ? new Date(selectedSingleDate) : new Date();
+    base.setDate(base.getDate() + days);
+    const newStr = formatDateToISO(base);
+    setSelectedSingleDate(newStr);
+    setStartDate(newStr);
+    setEndDate(newStr);
+    setActivePeriod('single_day');
+  };
 
   const fetchReport = async () => {
     setIsLoading(true);
@@ -140,13 +157,19 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
     fetchReport();
   }, [reportType, selectedProjectId, startDate, endDate]);
 
-  const handleSelectPeriod = (period: 'all' | 'daily' | 'weekly' | 'monthly' | 'custom') => {
+  const handleSelectPeriod = (period: 'all' | 'daily' | 'single_day' | 'weekly' | 'monthly' | 'custom') => {
     setActivePeriod(period);
     const today = new Date();
     if (period === 'daily') {
       const isoToday = formatDateToISO(today);
+      setSelectedSingleDate(isoToday);
       setStartDate(isoToday);
       setEndDate(isoToday);
+    } else if (period === 'single_day') {
+      const target = selectedSingleDate || formatDateToISO(today);
+      setSelectedSingleDate(target);
+      setStartDate(target);
+      setEndDate(target);
     } else if (period === 'weekly') {
       const lastWeek = new Date();
       lastWeek.setDate(today.getDate() - 6);
@@ -317,7 +340,11 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             </p>
             {(startDate || endDate) && (
               <p className="text-[11px] text-amber-400 print:text-black font-semibold mt-0.5">
-                Period: {startDate ? new Date(startDate).toLocaleDateString('en-IN') : 'Start'} to {endDate ? new Date(endDate).toLocaleDateString('en-IN') : 'Current'}
+                {startDate && endDate && startDate === endDate ? (
+                  <>Date: <strong>{new Date(startDate).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</strong> (Single Day)</>
+                ) : (
+                  <>Period: {startDate ? new Date(startDate).toLocaleDateString('en-IN') : 'Start'} to {endDate ? new Date(endDate).toLocaleDateString('en-IN') : 'Current'}</>
+                )}
               </p>
             )}
           </div>
@@ -372,6 +399,18 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
 
             <button
               type="button"
+              onClick={() => handleSelectPeriod('single_day')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                activePeriod === 'single_day'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              🗓️ Single Day (Ek Din)
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleSelectPeriod('weekly')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                 activePeriod === 'weekly'
@@ -419,6 +458,75 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             </button>
           </div>
         </div>
+
+        {/* Row 1b: Dedicated Single Day Quick Day Bar */}
+        {activePeriod === 'single_day' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/80 border border-amber-500/30 rounded-xl animate-fade-in">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-amber-500" />
+                Select Any Day:
+              </span>
+              <input
+                type="date"
+                value={selectedSingleDate}
+                onChange={(e) => {
+                  setSelectedSingleDate(e.target.value);
+                  setStartDate(e.target.value);
+                  setEndDate(e.target.value);
+                }}
+                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+              />
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => shiftSingleDate(-1)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                  title="Pichla Din"
+                >
+                  ◀ Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const y = getYesterdayStr();
+                    setSelectedSingleDate(y);
+                    setStartDate(y);
+                    setEndDate(y);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                >
+                  Kal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const t = getTodayStr();
+                    setSelectedSingleDate(t);
+                    setStartDate(t);
+                    setEndDate(t);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition border border-amber-500/40"
+                >
+                  Aaj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shiftSingleDate(1)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                  title="Agla Din"
+                >
+                  Next ▶
+                </button>
+              </div>
+            </div>
+
+            <div className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+              Report for: {new Date(selectedSingleDate).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
+          </div>
+        )}
 
         {/* Row 2: Calendar Pickers, Site Selector, Search, & Refresh */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">

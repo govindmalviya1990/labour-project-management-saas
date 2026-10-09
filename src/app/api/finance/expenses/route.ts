@@ -6,6 +6,54 @@ import { verifyDayLock } from '@/lib/auth/day-lock';
 
 export const dynamic = 'force-dynamic';
 
+function parseDateParts(dateStr: string): { year: number; month: number; day: number } | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const parts = clean.split('T')[0].split('-');
+    return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), day: parseInt(parts[2], 10) };
+  }
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(clean)) {
+    const parts = clean.split(/[-/]/);
+    return { day: parseInt(parts[0], 10), month: parseInt(parts[1], 10), year: parseInt(parts[2], 10) };
+  }
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  }
+  return null;
+}
+
+function resolveReportDateBounds(
+  startDateStr?: string | null,
+  endDateStr?: string | null
+): { startDate: Date | null; endDate: Date | null; hasDateFilter: boolean } {
+  const s = (startDateStr || '').trim();
+  const e = (endDateStr || '').trim();
+  if (!s && !e) return { startDate: null, endDate: null, hasDateFilter: false };
+
+  const now = new Date();
+  if (s && (!e || s === e)) {
+    const parts = parseDateParts(s);
+    if (!parts) return { startDate: null, endDate: null, hasDateFilter: false };
+    const { year, month, day } = parts;
+    const startIST = new Date(Date.UTC(year, month - 1, day - 1, 18, 30, 0, 0));
+    const endUTC = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    return { startDate: startIST, endDate: endUTC, hasDateFilter: true };
+  }
+
+  const sParts = parseDateParts(s);
+  const eParts = parseDateParts(e);
+  const startDate = sParts
+    ? new Date(Date.UTC(sParts.year, sParts.month - 1, sParts.day - 1, 18, 30, 0, 0))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endDate = eParts
+    ? new Date(Date.UTC(eParts.year, eParts.month - 1, eParts.day, 23, 59, 59, 999))
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  return { startDate, endDate, hasDateFilter: true };
+}
+
 export async function GET(req: Request) {
   try {
     const auth = await checkRolePermission([
@@ -27,11 +75,25 @@ export async function GET(req: Request) {
     const category = searchParams.get('category');
     const walletOwnerId = searchParams.get('walletOwnerId');
     const search = searchParams.get('search');
+    const dateParam = searchParams.get('date');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
 
     const where: any = {
       organizationId: orgId,
       deletedAt: null,
     };
+
+    if (dateParam || startDateParam || endDateParam) {
+      const s = dateParam || startDateParam || endDateParam;
+      const e = dateParam || endDateParam || startDateParam;
+      const { startDate: rStart, endDate: rEnd, hasDateFilter } = resolveReportDateBounds(s, e);
+      if (hasDateFilter) {
+        where.date = {};
+        if (rStart) where.date.gte = rStart;
+        if (rEnd) where.date.lte = rEnd;
+      }
+    }
 
     // If Partner or Supervisor, filter to their wallet or their assigned sites
     if (role === 'PARTNER' || role === 'SITE_SUPERVISOR') {
