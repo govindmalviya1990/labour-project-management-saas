@@ -30,8 +30,7 @@ export async function POST(req: Request) {
     if (!last10Digits && !trimmedName) {
       return NextResponse.json(
         {
-          error:
-            'कृपया मोबाइल नंबर या मज़दूर का नाम दर्ज करें (Please provide Mobile number or Worker Name).',
+          error: 'Please provide mobile number or worker name.',
         },
         { status: 400 }
       );
@@ -100,7 +99,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error:
-            'रिकॉर्ड नहीं मिला। कृपया मोबाइल नंबर या नाम की स्पेलिंग जांचें अथवा अपने साइट सुपरवाइजर से संपर्क करें। (No worker record found. Please verify details or contact your site supervisor.)',
+            'No worker record found. Please verify details or contact your site supervisor.',
         },
         { status: 404 }
       );
@@ -395,8 +394,7 @@ export async function POST(req: Request) {
     console.error('Worker lookup API error:', error);
     return NextResponse.json(
       {
-        error:
-          'सर्वर से जानकारी लाने में समस्या हुई। कृपया पुनः प्रयास करें। (Server error while fetching report)',
+        error: 'Failed to retrieve details from the server. Please try again.',
       },
       { status: 500 }
     );

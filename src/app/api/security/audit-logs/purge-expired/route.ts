@@ -16,13 +16,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: '48 घंटे से पुराने हटाए गए रिकॉर्ड स्थायी रूप से नष्ट कर दिए गए। (Expired records permanently purged)',
+      message: 'Expired records older than 48 hours permanently purged.',
       ...result,
     });
   } catch (error: any) {
     console.error('Permanent purge error:', error);
     return NextResponse.json(
-      { error: error?.message || 'स्थायी रूप से हटाने में विफल (Failed to purge expired records)' },
+      { error: error?.message || 'Failed to purge expired records' },
       { status: 500 }
     );
   }

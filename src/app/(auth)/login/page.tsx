@@ -114,7 +114,7 @@ function LoginContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'अमान्य विवरण। कृपया सही ईमेल और पासवर्ड दर्ज करें।');
+        setError(data.error || 'Invalid credentials. Please enter a valid email and password.');
         setIsLoading(false);
         return;
       }
@@ -126,7 +126,7 @@ function LoginContent() {
       }
       router.refresh();
     } catch (err) {
-      setError('सर्वर से कनेक्ट करने में समस्या हुई। कृपया इंटरनेट कनेक्शन जांचें।');
+      setError('Failed to connect to the server. Please check your internet connection.');
       setIsLoading(false);
     }
   };
@@ -137,7 +137,7 @@ function LoginContent() {
     setWorkerError('');
 
     if (!workerMobile.trim() && !workerName.trim()) {
-      setWorkerError('कृपया मोबाइल नंबर या मज़दूर का नाम दर्ज करें।');
+      setWorkerError('Please enter a mobile number or worker name.');
       return;
     }
 
@@ -159,7 +159,7 @@ function LoginContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        setWorkerError(data.error || 'रिकॉर्ड नहीं मिला। कृपया सही विवरण दर्ज करें।');
+        setWorkerError(data.error || 'No record found. Please verify the entered details.');
         setWorkerLoading(false);
       } else {
         try {
@@ -168,7 +168,7 @@ function LoginContent() {
         router.push('/worker-portal');
       }
     } catch (err) {
-      setWorkerError('सर्वर से कनेक्ट करने में त्रुटि। कृपया पुनः प्रयास करें।');
+      setWorkerError('Failed to connect to the server. Please try again.');
       setWorkerLoading(false);
     }
   };
@@ -213,10 +213,10 @@ function LoginContent() {
         <div className="w-full max-w-4xl space-y-5 relative z-10 animate-in fade-in duration-200">
           <div className="text-center mb-3">
             <h2 className="text-base sm:text-lg font-bold text-white">
-              Select Your Access Portal (पोर्टल चुनें)
+              Select Your Access Portal
             </h2>
             <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-              लॉगिन करने या अपनी रिपोर्ट देखने के लिए अपना रोल चुनें
+              Select your role to sign in or view your reports
             </p>
           </div>
 
@@ -358,7 +358,7 @@ function LoginContent() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to All Portals (पोर्टल बदलें)</span>
+            <span>Back to All Portals</span>
           </button>
 
           <div
@@ -390,7 +390,7 @@ function LoginContent() {
                 label="Email Address"
                 type="email"
                 required
-                placeholder="उदा. owner@company.com"
+                placeholder="e.g. owner@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 leftIcon={<Mail className="w-4 h-4 text-purple-400" />}
@@ -431,7 +431,7 @@ function LoginContent() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to All Portals (पोर्टल बदलें)</span>
+            <span>Back to All Portals</span>
           </button>
 
           <div
@@ -463,7 +463,7 @@ function LoginContent() {
                 label="Email or Mobile"
                 type="text"
                 required
-                placeholder="उदा. supervisor@company.com या मोबाइल नंबर"
+                placeholder="e.g. supervisor@company.com or mobile number"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 leftIcon={<Mail className="w-4 h-4 text-emerald-400" />}
@@ -504,7 +504,7 @@ function LoginContent() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to All Portals (पोर्टल बदलें)</span>
+            <span>Back to All Portals</span>
           </button>
 
           <div
@@ -520,7 +520,7 @@ function LoginContent() {
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
                   Worker Portal
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">मज़दूर हाजिरी व पासबुक</h2>
+                <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">Worker Attendance &amp; Passbook</h2>
               </div>
             </div>
 
@@ -535,7 +535,7 @@ function LoginContent() {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                1. बिना पासवर्ड के (फोन/नाम)
+                1. Quick Lookup (Phone / Name)
               </button>
               <button
                 type="button"
@@ -546,7 +546,7 @@ function LoginContent() {
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                2. पासवर्ड से लॉगिन
+                2. Sign In with Password
               </button>
             </div>
 
@@ -561,27 +561,27 @@ function LoginContent() {
                 )}
 
                 <Input
-                  label="मोबाइल नंबर (Phone Number)"
+                  label="Mobile Number"
                   type="tel"
-                  placeholder="उदा. 98XXXXXXXX (10 अंक)"
+                  placeholder="e.g. 98XXXXXXXX (10 digits)"
                   value={workerMobile}
                   onChange={(e) => setWorkerMobile(e.target.value)}
                   leftIcon={<Phone className="w-4 h-4 text-cyan-400" />}
                 />
 
                 <Input
-                  label="मज़दूर / कारीगर का नाम (Worker Name)"
+                  label="Worker Name"
                   type="text"
-                  placeholder="उदा. रमेश कुमार (Ramesh)"
+                  placeholder="e.g. Ramesh Kumar"
                   value={workerName}
                   onChange={(e) => setWorkerName(e.target.value)}
                   leftIcon={<User className="w-4 h-4 text-cyan-400" />}
                 />
 
                 <Input
-                  label="पिता या पति का नाम (Father's Name)"
+                  label="Father / Husband Name"
                   type="text"
-                  placeholder="उदा. श्री राम (Shri Ram)"
+                  placeholder="e.g. Shri Ram"
                   value={workerFatherName}
                   onChange={(e) => setWorkerFatherName(e.target.value)}
                   leftIcon={<Briefcase className="w-4 h-4 text-indigo-400" />}
@@ -595,7 +595,7 @@ function LoginContent() {
                   isLoading={workerLoading}
                 >
                   <Search className="w-4 h-4 mr-1.5" />
-                  <span>पूरी रिपोर्ट व पासबुक देखें</span>
+                  <span>View Full Report &amp; Passbook</span>
                 </Button>
               </form>
             ) : (
@@ -612,7 +612,7 @@ function LoginContent() {
                   label="Labour Email ID"
                   type="email"
                   required
-                  placeholder="उदा. worker@company.com"
+                  placeholder="e.g. worker@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   leftIcon={<Mail className="w-4 h-4 text-cyan-400" />}
@@ -654,7 +654,7 @@ function LoginContent() {
             className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to All Portals (पोर्टल बदलें)</span>
+            <span>Back to All Portals</span>
           </button>
 
           <div
@@ -686,7 +686,7 @@ function LoginContent() {
                 label="Email Address"
                 type="email"
                 required
-                placeholder="उदा. accountant@company.com"
+                placeholder="e.g. accountant@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 leftIcon={<Mail className="w-4 h-4 text-amber-400" />}

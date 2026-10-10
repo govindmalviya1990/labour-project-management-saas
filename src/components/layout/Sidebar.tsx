@@ -325,7 +325,7 @@ export function Sidebar({
         icon: <Bell className="w-4 h-4" />,
       },
       {
-        title: 'Security & Audit (सुरक्षा)',
+        title: 'Security & Audit',
         href: '/security',
         icon: <ShieldAlert className="w-4 h-4 text-amber-400" />,
       },

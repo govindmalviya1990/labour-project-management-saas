@@ -139,7 +139,7 @@ export default function SecurityAuditPage() {
   const handleUndo = async (auditId: string) => {
     if (
       !confirm(
-        'क्या आप इस कार्रवाई को पूर्ववत (Undo) करना चाहते हैं? 48 घंटे के अंदर का यह बदलाव वापस रीस्टोर हो जाएगा।'
+        'Are you sure you want to undo this action? This change made within 48 hours will be reverted.'
       )
     ) {
       return;
@@ -156,14 +156,14 @@ export default function SecurityAuditPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error || 'Undo करने में समस्या हुई।');
+        setActionError(data.error || 'Failed to undo action.');
         return;
       }
 
-      setActionMessage(data.message || 'कार्रवाई सफलतापूर्वक पूर्ववत (Undo) कर दी गई!');
+      setActionMessage(data.message || 'Action successfully undone / reverted!');
       await fetchAuditLogs();
     } catch (e: any) {
-      setActionError(e.message || 'सर्वर त्रुटि');
+      setActionError(e.message || 'Server error');
     } finally {
       setIsUndoing(null);
     }
@@ -173,7 +173,7 @@ export default function SecurityAuditPage() {
   const handlePurgeExpired = async () => {
     if (
       !confirm(
-        'सावधानी: क्या आप 48 घंटे से पुराने सभी हटाए गए रिकॉर्ड्स को स्थायी रूप से नष्ट करना चाहते हैं? इसके बाद उन्हें कभी रीस्टोर नहीं किया जा सकेगा।'
+        'CAUTION: Are you sure you want to permanently purge all records removed over 48 hours ago? This action cannot be reversed.'
       )
     ) {
       return;
@@ -190,16 +190,16 @@ export default function SecurityAuditPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setActionError(data.error || 'Purge करने में समस्या हुई।');
+        setActionError(data.error || 'Failed to purge expired records.');
         return;
       }
 
       setActionMessage(
-        `सफलतापूर्वक नष्ट किया गया: ${data.purgedExpenses || 0} खर्चे, ${data.purgedAttendances || 0} हाजिरी, ${data.purgedPayments || 0} भुगतान।`
+        `Successfully purged: ${data.purgedExpenses || 0} expenses, ${data.purgedAttendances || 0} attendance records, ${data.purgedPayments || 0} payments.`
       );
       await fetchAuditLogs();
     } catch (e: any) {
-      setActionError(e.message || 'सर्वर त्रुटि');
+      setActionError(e.message || 'Server error');
     } finally {
       setIsPurging(false);
     }
@@ -222,13 +222,13 @@ export default function SecurityAuditPage() {
   const getActionBadge = (action: string) => {
     switch (action) {
       case 'CREATE':
-        return { label: 'नया जोड़ा (Add)', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
+        return { label: 'Created (CREATE)', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
       case 'UPDATE':
-        return { label: 'बदलाव किया (Edit)', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' };
+        return { label: 'Modified (UPDATE)', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' };
       case 'DELETE':
-        return { label: 'हटाया गया (Delete)', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' };
+        return { label: 'Deleted (DELETE)', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' };
       case 'RESTORE':
-        return { label: 'रीस्टोर किया (Restore)', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
+        return { label: 'Restored (RESTORE)', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
       default:
         return { label: action, color: 'bg-slate-800 text-slate-300 border-slate-700' };
     }
@@ -236,21 +236,22 @@ export default function SecurityAuditPage() {
 
   const getEntityLabel = (entity: string) => {
     const map: Record<string, string> = {
-      Expense: 'खर्चा (Expense)',
-      Attendance: 'हाजिरी (Attendance)',
-      Payment: 'भुगतान (Payment)',
-      Worker: 'मजदूर (Worker)',
-      Project: 'प्रोजेक्ट (Project)',
-      ProjectSite: 'साइट (Site)',
-      MaterialReceipt: 'सामग्री रसीद (Material)',
-      FundTransfer: 'फंड ट्रांसफर (Transfer)',
-      BankAccount: 'बैंक खाता (Bank)',
+      Expense: 'Expense',
+      Attendance: 'Attendance',
+      Payment: 'Payment / Salary',
+      Worker: 'Worker',
+      Project: 'Project',
+      ProjectSite: 'Site',
+      MaterialReceipt: 'Material Receipt',
+      FundTransfer: 'Fund Transfer',
+      BankAccount: 'Bank Account',
     };
     return map[entity] || entity;
   };
 
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
+      {/* ------------------------------------------------------------- */}
       {/* ------------------------------------------------------------- */}
       {/* HEADER                                                        */}
       {/* ------------------------------------------------------------- */}
@@ -262,10 +263,10 @@ export default function SecurityAuditPage() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                सुरक्षा एवं ऑडिट नियंत्रण केंद्र (Owner Surveillance &amp; Audit)
+                Security &amp; Audit Control Center (Owner Surveillance)
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                निगरानी: किसने कब लॉगिन किया, किसने क्या ऐड/बदलाव/डिलीट किया, और 48 घंटे के अंदर पूर्ववत (Undo) करें
+                Surveillance: Track user logins, audit record modifications, and rollback changes within 48 hours
               </p>
             </div>
           </div>
@@ -283,7 +284,7 @@ export default function SecurityAuditPage() {
             className="border-slate-700 text-slate-300 hover:text-white text-xs"
           >
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            रिफ्रेश (Refresh)
+            Refresh
           </Button>
 
           <Button
@@ -295,7 +296,7 @@ export default function SecurityAuditPage() {
             className="border-rose-500/40 text-rose-400 hover:bg-rose-500/10 text-xs font-bold"
           >
             <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-            {isPurging ? 'सफाई हो रही है...' : '48h+ स्थायी सफाई (Purge)'}
+            {isPurging ? 'Purging...' : 'Purge Expired (>48h)'}
           </Button>
         </div>
       </div>
@@ -321,53 +322,53 @@ export default function SecurityAuditPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>लॉगिन प्रयास (Logins)</span>
+            <span>Login Attempts</span>
             <User className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-xl sm:text-2xl font-bold text-white mt-2">
             {loginSummary.total}
           </div>
           <div className="text-[11px] text-emerald-400 mt-1 font-medium">
-            ✔ {loginSummary.success} सफल • ✖ {loginSummary.failed} असफल
+            ✔ {loginSummary.success} Success • ✖ {loginSummary.failed} Failed
           </div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>कुल ऑडिट रिकॉर्ड (Audit Events)</span>
+            <span>Total Audit Events</span>
             <History className="w-4 h-4 text-sky-400" />
           </div>
           <div className="text-xl sm:text-2xl font-bold text-white mt-2">
             {auditSummary.total}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            खर्चा, हाजिरी, भुगतान, मजदूर आदि
+            Expenses, attendance, payments, workers, etc.
           </div>
         </div>
 
         <div className="bg-slate-900 border border-amber-500/30 rounded-xl p-4 bg-amber-500/5">
           <div className="flex items-center justify-between text-amber-400 text-xs font-semibold">
-            <span>48h Undo उपलब्ध (Can Revert)</span>
+            <span>48h Undo Available</span>
             <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
           </div>
           <div className="text-xl sm:text-2xl font-bold text-amber-400 mt-2">
             {auditSummary.activeUndoAvailable}
           </div>
           <div className="text-[11px] text-amber-300/80 mt-1">
-            48 घंटे की समय सीमा के अंदर सक्रिय
+            Active within 48-hour rollback window
           </div>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span>पूर्ववत किए गए (Reverted by Owner)</span>
+            <span>Reverted by Owner</span>
             <Undo2 className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-xl sm:text-2xl font-bold text-emerald-400 mt-2">
             {auditSummary.revertedCount}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">
-            सफलतापूर्वक रीस्टोर हुए रिकॉर्ड
+            Successfully restored records
           </div>
         </div>
       </div>
@@ -386,7 +387,7 @@ export default function SecurityAuditPage() {
           }`}
         >
           <Undo2 className="w-3.5 h-3.5" />
-          <span>1. 48 घंटे का Undo / Rollback सेंटर ({auditSummary.activeUndoAvailable})</span>
+          <span>1. 48-Hour Undo Center ({auditSummary.activeUndoAvailable})</span>
         </button>
 
         <button
@@ -399,7 +400,7 @@ export default function SecurityAuditPage() {
           }`}
         >
           <History className="w-3.5 h-3.5" />
-          <span>2. सभी गतिविधियां व बदलाव ({auditSummary.total})</span>
+          <span>2. All Activities &amp; Changes ({auditSummary.total})</span>
         </button>
 
         <button
@@ -412,7 +413,7 @@ export default function SecurityAuditPage() {
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
-          <span>3. किसने लॉगिन किया (Login History) ({loginSummary.total})</span>
+          <span>3. Login Surveillance ({loginSummary.total})</span>
         </button>
       </div>
 
@@ -426,16 +427,16 @@ export default function SecurityAuditPage() {
               <div>
                 <h2 className="text-sm font-bold text-white flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-400" />
-                  48 घंटे के अंदर हुए बदलाव (Undo / Revert Window)
+                  Recent Modifications (48-Hour Undo / Rollback Window)
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  यदि किसी सुपरवाइजर, अकाउंटेंट या स्टाफ ने गलत एंट्री कर दी या कुछ हटा दिया, तो आप 48 घंटे के अंदर &apos;Undo&apos; दबाकर उसे वापस ला सकते हैं।
+                  If a supervisor, accountant, or staff member made an erroneous change or deleted a record, you can revert it within 48 hours.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-slate-400">
-                  48h बाद स्वतः स्थायी (Permanent Lock)
+                  Locked Permanently After 48h
                 </span>
               </div>
             </div>
@@ -444,16 +445,16 @@ export default function SecurityAuditPage() {
             <div className="mt-4 divide-y divide-slate-800/80">
               {auditLoading ? (
                 <div className="text-center py-10 text-xs text-slate-400">
-                  लोड हो रहा है (Loading undo items)...
+                  Loading undo items...
                 </div>
               ) : auditLogs.filter((a) => a.canUndo || a.isReverted).length === 0 ? (
                 <div className="text-center py-12">
                   <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-80" />
                   <p className="text-sm font-bold text-white">
-                    वर्तमान में कोई पेंडिंग Undo आइटम नहीं है
+                    No Pending Undo Items Available
                   </p>
                   <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    पिछले 48 घंटे के सभी बदलाव सुरक्षित हैं या स्थायी हो चुके हैं। नए खर्चे, हाजिरी या भुगतान डिलीट होने पर वे यहां तुरंत दिखाई देंगे।
+                    All modifications within the last 48 hours are safe or permanent. Deleted expenses, attendance records, or payments will appear here immediately.
                   </p>
                 </div>
               ) : (
@@ -485,32 +486,32 @@ export default function SecurityAuditPage() {
                             {/* Remaining time countdown badge */}
                             {log.isReverted ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30">
-                                ✔ पूर्ववत किया गया (Reverted by {log.revertedByName || 'Owner'})
+                                ✔ Reverted by {log.revertedByName || 'Owner'}
                               </span>
                             ) : log.canUndo ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1">
                                 <Clock className="w-3 h-3 animate-spin" />
-                                {log.remainingHours}h {log.remainingMinutes}m शेष (Undo उपलब्ध)
+                                {log.remainingHours}h {log.remainingMinutes}m remaining (Undo Available)
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                                स्थायी (48h Expired)
+                                Permanent (48h Expired)
                               </span>
                             )}
                           </div>
 
                           {/* Details description */}
                           <p className="text-xs text-slate-300 font-medium truncate max-w-2xl">
-                            {log.details || `${log.entityType} पर कार्रवाई`}
+                            {log.details || `Action on ${log.entityType}`}
                           </p>
 
                           {/* Who and When */}
                           <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-3">
                             <span>
-                              द्वारा: <strong className="text-slate-200">{log.userName || log.userEmail || 'System'}</strong> ({log.userRole || 'STAFF'})
+                              By: <strong className="text-slate-200">{log.userName || log.userEmail || 'System'}</strong> ({log.userRole || 'STAFF'})
                             </span>
                             <span>•</span>
-                            <span>समय: {formatIST(log.createdAt)}</span>
+                            <span>Time: {formatIST(log.createdAt)}</span>
                             {log.ipAddress && (
                               <>
                                 <span>•</span>
@@ -526,7 +527,7 @@ export default function SecurityAuditPage() {
                             type="button"
                             onClick={() => setSelectedAudit(log)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                            title="विवरण देखें (View Raw Details)"
+                            title="View Raw Details"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -541,11 +542,11 @@ export default function SecurityAuditPage() {
                               className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
                             >
                               <Undo2 className="w-3.5 h-3.5 mr-1" />
-                              {isUndoing === log.id ? 'हो रहा है...' : 'Undo (पूर्ववत करें)'}
+                              {isUndoing === log.id ? 'Reverting...' : 'Undo (Revert)'}
                             </Button>
                           ) : (
                             <span className="text-[11px] text-slate-500 font-medium px-2 py-1">
-                              {log.isReverted ? 'पूर्ण' : 'स्थायी लॉक'}
+                              {log.isReverted ? 'Completed' : 'Permanent Lock'}
                             </span>
                           )}
                         </div>
@@ -569,7 +570,7 @@ export default function SecurityAuditPage() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
-                placeholder="खोजें: विवरण, नाम, ईमेल, या श्रेणी..."
+                placeholder="Search: details, name, email, or category..."
                 value={auditSearch}
                 onChange={(e) => setAuditSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && fetchAuditLogs()}
@@ -583,12 +584,12 @@ export default function SecurityAuditPage() {
                 onChange={(e) => setAuditEntityFilter(e.target.value)}
                 className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-amber-500"
               >
-                <option value="ALL">सभी मॉडयूल (All Entities)</option>
-                <option value="Expense">Expense (खर्चा)</option>
-                <option value="Attendance">Attendance (हाजिरी)</option>
-                <option value="Payment">Payment (भुगतान)</option>
-                <option value="Worker">Worker (मजदूर)</option>
-                <option value="Project">Project (प्रोजेक्ट)</option>
+                <option value="ALL">All Modules</option>
+                <option value="Expense">Expense</option>
+                <option value="Attendance">Attendance</option>
+                <option value="Payment">Payment</option>
+                <option value="Worker">Worker</option>
+                <option value="Project">Project</option>
               </select>
 
               <select
@@ -596,11 +597,11 @@ export default function SecurityAuditPage() {
                 onChange={(e) => setAuditActionFilter(e.target.value)}
                 className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-amber-500"
               >
-                <option value="ALL">सभी एक्शन (All Actions)</option>
-                <option value="CREATE">CREATE (नया जोड़ा)</option>
-                <option value="UPDATE">UPDATE (बदला)</option>
-                <option value="DELETE">DELETE (हटाया)</option>
-                <option value="RESTORE">RESTORE (रीस्टोर)</option>
+                <option value="ALL">All Actions</option>
+                <option value="CREATE">CREATE (Add)</option>
+                <option value="UPDATE">UPDATE (Edit)</option>
+                <option value="DELETE">DELETE (Delete)</option>
+                <option value="RESTORE">RESTORE (Rollback)</option>
               </select>
 
               <Button
@@ -609,7 +610,7 @@ export default function SecurityAuditPage() {
                 onClick={fetchAuditLogs}
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold"
               >
-                खोजें
+                Search
               </Button>
             </div>
           </div>
@@ -620,26 +621,26 @@ export default function SecurityAuditPage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-4">समय व दिनांक (Date &amp; Time)</th>
-                    <th className="py-3 px-3">किसने किया (User)</th>
-                    <th className="py-3 px-3">कार्रवाई (Action)</th>
-                    <th className="py-3 px-3">मॉड्यूल (Entity)</th>
-                    <th className="py-3 px-4">विवरण (Details)</th>
-                    <th className="py-3 px-3">Undo स्थिति</th>
-                    <th className="py-3 px-3 text-right">कार्रवाई</th>
+                    <th className="py-3 px-4">Date &amp; Time</th>
+                    <th className="py-3 px-3">User</th>
+                    <th className="py-3 px-3">Action</th>
+                    <th className="py-3 px-3">Module (Entity)</th>
+                    <th className="py-3 px-4">Details</th>
+                    <th className="py-3 px-3">Undo Status</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {auditLoading ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-slate-500">
-                        लोड हो रहा है (Loading activities)...
+                        Loading activities...
                       </td>
                     </tr>
                   ) : auditLogs.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-slate-400">
-                        कोई ऑडिट रिकॉर्ड नहीं मिला।
+                        No audit records found.
                       </td>
                     </tr>
                   ) : (
@@ -690,7 +691,7 @@ export default function SecurityAuditPage() {
                                 type="button"
                                 onClick={() => setSelectedAudit(log)}
                                 className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
-                                title="विवरण देखें"
+                                title="View Details"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -700,7 +701,7 @@ export default function SecurityAuditPage() {
                                   disabled={isUndoing === log.id}
                                   onClick={() => handleUndo(log.id)}
                                   className="p-1.5 text-amber-400 hover:bg-amber-500/20 rounded transition font-bold text-[11px] flex items-center gap-1"
-                                  title="पूर्ववत करें (Undo)"
+                                  title="Undo (Revert)"
                                 >
                                   <Undo2 className="w-3.5 h-3.5" />
                                   <span>Undo</span>
@@ -730,7 +731,7 @@ export default function SecurityAuditPage() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
-                placeholder="खोजें: यूजर ईमेल, नाम, IP एड्रेस या पोर्टल..."
+                placeholder="Search: user email, name, IP address, or portal..."
                 value={loginSearch}
                 onChange={(e) => setLoginSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && fetchLogins()}
@@ -744,9 +745,9 @@ export default function SecurityAuditPage() {
                 onChange={(e) => setLoginStatusFilter(e.target.value)}
                 className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-amber-500"
               >
-                <option value="ALL">सभी स्थिति (All Status)</option>
-                <option value="SUCCESS">सफल (Success Only)</option>
-                <option value="FAILED">असफल (Failed Only)</option>
+                <option value="ALL">All Status</option>
+                <option value="SUCCESS">Success Only</option>
+                <option value="FAILED">Failed Only</option>
               </select>
 
               <Button
@@ -755,7 +756,7 @@ export default function SecurityAuditPage() {
                 onClick={fetchLogins}
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold"
               >
-                खोजें
+                Search
               </Button>
             </div>
           </div>
@@ -766,26 +767,26 @@ export default function SecurityAuditPage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-4">लॉगिन दिनांक व समय (Timestamp)</th>
-                    <th className="py-3 px-3">यूजर (User / Email)</th>
+                    <th className="py-3 px-4">Login Timestamp</th>
+                    <th className="py-3 px-3">User / Email</th>
                     <th className="py-3 px-3">User ID</th>
-                    <th className="py-3 px-3">रोल / पोर्टल (Portal)</th>
-                    <th className="py-3 px-3">IP एड्रेस (IP)</th>
-                    <th className="py-3 px-3">डिवाइस / ब्राउज़र (Device)</th>
-                    <th className="py-3 px-4 text-right">स्थिति (Status)</th>
+                    <th className="py-3 px-3">Role / Portal</th>
+                    <th className="py-3 px-3">IP Address</th>
+                    <th className="py-3 px-3">Device / Browser</th>
+                    <th className="py-3 px-4 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {loginLoading ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-slate-500">
-                        लोड हो रहा है (Loading login history)...
+                        Loading login history...
                       </td>
                     </tr>
                   ) : logins.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-slate-400">
-                        कोई लॉगिन रिकॉर्ड नहीं मिला।
+                        No login history records found.
                       </td>
                     </tr>
                   ) : (
@@ -837,19 +838,19 @@ export default function SecurityAuditPage() {
                             <span
                               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                                 entry.status === 'SUCCESS'
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                               }`}
                             >
                               {entry.status === 'SUCCESS' ? (
                                 <>
                                   <CheckCircle2 className="w-3 h-3" />
-                                  <span>सफल (SUCCESS)</span>
+                                  <span>Success</span>
                                 </>
                               ) : (
                                 <>
                                   <XCircle className="w-3 h-3" />
-                                  <span>असफल (FAILED)</span>
+                                  <span>Failed</span>
                                 </>
                               )}
                             </span>
@@ -875,7 +876,7 @@ export default function SecurityAuditPage() {
               <div className="flex items-center gap-2">
                 <Info className="w-5 h-5 text-amber-400" />
                 <h3 className="text-sm font-bold text-white">
-                  ऑडिट विस्तृत विवरण (Audit Record Inspection)
+                  Audit Record Inspection
                 </h3>
               </div>
               <button
@@ -908,15 +909,15 @@ export default function SecurityAuditPage() {
               </div>
 
               <div>
-                <span className="text-slate-400 block font-bold mb-1">विवरण (Description):</span>
+                <span className="text-slate-400 block font-bold mb-1">Description:</span>
                 <p className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200">
-                  {selectedAudit.details || 'कोई विवरण नहीं'}
+                  {selectedAudit.details || 'No details available'}
                 </p>
               </div>
 
               {selectedAudit.oldValue && (
                 <div>
-                  <span className="text-slate-400 block font-bold mb-1">पुराना मान (Old Value Before Change):</span>
+                  <span className="text-slate-400 block font-bold mb-1">Old Value (Before Change):</span>
                   <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-mono overflow-x-auto max-h-40">
                     {JSON.stringify(JSON.parse(selectedAudit.oldValue), null, 2)}
                   </pre>
@@ -925,7 +926,7 @@ export default function SecurityAuditPage() {
 
               {selectedAudit.newValue && (
                 <div>
-                  <span className="text-slate-400 block font-bold mb-1">नया मान (New Value After Change):</span>
+                  <span className="text-slate-400 block font-bold mb-1">New Value (After Change):</span>
                   <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-emerald-400 font-mono overflow-x-auto max-h-40">
                     {JSON.stringify(JSON.parse(selectedAudit.newValue), null, 2)}
                   </pre>
@@ -936,10 +937,10 @@ export default function SecurityAuditPage() {
             <div className="flex items-center justify-between pt-3 border-t border-slate-800">
               <span className="text-[11px] text-slate-400">
                 {selectedAudit.canUndo && !selectedAudit.isReverted
-                  ? `Undo उपलब्ध है (${selectedAudit.remainingHours}h ${selectedAudit.remainingMinutes}m शेष)`
+                  ? `Undo available (${selectedAudit.remainingHours}h ${selectedAudit.remainingMinutes}m remaining)`
                   : selectedAudit.isReverted
-                  ? 'यह बदलाव पहले ही Revert किया जा चुका है'
-                  : '48 घंटे की सीमा समाप्त हो चुकी है (Permanent)'}
+                  ? 'This change has already been reverted'
+                  : 'The 48-hour rollback window has expired (Permanent)'}
               </span>
 
               <div className="flex items-center gap-2">
@@ -955,7 +956,7 @@ export default function SecurityAuditPage() {
                     className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs"
                   >
                     <Undo2 className="w-3.5 h-3.5 mr-1" />
-                    पूर्ववत करें (Undo)
+                    Undo (Revert)
                   </Button>
                 )}
                 <Button
@@ -965,7 +966,7 @@ export default function SecurityAuditPage() {
                   onClick={() => setSelectedAudit(null)}
                   className="border-slate-700 text-slate-300"
                 >
-                  बंद करें
+                  Close
                 </Button>
               </div>
             </div>

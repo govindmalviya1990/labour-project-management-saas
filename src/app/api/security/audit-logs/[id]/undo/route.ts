@@ -25,13 +25,13 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'कार्रवाई सफलतापूर्वक पूर्ववत (Undo) कर दी गई है। (Action successfully reverted)',
+      message: 'Action successfully undone / reverted.',
       audit: revertedAudit,
     });
   } catch (error: any) {
     console.error('Audit undo error:', error);
     return NextResponse.json(
-      { error: error?.message || 'कार्रवाई पूर्ववत करने में त्रुटि (Failed to undo action)' },
+      { error: error?.message || 'Failed to undo action' },
       { status: 400 }
     );
   }

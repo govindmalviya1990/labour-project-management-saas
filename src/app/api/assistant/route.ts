@@ -256,7 +256,7 @@ export async function POST(req: Request) {
       lowerMessage.includes('reset demo')
     ) {
       return NextResponse.json({
-        answer: 'सुरक्षा नियम: AI Assistant से बल्क डेटा डिलीट या रीसेट करना अलाउड नहीं है। यह काम केवल Owner खुद Settings पेज पर जाकर पासवर्ड कन्फर्मेशन के साथ कर सकते हैं।',
+        answer: 'Security Rule: Bulk data deletion or reset is not permitted via AI Assistant. Only the Owner can perform this from the Settings page with password confirmation.',
         card: {
           type: 'WARNING',
           title: 'Action Not Allowed via Assistant',

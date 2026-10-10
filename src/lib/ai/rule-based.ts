@@ -110,7 +110,7 @@ export async function matchRuleBased(
   ) {
     const refusal = lang === 'GUJARATI'
       ? 'સુરક્ષા નીતિ: આસિસ્ટન્ટ દ્વારા ડેટા ડિલીટ કે રીસેટ કરવાની પરવાનગી નથી. આ કામ માટે Owner મેન્યુઅલી Settings પેજ પર જઈને કન્ફર્મ કરી શકે છે.'
-      : 'सुरक्षा नियम: AI Assistant से बल्क डेटा डिलीट या रीसेट करना अलाउड नहीं है। यह काम केवल Owner खुद Settings पेज पर जाकर पासवर्ड कन्फर्मेशन के साथ कर सकते हैं।';
+      : 'Security Policy: Bulk data deletion or reset via AI Assistant is not permitted. Only the Owner can perform this action manually in Settings with password confirmation.';
 
     return {
       matched: true,
@@ -135,7 +135,7 @@ export async function matchRuleBased(
   ) {
     return {
       matched: true,
-      content: 'सुरक्षा नियम: Role बदलना या दिन का हिसाब लॉक/અનલૉક करना चैटबॉट से अलाउड नहीं है। कृपया संबंधित पेज से मैन्युअली करें।',
+      content: 'Security Policy: Changing user roles or locking/unlocking daily hisaab is not permitted via chat. Please perform this action manually from the designated page.',
       card: {
         type: 'WARNING',
         title: 'Action Not Allowed via Assistant',
@@ -387,13 +387,13 @@ export async function matchRuleBased(
         const attData = await executeTool('getAttendance', { date: targetDateStr }, ctx);
         const heading = lang === 'GUJARATI'
           ? `📋 આજની હાજરી (Attendance Summary - ${attData.date}):`
-          : `📋 आज की हाज़िरी रिपोर्ट (Attendance Summary - ${attData.date}):`;
+          : `📋 Attendance Summary (${attData.date}):`;
 
         let text = `${heading}\n\n`;
         text += `• Total Workers: ${attData.totalWorkers}\n`;
-        text += `• Present (હાજર): **${attData.present}** workers ✅\n`;
+        text += `• Present: **${attData.present}** workers ✅\n`;
         text += `• Half Day: **${attData.halfDay}** workers ⏳\n`;
-        text += `• Absent (ગેરહાજર): **${attData.absent}** workers ❌\n`;
+        text += `• Absent: **${attData.absent}** workers ❌\n`;
         if (attData.leave) text += `• Leave: ${attData.leave} workers 🏖️\n`;
         text += `• Total Labour Cost: **${attData.formattedLabourCost || formatINR(attData.totalLabourCost)}**\n`;
 
@@ -483,11 +483,11 @@ export async function matchRuleBased(
 
       const heading = lang === 'GUJARATI'
         ? `${dateRange.label} નો કુલ ખર્ચ: ${expData.formattedTotal}`
-        : `${dateRange.label} का कुल खर्च: ${expData.formattedTotal} (${expData.count} एंट्रीज़)`;
+        : `${dateRange.label} Total Expenses: ${expData.formattedTotal} (${expData.count} entries)`;
 
       return {
         matched: true,
-        content: `${heading}\n\nAap iski complete detailed list Cash Book ya Daily Expenses me dekh sakte hain.`,
+        content: `${heading}\n\nYou can view the complete detailed list in Cash Book or Daily Expenses.`,
         card: {
           type: 'EXPENSES',
           title: `${dateRange.label} Expenses`,

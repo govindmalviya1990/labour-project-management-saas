@@ -255,7 +255,7 @@ export async function POST(req: Request) {
       entityId: `${projectId}_${dateStr}`,
       action: 'CREATE',
       newValue: { count: savedRecords.length, date: dateStr, projectId, siteId },
-      details: `हाजिरी दर्ज की गई (${savedRecords.length} मजदूर) - ${new Date(attendanceDate).toLocaleDateString('en-IN')}`,
+      details: `Attendance marked for ${savedRecords.length} workers - ${new Date(attendanceDate).toLocaleDateString('en-IN')}`,
       ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
@@ -302,7 +302,7 @@ export async function DELETE(req: Request) {
           entityId: attendanceId,
           action: 'DELETE',
           oldValue: existing,
-          details: `हाजिरी रिकॉर्ड हटाया गया (${new Date(existing.date).toLocaleDateString('en-IN')})`,
+          details: `Attendance record deleted (${new Date(existing.date).toLocaleDateString('en-IN')})`,
           ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
         });
       }
@@ -344,7 +344,7 @@ export async function DELETE(req: Request) {
           entityId: toDelete[0].id,
           action: 'DELETE',
           oldValue: toDelete[0],
-          details: `मजदूर की हाजिरी हटाई गई (${new Date(targetDate).toLocaleDateString('en-IN')})`,
+          details: `Worker attendance deleted (${new Date(targetDate).toLocaleDateString('en-IN')})`,
           ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
         });
       }

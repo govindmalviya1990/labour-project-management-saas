@@ -96,16 +96,16 @@ export function formatAuditDetails(
   meta?: { name?: string; amount?: number; category?: string; date?: string | Date }
 ): string {
   const entityLabels: Record<string, string> = {
-    Expense: 'खर्चा (Expense)',
-    Attendance: 'हाजिरी (Attendance)',
-    Payment: 'भुगतान (Payment/Salary)',
-    Worker: 'मजदूर (Worker)',
-    Project: 'प्रोजेक्ट (Project)',
-    ProjectSite: 'साइट (Site)',
-    MaterialReceipt: 'सामग्री रसीद (Material Receipt)',
-    FundTransfer: 'फंड ट्रांसफर (Fund Transfer)',
-    Quotation: 'कोटेशन (Quotation)',
-    BankAccount: 'बैंक खाता (Bank Account)',
+    Expense: 'Expense',
+    Attendance: 'Attendance',
+    Payment: 'Payment / Salary',
+    Worker: 'Worker',
+    Project: 'Project',
+    ProjectSite: 'Site',
+    MaterialReceipt: 'Material Receipt',
+    FundTransfer: 'Fund Transfer',
+    Quotation: 'Quotation',
+    BankAccount: 'Bank Account',
   };
 
   const label = entityLabels[entityType] || entityType;
@@ -113,15 +113,15 @@ export function formatAuditDetails(
   const nameStr = meta?.name ? `"${meta.name}"` : '';
 
   if (action === 'CREATE') {
-    return `नया ${label} जोड़ा गया: ${[nameStr, amountStr, meta?.category].filter(Boolean).join(' - ')}`;
+    return `New ${label} created: ${[nameStr, amountStr, meta?.category].filter(Boolean).join(' - ')}`;
   }
   if (action === 'UPDATE') {
-    return `${label} अपडेट किया गया: ${[nameStr, amountStr].filter(Boolean).join(' ')}`;
+    return `${label} updated: ${[nameStr, amountStr].filter(Boolean).join(' ')}`;
   }
   if (action === 'DELETE') {
-    return `${label} हटाया गया: ${[nameStr, amountStr, meta?.category].filter(Boolean).join(' - ')}`;
+    return `${label} deleted: ${[nameStr, amountStr, meta?.category].filter(Boolean).join(' - ')}`;
   }
-  return `${label} पर कार्रवाई (${action})`;
+  return `Action (${action}) on ${label}`;
 }
 
 /**
@@ -138,11 +138,11 @@ export async function undoAuditAction(params: {
   });
 
   if (!audit || audit.organizationId !== params.organizationId) {
-    throw new Error('ऑडिट रिकॉर्ड नहीं मिला (Audit record not found)');
+    throw new Error('Audit record not found');
   }
 
   if (audit.isReverted) {
-    throw new Error('यह कार्रवाई पहले ही पूर्ववत (Undo) की जा चुकी है');
+    throw new Error('This action has already been undone/reverted');
   }
 
   // 48-hour expiration check
@@ -153,7 +153,7 @@ export async function undoAuditAction(params: {
       where: { id: audit.id },
       data: { status: 'PERMANENT_EXPIRED' },
     });
-    throw new Error('48 घंटे की समय सीमा समाप्त हो चुकी है। अब इसे पूर्ववत (Undo) नहीं किया जा सकता।');
+    throw new Error('The 48-hour undo window has expired. This change can no longer be undone.');
   }
 
   const { entityType, entityId, action, oldValue, newValue } = audit;
@@ -167,7 +167,7 @@ export async function undoAuditAction(params: {
   } else if (action === 'UPDATE') {
     // REVERT MODIFIED FIELDS BACK TO OLD VALUE
     if (!oldData) {
-      throw new Error('पूर्ववत करने के लिए पुराना डेटा उपलब्ध नहीं है');
+      throw new Error('Previous data is not available to undo this change');
     }
     await revertUpdatedEntity(entityType, entityId, oldData);
   } else if (action === 'CREATE') {
@@ -199,7 +199,7 @@ export async function undoAuditAction(params: {
       action: 'RESTORE',
       oldValue: newValue,
       newValue: oldValue,
-      details: `कार्रवाई [${action}] को स्वामी द्वारा पूर्ववत (Undo) किया गया: ${audit.details || entityType}`,
+      details: `Action [${action}] was undone by Owner: ${audit.details || entityType}`,
       canUndoUntil: null,
       status: 'REVERTED',
     },

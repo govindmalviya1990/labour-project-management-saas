@@ -11,8 +11,8 @@ export interface LanguageOption {
 }
 
 export const SUPPORTED_VOICE_LANGUAGES: LanguageOption[] = [
-  { code: 'hi-IN', label: 'हिन्दी (Hindi)', shortLabel: 'हिन्दी' },
-  { code: 'gu-IN', label: 'ગુજરાતી (Gujarati)', shortLabel: 'ગુજરાતી' },
+  { code: 'hi-IN', label: 'Hindi', shortLabel: 'HI' },
+  { code: 'gu-IN', label: 'Gujarati', shortLabel: 'GU' },
   { code: 'en-IN', label: 'English (India)', shortLabel: 'EN' },
 ];
 
