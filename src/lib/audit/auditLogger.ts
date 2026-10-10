@@ -232,6 +232,10 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
         where: { id: entityId },
         data: { deletedAt: null, deletedById: null },
       });
+      await prisma.expense.updateMany({
+        where: { notes: { contains: `Payment ID: ${entityId}` } },
+        data: { deletedAt: null, deletedById: null },
+      });
       break;
 
     case 'Worker':
@@ -344,6 +348,10 @@ async function undoCreatedEntity(entityType: string, entityId: string) {
       break;
     case 'Payment':
       await prisma.payment.update({ where: { id: entityId }, data: { deletedAt: now } });
+      await prisma.expense.updateMany({
+        where: { notes: { contains: `Payment ID: ${entityId}` } },
+        data: { deletedAt: now },
+      });
       break;
     case 'Worker':
       await prisma.worker.update({ where: { id: entityId }, data: { deletedAt: now, status: 'INACTIVE' } });

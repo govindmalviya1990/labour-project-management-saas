@@ -231,7 +231,9 @@ export default function DashboardPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+              onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+              className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter dark:[&::-webkit-calendar-picker-indicator]:invert"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -240,7 +242,9 @@ export default function DashboardPage() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+              onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+              className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter dark:[&::-webkit-calendar-picker-indicator]:invert"
             />
           </div>
           <Button

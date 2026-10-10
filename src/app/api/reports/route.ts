@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { calculateProjectCost, calculateCostPerUnit, calculateMaterialStock, calculateWorkerBalance } from '@/lib/calculations';
+import { backfillWorkerPaymentsToExpenses } from '@/lib/finance/workerExpenseSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -305,6 +306,9 @@ export async function GET(req: Request) {
 
     // 5, 6, 7. EXPENSE REPORTS (Daily, Weekly, Monthly, All Expense)
     if (type === 'daily-expense' || type === 'weekly-expense' || type === 'monthly-expense' || type === 'expense') {
+      // Ensure all worker payments are synchronized into Expenses
+      await backfillWorkerPaymentsToExpenses(orgId);
+
       const expenses = await prisma.expense.findMany({
         where: {
           organizationId: orgId,

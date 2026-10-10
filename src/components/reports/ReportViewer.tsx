@@ -16,6 +16,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { ReportChartsSection } from './ReportChartsSection';
 
 interface ReportViewerProps {
   reportType: string;
@@ -101,6 +102,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
 
   const startDateInputRef = useRef<HTMLInputElement>(null);
   const endDateInputRef = useRef<HTMLInputElement>(null);
+  const singleDateInputRef = useRef<HTMLInputElement>(null);
 
   const isExpenseReport =
     reportType === 'daily-expense' ||
@@ -463,11 +465,15 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
         {activePeriod === 'single_day' && (
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-950/80 border border-amber-500/30 rounded-xl animate-fade-in">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <span
+                onClick={() => { try { singleDateInputRef.current?.showPicker?.(); } catch(_) {} }}
+                className="text-xs font-bold text-slate-300 flex items-center gap-1.5 cursor-pointer hover:text-amber-400 transition"
+              >
                 <Calendar className="w-4 h-4 text-amber-500" />
                 Select Any Day:
               </span>
               <input
+                ref={singleDateInputRef}
                 type="date"
                 value={selectedSingleDate}
                 onChange={(e) => {
@@ -475,7 +481,10 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   setStartDate(e.target.value);
                   setEndDate(e.target.value);
                 }}
-                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                style={{ colorScheme: 'dark' }}
+                className="bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
               />
 
               <div className="flex items-center gap-1">
@@ -483,7 +492,7 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                   type="button"
                   onClick={() => shiftSingleDate(-1)}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-                  title="Pichla Din"
+                  title="Previous Day"
                 >
                   ◀ Prev
                 </button>
@@ -496,8 +505,9 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                     setEndDate(y);
                   }}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
+                  title="Yesterday"
                 >
-                  Kal
+                  Yesterday
                 </button>
                 <button
                   type="button"
@@ -508,14 +518,15 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
                     setEndDate(t);
                   }}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition border border-amber-500/40"
+                  title="Today"
                 >
-                  Aaj
+                  Today
                 </button>
                 <button
                   type="button"
                   onClick={() => shiftSingleDate(1)}
                   className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition"
-                  title="Agla Din"
+                  title="Next Day"
                 >
                   Next ▶
                 </button>
@@ -548,28 +559,44 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
             </div>
 
             {/* Calendar Range Inputs */}
-            <div className={`flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border transition ${
+            <div className={`flex items-center gap-2 bg-slate-950 px-2.5 py-1.5 rounded-lg border transition ${
               activePeriod === 'custom' ? 'border-amber-500/80 ring-1 ring-amber-500/30' : 'border-slate-800'
             }`}>
-              <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase font-bold text-slate-500">From:</span>
+              <div
+                onClick={() => { try { startDateInputRef.current?.showPicker?.(); } catch(_) {} }}
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-90"
+              >
+                <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="text-[10px] uppercase font-bold text-amber-500/90 select-none">From:</span>
                 <input
                   ref={startDateInputRef}
                   type="date"
                   value={startDate}
                   onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
-                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                  onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                  style={{ colorScheme: 'dark' }}
+                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
                   placeholder="Start Date"
                 />
-                <span className="text-slate-600 text-xs">to</span>
-                <span className="text-[10px] uppercase font-bold text-slate-500">To:</span>
+              </div>
+
+              <span className="text-slate-600 text-xs font-semibold select-none">to</span>
+
+              <div
+                onClick={() => { try { endDateInputRef.current?.showPicker?.(); } catch(_) {} }}
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-90"
+              >
+                <span className="text-[10px] uppercase font-bold text-amber-500/90 select-none">To:</span>
                 <input
                   ref={endDateInputRef}
                   type="date"
                   value={endDate}
                   onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
-                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                  onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+                  style={{ colorScheme: 'dark' }}
+                  className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
                   placeholder="End Date"
                 />
               </div>
@@ -645,6 +672,15 @@ export function ReportViewer({ reportType, defaultTitle }: ReportViewerProps) {
           </div>
         )}
       </div>
+
+      {/* VISUAL REPORT CHARTS: PRIMARY ROUND (DONUT) & SECONDARY PILLAR (BAR) */}
+      <ReportChartsSection
+        reportType={reportType}
+        data={data}
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        isExpenseReport={isExpenseReport}
+      />
 
       {/* CATEGORY-WISE EXPENSE BREAKDOWN (Featured for Expense Report) */}
       {isExpenseReport && (

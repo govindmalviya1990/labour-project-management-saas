@@ -132,6 +132,24 @@ export async function POST(req: Request) {
         },
       });
 
+      // Also record as Expense under category 'LABOUR' so it reflects on Dashboard & Expense Reports
+      await tx.expense.create({
+        data: {
+          organizationId: orgId,
+          projectId: data.projectId || null,
+          siteId: data.siteId || null,
+          date: new Date(data.date),
+          category: 'LABOUR',
+          description: `Worker Payment: ${worker.name} (${data.transactionType})`,
+          amount: data.amount,
+          paidBy: session.name,
+          spentById: session.userId,
+          walletOwnerId: session.userId,
+          paymentMethod: data.paymentMethod,
+          notes: `Payment ID: ${payment.id}${data.notes ? ` - ${data.notes}` : ''}`,
+        },
+      });
+
       return payment;
     });
 

@@ -129,6 +129,27 @@ export async function PUT(
         },
       });
 
+      // Update linked Expense record
+      const workerInfo = await tx.worker.findUnique({
+        where: { id: newWorkerId },
+        select: { name: true },
+      });
+      await tx.expense.updateMany({
+        where: {
+          organizationId: orgId,
+          notes: { contains: `Payment ID: ${params.id}` },
+        },
+        data: {
+          projectId: data.projectId !== undefined ? data.projectId : existing.projectId,
+          siteId: data.siteId !== undefined ? data.siteId : existing.siteId,
+          date: newDate,
+          amount: newAmount,
+          paymentMethod: newMethod,
+          description: `Worker Payment: ${workerInfo?.name || 'Worker'} (${newType})`,
+          notes: `Payment ID: ${params.id}${data.notes ? ` - ${data.notes}` : ''}`,
+        },
+      });
+
       return updated;
     });
 
@@ -223,6 +244,18 @@ export async function DELETE(
         where: { sourceId: params.id, organizationId: orgId },
         data: {
           deletedAt: new Date(),
+        },
+      });
+
+      // Soft delete corresponding linked Expense
+      await tx.expense.updateMany({
+        where: {
+          organizationId: orgId,
+          notes: { contains: `Payment ID: ${params.id}` },
+        },
+        data: {
+          deletedAt: new Date(),
+          deletedById: session.userId,
         },
       });
     });

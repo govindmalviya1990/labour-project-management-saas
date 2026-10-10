@@ -36,10 +36,27 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 'w-full bg-white dark:bg-slate-900 border text-slate-900 dark:text-slate-100 rounded-lg px-3.5 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50',
                 leftIcon ? 'pl-10' : '',
                 rightIcon ? 'pr-10' : '',
+                props.type === 'date' ? 'cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter dark:[&::-webkit-calendar-picker-indicator]:invert' : '',
                 error ? 'border-rose-500 focus:border-rose-500' : 'border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 focus:border-amber-500',
                 className
               )
             )}
+            onClick={(e) => {
+              if (props.type === 'date') {
+                try {
+                  (e.currentTarget as any).showPicker?.();
+                } catch (_) {}
+              }
+              props.onClick?.(e);
+            }}
+            onFocus={(e) => {
+              if (props.type === 'date') {
+                try {
+                  (e.currentTarget as any).showPicker?.();
+                } catch (_) {}
+              }
+              props.onFocus?.(e);
+            }}
             {...props}
           />
           {rightIcon && (

@@ -8,6 +8,7 @@ import {
   calculateWalletBalance,
   calculateDailyCashFlow,
 } from '@/lib/calculations';
+import { backfillWorkerPaymentsToExpenses } from '@/lib/finance/workerExpenseSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -283,6 +284,9 @@ export async function GET(req: Request) {
     }
 
     // 3. For OWNER, MANAGER, ACCOUNTANT: Full financial metrics & charts
+    // Ensure all worker payments are synchronized into Expenses so they show on dashboard
+    await backfillWorkerPaymentsToExpenses(orgId);
+
     const periodExpenses = await prisma.expense.findMany({
       where: {
         organizationId: orgId,

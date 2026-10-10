@@ -257,7 +257,10 @@ export default function ExpensesPage() {
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+            onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+            onFocus={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch(_) {} }}
+            style={{ colorScheme: 'dark' }}
+            className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
           />
           <div className="flex items-center gap-1">
             <button
