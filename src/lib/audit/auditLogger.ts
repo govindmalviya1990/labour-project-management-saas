@@ -69,7 +69,7 @@ export async function recordAudit(params: RecordAuditParams) {
         userId: params.userId || null,
         userName: params.userName || null,
         userEmail: params.userEmail || null,
-        userRole: params.role || params.userRole || null,
+        userRole: params.userRole || null,
         entityType: params.entityType,
         entityId: params.entityId,
         action: params.action,
