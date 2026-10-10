@@ -25,6 +25,18 @@ import { Modal } from '@/components/ui/Modal';
 import { formatINR } from '@/lib/calculations';
 import { clsx } from 'clsx';
 
+function formatWorkOutput(workLogs: any[]): string {
+  if (!workLogs || workLogs.length === 0) return '';
+  const unitMap: Record<string, number> = {};
+  workLogs.forEach((l) => {
+    const rawUnit = (l.unit || 'units').trim();
+    unitMap[rawUnit] = (unitMap[rawUnit] || 0) + (Number(l.quantity) || 0);
+  });
+  return Object.entries(unitMap)
+    .map(([unit, qty]) => `${qty} ${unit}`)
+    .join(', ');
+}
+
 export default function AttendancePage() {
   const searchParams = useSearchParams();
   const initialProjectId = searchParams.get('projectId') || '';
@@ -647,14 +659,11 @@ export default function AttendancePage() {
                       <button
                         type="button"
                         onClick={() => openWorkModal(item)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all group"
-                        title="View or add work entries"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all group font-mono"
+                        title="Click to view or edit work entries"
                       >
-                        <Hammer className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-                        <span>{item.workLogs.length} Log{item.workLogs.length > 1 ? 's' : ''}</span>
-                        <span className="text-[10px] text-amber-400/80 font-mono">
-                          ({formatINR(item.workLogs.reduce((s: number, r: any) => s + (r.totalWorkValue || 0), 0))})
-                        </span>
+                        <Hammer className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                        <span>{formatWorkOutput(item.workLogs)}</span>
                       </button>
                     ) : (
                       <button
@@ -731,9 +740,9 @@ export default function AttendancePage() {
             {selectedWorkerForWork.workLogs && selectedWorkerForWork.workLogs.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-                  <span>Logged Work for Today ({selectedWorkerForWork.workLogs.length})</span>
-                  <span className="text-amber-400 font-mono">
-                    Total: {formatINR(selectedWorkerForWork.workLogs.reduce((s: number, r: any) => s + (r.totalWorkValue || 0), 0))}
+                  <span>Logged Work for Today</span>
+                  <span className="text-emerald-400 font-mono font-bold">
+                    Total: {formatWorkOutput(selectedWorkerForWork.workLogs)}
                   </span>
                 </h4>
                 <div className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
@@ -742,22 +751,19 @@ export default function AttendancePage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-white">{log.task}</span>
-                          <span className="text-[11px] text-slate-400">
-                            {log.quantity} {log.unit} @ {formatINR(log.rate)}/{log.unit}
+                          <span className="text-xs font-bold text-emerald-400 font-mono">
+                            {log.quantity} {log.unit}
                           </span>
                         </div>
                         {log.description && (
                           <p className="text-[11px] text-slate-500 mt-0.5">{log.description}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="font-bold text-amber-400 font-mono">
-                          {formatINR(log.totalWorkValue || log.quantity * log.rate)}
-                        </span>
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleDeleteWorkRecord(log.id)}
-                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition"
+                          className="p-1.5 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition"
                           title="Delete work record"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
