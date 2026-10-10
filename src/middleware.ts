@@ -76,8 +76,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Settings & Users: strictly OWNER and MANAGER
-    if (pathname.startsWith('/settings') || pathname.startsWith('/users')) {
+    // Settings, Users & Security: strictly OWNER and MANAGER
+    if (pathname.startsWith('/settings') || pathname.startsWith('/users') || pathname.startsWith('/security')) {
       return NextResponse.redirect(new URL('/?denied=admin_only', request.url));
     }
 

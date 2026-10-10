@@ -12,6 +12,7 @@ import {
   Bell,
   Settings,
   ShieldCheck,
+  ShieldAlert,
   ChevronDown,
   HardHat,
   FileSpreadsheet,
@@ -322,6 +323,11 @@ export function Sidebar({
         title: 'Notifications',
         href: '/notifications',
         icon: <Bell className="w-4 h-4" />,
+      },
+      {
+        title: 'Security & Audit (सुरक्षा)',
+        href: '/security',
+        icon: <ShieldAlert className="w-4 h-4 text-amber-400" />,
       },
       {
         title: 'Settings',

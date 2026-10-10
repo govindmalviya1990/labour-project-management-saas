@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { saveAttendanceSheetSchema } from '@/lib/validations/workers';
 import { calculateSalary } from '@/lib/calculations';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,7 @@ export async function GET(req: Request) {
       where: {
         organizationId: orgId,
         date: { gte: queryDate, lte: endOfQueryDate },
+        deletedAt: null,
         ...(projectId ? { projectId } : {}),
         ...(siteId ? { siteId } : {}),
         ...(isLabour && session.workerId ? { workerId: session.workerId } : {}),
@@ -242,6 +244,21 @@ export async function POST(req: Request) {
       return results;
     });
 
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: auth.session.userId,
+      userName: auth.session.name,
+      userEmail: auth.session.email,
+      userRole: auth.session.role,
+      entityType: 'Attendance',
+      entityId: `${projectId}_${dateStr}`,
+      action: 'CREATE',
+      newValue: { count: savedRecords.length, date: dateStr, projectId, siteId },
+      details: `हाजिरी दर्ज की गई (${savedRecords.length} मजदूर) - ${new Date(attendanceDate).toLocaleDateString('en-IN')}`,
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+    });
+
     return NextResponse.json({
       success: true,
       count: savedRecords.length,
@@ -265,9 +282,31 @@ export async function DELETE(req: Request) {
     const dateStr = searchParams.get('date');
 
     if (attendanceId) {
-      await prisma.attendance.deleteMany({
+      const existing = await prisma.attendance.findFirst({
         where: { id: attendanceId, organizationId: orgId },
       });
+
+      await prisma.attendance.updateMany({
+        where: { id: attendanceId, organizationId: orgId },
+        data: { deletedAt: new Date(), deletedById: auth.session.userId },
+      });
+
+      if (existing) {
+        await recordAudit({
+          organizationId: orgId,
+          userId: auth.session.userId,
+          userName: auth.session.name,
+          userEmail: auth.session.email,
+          userRole: auth.session.role,
+          entityType: 'Attendance',
+          entityId: attendanceId,
+          action: 'DELETE',
+          oldValue: existing,
+          details: `हाजिरी रिकॉर्ड हटाया गया (${new Date(existing.date).toLocaleDateString('en-IN')})`,
+          ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+        });
+      }
+
       return NextResponse.json({ success: true, message: 'Attendance record cleared' });
     }
 
@@ -277,13 +316,39 @@ export async function DELETE(req: Request) {
       const endOfTargetDate = new Date(dateStr);
       endOfTargetDate.setUTCHours(23, 59, 59, 999);
 
-      await prisma.attendance.deleteMany({
+      const toDelete = await prisma.attendance.findMany({
         where: {
           organizationId: orgId,
           workerId,
           date: { gte: targetDate, lte: endOfTargetDate },
         },
       });
+
+      await prisma.attendance.updateMany({
+        where: {
+          organizationId: orgId,
+          workerId,
+          date: { gte: targetDate, lte: endOfTargetDate },
+        },
+        data: { deletedAt: new Date(), deletedById: auth.session.userId },
+      });
+
+      if (toDelete.length > 0) {
+        await recordAudit({
+          organizationId: orgId,
+          userId: auth.session.userId,
+          userName: auth.session.name,
+          userEmail: auth.session.email,
+          userRole: auth.session.role,
+          entityType: 'Attendance',
+          entityId: toDelete[0].id,
+          action: 'DELETE',
+          oldValue: toDelete[0],
+          details: `मजदूर की हाजिरी हटाई गई (${new Date(targetDate).toLocaleDateString('en-IN')})`,
+          ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+        });
+      }
+
       return NextResponse.json({ success: true, message: 'Attendance record cleared for worker' });
     }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { signJWT } from '@/lib/auth/jwt';
 import { AUTH_COOKIE_NAME } from '@/lib/auth/session';
+import { recordLogin } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -373,6 +374,21 @@ export async function POST(req: Request) {
         console.warn('Failed to issue cookie for worker portal:', tokenErr);
       }
     }
+
+    // Record login surveillance entry for worker access
+    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+    const userAgent = req.headers.get('user-agent') || 'Mobile/Browser';
+    await recordLogin({
+      organizationId: worker.organizationId,
+      userId: worker.id,
+      userEmail: worker.mobile ? `Worker (${worker.mobile})` : worker.workerCode,
+      userName: worker.name,
+      role: 'LABOUR',
+      portal: 'WORKER_PORTAL',
+      ipAddress,
+      userAgent,
+      status: 'SUCCESS',
+    });
 
     return res;
   } catch (error: any) {

@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { updateExpenseSchema } from '@/lib/validations/finance';
 import { verifyDayLock } from '@/lib/auth/day-lock';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,26 @@ export async function PUT(
       },
     });
 
+    // Record Audit Surveillance Entry
+    await recordAudit({
+      organizationId: orgId,
+      userId: session.userId,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: session.role,
+      entityType: 'Expense',
+      entityId: existing.id,
+      action: 'UPDATE',
+      oldValue: existing,
+      newValue: updated,
+      details: formatAuditDetails('UPDATE', 'Expense', {
+        name: updated.description,
+        amount: updated.amount,
+        category: updated.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+    });
+
     return NextResponse.json({
       success: true,
       expense: updated,
@@ -115,6 +136,25 @@ export async function DELETE(
         deletedAt: new Date(),
         deletedById: session.userId,
       },
+    });
+
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: session.userId,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: session.role,
+      entityType: 'Expense',
+      entityId: existing.id,
+      action: 'DELETE',
+      oldValue: existing,
+      details: formatAuditDetails('DELETE', 'Expense', {
+        name: existing.description,
+        amount: existing.amount,
+        category: existing.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
     return NextResponse.json({

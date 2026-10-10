@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createWorkerSchema } from '@/lib/validations/workers';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,6 +161,24 @@ export async function POST(req: Request) {
         status: data.status,
         notes: data.notes || null,
       },
+    });
+
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: auth.session.userId,
+      userName: auth.session.name,
+      userEmail: auth.session.email,
+      userRole: auth.session.role,
+      entityType: 'Worker',
+      entityId: worker.id,
+      action: 'CREATE',
+      newValue: worker,
+      details: formatAuditDetails('CREATE', 'Worker', {
+        name: worker.name,
+        category: worker.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
     return NextResponse.json({

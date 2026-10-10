@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createPaymentSchema } from '@/lib/validations/finance';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,7 +77,8 @@ export async function POST(req: Request) {
     // SUPERVISOR and LABOUR are strictly forbidden
     const auth = await checkRolePermission(['OWNER', 'PARTNER', 'MANAGER', 'ACCOUNTANT']);
     if (!auth.authorized) return auth.response;
-    const orgId = auth.session.organizationId;
+    const session = auth.session;
+    const orgId = session.organizationId;
 
     const body = await req.json();
     const validated = createPaymentSchema.safeParse(body);
@@ -131,6 +133,25 @@ export async function POST(req: Request) {
       });
 
       return payment;
+    });
+
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: session.userId,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: session.role,
+      entityType: 'Payment',
+      entityId: result.id,
+      action: 'CREATE',
+      newValue: result,
+      details: formatAuditDetails('CREATE', 'Payment', {
+        name: worker.name,
+        amount: result.amount,
+        category: result.transactionType,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
     return NextResponse.json({

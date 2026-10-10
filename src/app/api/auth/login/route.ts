@@ -4,6 +4,7 @@ import { comparePassword, hashPassword } from '@/lib/auth/password';
 import { signJWT } from '@/lib/auth/jwt';
 import { loginSchema } from '@/lib/validations/auth';
 import { AUTH_COOKIE_NAME, normalizeRole } from '@/lib/auth/session';
+import { recordLogin } from '@/lib/audit/auditLogger';
 
 // Standard demo test accounts for each role
 const DEMO_ACCOUNTS: Record<string, { name: string; role: string; mobile?: string }> = {
@@ -89,7 +90,16 @@ export async function POST(req: Request) {
       }
     }
 
+    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+    const userAgent = req.headers.get('user-agent') || 'Browser';
+
     if (!user || user.status !== 'ACTIVE') {
+      await recordLogin({
+        userEmail: normalizedEmail,
+        ipAddress,
+        userAgent,
+        status: 'FAILED',
+      });
       return NextResponse.json(
         { error: 'Invalid email address or password.' },
         { status: 401 }
@@ -106,6 +116,16 @@ export async function POST(req: Request) {
           data: { passwordHash: updatedHash },
         });
       } else {
+        await recordLogin({
+          organizationId: user.memberships[0]?.organizationId,
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.name,
+          role: user.memberships[0]?.role,
+          ipAddress,
+          userAgent,
+          status: 'FAILED',
+        });
         return NextResponse.json(
           { error: 'Invalid email address or password.' },
           { status: 401 }
@@ -157,6 +177,19 @@ export async function POST(req: Request) {
       organizationId: activeMembership?.organizationId,
       role: userRole,
       workerId,
+    });
+
+    // Record login surveillance entry
+    await recordLogin({
+      organizationId: activeMembership?.organizationId,
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      role: userRole,
+      portal: userRole,
+      ipAddress,
+      userAgent,
+      status: 'SUCCESS',
     });
 
     const response = NextResponse.json({

@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { updateWorkerSchema } from '@/lib/validations/workers';
 import { calculateWorkerBalance } from '@/lib/calculations';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -160,6 +161,25 @@ export async function PUT(
       },
     });
 
+    // Record Audit Surveillance Entry
+    await recordAudit({
+      organizationId: orgId,
+      userId: auth.session.userId,
+      userName: auth.session.name,
+      userEmail: auth.session.email,
+      userRole: auth.session.role,
+      entityType: 'Worker',
+      entityId: existing.id,
+      action: 'UPDATE',
+      oldValue: existing,
+      newValue: updated,
+      details: formatAuditDetails('UPDATE', 'Worker', {
+        name: updated.name,
+        category: updated.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+    });
+
     return NextResponse.json({
       success: true,
       worker: updated,
@@ -193,6 +213,24 @@ export async function DELETE(
     await prisma.worker.update({
       where: { id: workerId },
       data: { deletedAt: new Date() },
+    });
+
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: auth.session.userId,
+      userName: auth.session.name,
+      userEmail: auth.session.email,
+      userRole: auth.session.role,
+      entityType: 'Worker',
+      entityId: existing.id,
+      action: 'DELETE',
+      oldValue: existing,
+      details: formatAuditDetails('DELETE', 'Worker', {
+        name: existing.name,
+        category: existing.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
     return NextResponse.json({

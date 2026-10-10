@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createExpenseSchema } from '@/lib/validations/finance';
 import { verifyDayLock } from '@/lib/auth/day-lock';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -217,6 +218,25 @@ export async function POST(req: Request) {
         receiptUrl: data.receiptUrl || null,
         notes: data.notes || null,
       },
+    });
+
+    // Record Audit Surveillance Entry with 48h Undo Window
+    await recordAudit({
+      organizationId: orgId,
+      userId: session.userId,
+      userName: session.name,
+      userEmail: session.email,
+      userRole: session.role,
+      entityType: 'Expense',
+      entityId: expense.id,
+      action: 'CREATE',
+      newValue: expense,
+      details: formatAuditDetails('CREATE', 'Expense', {
+        name: expense.description,
+        amount: expense.amount,
+        category: expense.category,
+      }),
+      ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
     });
 
     return NextResponse.json({
