@@ -14,6 +14,7 @@ import {
   Moon,
 } from 'lucide-react';
 import { useTheme } from '@/lib/theme/ThemeContext';
+import { InstallPwaButton } from '@/components/pwa/InstallPwaButton';
 
 interface TopbarProps {
   userName?: string;
@@ -112,6 +113,9 @@ export function Topbar({
             </>
           )}
         </button>
+
+        {/* PWA 1-Click Install Button */}
+        <InstallPwaButton />
 
         {/* Date Filter Dropdown */}
         <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 dark:text-slate-300">

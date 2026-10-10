@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { normalizeRole } from '@/lib/auth/roles';
+import { InstallPwaButton } from '@/components/pwa/InstallPwaButton';
 
 interface NavItem {
   title: string;
@@ -460,6 +461,11 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      {/* PWA 1-Click Install Button */}
+      <div className="px-3 pb-2">
+        <InstallPwaButton className="w-full justify-center" />
+      </div>
 
       {/* Role Badge Footer */}
       <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80">
