@@ -219,6 +219,36 @@ export default function SecurityAuditPage() {
     });
   };
 
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case 'CREATE':
+        return { label: 'नया जोड़ा (Add)', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
+      case 'UPDATE':
+        return { label: 'बदलाव किया (Edit)', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' };
+      case 'DELETE':
+        return { label: 'हटाया गया (Delete)', color: 'bg-rose-500/10 text-rose-400 border-rose-500/30' };
+      case 'RESTORE':
+        return { label: 'रीस्टोर किया (Restore)', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' };
+      default:
+        return { label: action, color: 'bg-slate-800 text-slate-300 border-slate-700' };
+    }
+  };
+
+  const getEntityLabel = (entity: string) => {
+    const map: Record<string, string> = {
+      Expense: 'खर्चा (Expense)',
+      Attendance: 'हाजिरी (Attendance)',
+      Payment: 'भुगतान (Payment)',
+      Worker: 'मजदूर (Worker)',
+      Project: 'प्रोजेक्ट (Project)',
+      ProjectSite: 'साइट (Site)',
+      MaterialReceipt: 'सामग्री रसीद (Material)',
+      FundTransfer: 'फंड ट्रांसफर (Transfer)',
+      BankAccount: 'बैंक खाता (Bank)',
+    };
+    return map[entity] || entity;
+  };
+
   return (
     <div className="space-y-6 pb-20 max-w-7xl mx-auto">
       {/* ------------------------------------------------------------- */}
@@ -438,21 +468,18 @@ export default function SecurityAuditPage() {
                         <div className="space-y-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             {/* Action badge */}
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                                log.action === 'DELETE'
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                  : log.action === 'UPDATE'
-                                  ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
-                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              }`}
-                            >
-                              {log.action}
-                            </span>
+                            {(() => {
+                              const badge = getActionBadge(log.action);
+                              return (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${badge.color}`}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
 
                             {/* Entity */}
                             <span className="text-xs font-bold text-white">
-                              {log.entityType}
+                              {getEntityLabel(log.entityType)}
                             </span>
 
                             {/* Remaining time countdown badge */}
@@ -627,22 +654,17 @@ export default function SecurityAuditPage() {
                             <div className="text-[10px] text-slate-400">{log.userRole || 'STAFF'}</div>
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                                log.action === 'DELETE'
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                  : log.action === 'UPDATE'
-                                  ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
-                                  : log.action === 'RESTORE'
-                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
-                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                              }`}
-                            >
-                              {log.action}
-                            </span>
+                            {(() => {
+                              const badge = getActionBadge(log.action);
+                              return (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${badge.color}`}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-3 px-3 font-semibold text-slate-300 whitespace-nowrap">
-                            {log.entityType}
+                            {getEntityLabel(log.entityType)}
                           </td>
                           <td className="py-3 px-4 text-slate-300 max-w-xs truncate" title={log.details || ''}>
                             {log.details || '—'}
