@@ -36,6 +36,9 @@ export async function POST(req: Request) {
       transfers,
       closings,
       bankTxs,
+      bankAccounts,
+      partnerAssignments,
+      loginHistories,
     ] = await prisma.$transaction([
       prisma.attendance.deleteMany({ where: { organizationId: orgId } }),
       prisma.workRecord.deleteMany({ where: { organizationId: orgId } }),
@@ -58,9 +61,12 @@ export async function POST(req: Request) {
       prisma.fundTransfer.deleteMany({ where: { organizationId: orgId } }),
       prisma.dailyClosing.deleteMany({ where: { organizationId: orgId } }),
       prisma.bankTransaction.deleteMany({ where: { organizationId: orgId } }),
+      prisma.bankAccount.deleteMany({ where: { organizationId: orgId } }),
+      prisma.partnerAssignment.deleteMany({ where: { organizationId: orgId } }),
       prisma.project.deleteMany({ where: { organizationId: orgId } }),
       prisma.notification.deleteMany({ where: { organizationId: orgId } }),
       prisma.auditLog.deleteMany({ where: { organizationId: orgId } }),
+      prisma.loginHistory.deleteMany({ where: { organizationId: orgId } }),
     ]);
 
     return NextResponse.json({
@@ -83,6 +89,9 @@ export async function POST(req: Request) {
         transfers: mTrans.count,
         suppliers: sup.count,
         quotations: quotes.count,
+        bankAccounts: bankAccounts.count,
+        auditLogs: logs.count,
+        loginHistory: loginHistories.count,
       },
     });
   } catch (error: any) {
