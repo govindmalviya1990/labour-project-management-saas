@@ -63,6 +63,10 @@ export interface PartnerSummaryItem {
     transfersInCount: number;
     transfersOutTotal: number;
     transfersOutCount: number;
+    workerPaymentsTotal?: number;
+    workerPaymentsCount?: number;
+    combinedTransfersOutTotal?: number;
+    combinedTransfersOutCount?: number;
     expensesTotal: number;
     expensesCount: number;
   };
@@ -508,9 +512,10 @@ export function PartnerHisaabSection({
         acc.receipts += p.period.receiptsTotal || 0;
         acc.transfersIn += p.period.transfersInTotal || 0;
         acc.transfersOut += p.period.transfersOutTotal || 0;
+        acc.workerPayments += p.period.workerPaymentsTotal || 0;
         return acc;
       },
-      { totalCash: 0, receipts: 0, transfersIn: 0, transfersOut: 0, expenses: 0 }
+      { totalCash: 0, receipts: 0, transfersIn: 0, transfersOut: 0, workerPayments: 0, expenses: 0 }
     );
     // Align total company expenses with overallExpensesTotal to match chart & all categories
     res.expenses = overallExpensesTotal;
@@ -1308,34 +1313,36 @@ export function PartnerHisaabSection({
 
       {/* 4. Metric KPI Cards */}
       {selectedPartner ? (
-        // 1) INDIVIDUAL PARTNER VIEW: ONLY this partner's metrics! NO bank balance shown!
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        // 1) INDIVIDUAL PARTNER VIEW: 5 Focused Metric Cards without round icons for clean full readability
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <MetricCard
             title={`${selectedPartner.name}'s Cash Balance`}
             value={formatINR(selectedPartner.currentBalance)}
             subtitle="Current live balance in hand"
-            icon={<Wallet className="w-5 h-5 text-emerald-500" />}
             variant="emerald"
           />
           <MetricCard
             title="Transfers Received"
             value={formatINR(selectedPartner.period.transfersInTotal)}
             subtitle={`${selectedPartner.period.transfersInCount} transfer(s) received`}
-            icon={<ArrowDownLeft className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
             title="Site Expenses Paid"
             value={formatINR(selectedPartner.period.expensesTotal)}
             subtitle={`${selectedPartner.period.expensesCount} expense entries on site`}
-            icon={<CreditCard className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />
           <MetricCard
-            title="Transfers Out / Given"
+            title="Worker Salary & Wages"
+            value={formatINR(selectedPartner.period.workerPaymentsTotal || 0)}
+            subtitle={`${selectedPartner.period.workerPaymentsCount || 0} worker payout(s)`}
+            variant="rose"
+          />
+          <MetricCard
+            title="Transfers Out to Partners"
             value={formatINR(selectedPartner.period.transfersOutTotal)}
             subtitle={`${selectedPartner.period.transfersOutCount} transfer(s) passed to others`}
-            icon={<ArrowUpRight className="w-5 h-5 text-indigo-500" />}
             variant="blue"
           />
         </div>
@@ -1346,28 +1353,24 @@ export function PartnerHisaabSection({
             title={selectedBankAccount ? `${selectedBankAccount.bankName} Balance` : 'Total Bank Balance'}
             value={formatINR(bankSummary?.selectedBankBalance ?? (selectedBankAccount?.balance ?? totalBankBalance))}
             subtitle={selectedBankAccount ? `${selectedBankAccount.name} (..${selectedBankAccount.accountLast4 || ''})` : `Available across ${bankAccounts.length} company bank account(s)`}
-            icon={<Building2 className="w-5 h-5 text-sky-500" />}
             variant="blue"
           />
           <MetricCard
             title="Bank Inflow & Deposits"
             value={formatINR(bankSummary?.periodInflow ?? 0)}
             subtitle="Client receipts & deposits in period"
-            icon={<ArrowDownLeft className="w-5 h-5 text-emerald-500" />}
             variant="emerald"
           />
           <MetricCard
             title="Transfers to Partners"
             value={formatINR(bankSummary?.periodToPartner ?? 0)}
             subtitle="Funds transferred to partner wallets"
-            icon={<ArrowRightLeft className="w-5 h-5 text-indigo-500" />}
             variant="blue"
           />
           <MetricCard
             title="Direct Bank Payments"
             value={formatINR((bankSummary?.periodPayments ?? 0) + (bankSummary?.periodWithdrawals ?? 0))}
             subtitle={`Vendor: ${formatINR(bankSummary?.periodPayments ?? 0)} • Cash Out: ${formatINR(bankSummary?.periodWithdrawals ?? 0)}`}
-            icon={<CreditCard className="w-5 h-5 text-amber-500" />}
             variant="amber"
           />
         </div>
@@ -1380,28 +1383,24 @@ export function PartnerHisaabSection({
               title={isSingleDayView ? "Day's Total Expenses (Kul Kharch)" : "Period Total Expenses"}
               value={formatINR(overallExpensesTotal)}
               subtitle={`${overallExpensesByCategory.length} categories on site, workers & fuel`}
-              icon={<CreditCard className="w-5 h-5 text-amber-500" />}
               variant="amber"
             />
             <MetricCard
               title={isSingleDayView ? "Day's Inflow / Receipts (Aaya Paisa)" : "Period Inflow / Receipts"}
               value={formatINR(periodTotalInflow)}
               subtitle="Client receipts & bank inflow in period"
-              icon={<ArrowDownLeft className="w-5 h-5 text-emerald-500" />}
               variant="emerald"
             />
             <MetricCard
               title={isSingleDayView ? "Day's Net Cash Movement" : "Period Net Cash Movement"}
               value={formatINR(periodTotalInflow - overallExpensesTotal)}
               subtitle="Total Inflow minus Total Expenses"
-              icon={<ArrowRightLeft className="w-5 h-5 text-indigo-500" />}
               variant={periodTotalInflow - overallExpensesTotal >= 0 ? "emerald" : "rose"}
             />
             <MetricCard
               title="Live Cash in Hand (Physical)"
               value={formatINR(allPartnersTotals.totalCash)}
               subtitle={`Current physical cash across ${partners.length} partners`}
-              icon={<Wallet className="w-5 h-5 text-sky-500" />}
               variant="blue"
             />
           </div>
@@ -1412,28 +1411,24 @@ export function PartnerHisaabSection({
               title="Total Remaining Balance (Cash + Bank)"
               value={formatINR(allPartnersTotals.totalCash + totalBankBalance)}
               subtitle={`Cash: ${formatINR(allPartnersTotals.totalCash)} • Bank: ${formatINR(totalBankBalance)}`}
-              icon={<Wallet className="w-5 h-5 text-emerald-500" />}
               variant="emerald"
             />
             <MetricCard
               title="Total Bank Balance"
               value={formatINR(totalBankBalance)}
               subtitle={`Available across ${bankAccounts.length} company bank account(s)`}
-              icon={<Building2 className="w-5 h-5 text-sky-500" />}
               variant="blue"
             />
             <MetricCard
               title="Total Partners Cash in Hand"
               value={formatINR(allPartnersTotals.totalCash)}
               subtitle={`Held across ${partners.length} partners & owners`}
-              icon={<Users className="w-5 h-5 text-indigo-500" />}
               variant="blue"
             />
             <MetricCard
               title="Total All-Time Site Expenses"
               value={formatINR(overallExpensesTotal)}
               subtitle="Total site & material expenses recorded"
-              icon={<CreditCard className="w-5 h-5 text-amber-500" />}
               variant="amber"
             />
           </div>
@@ -1532,7 +1527,7 @@ export function PartnerHisaabSection({
                         </div>
                       </div>
 
-                      {/* 2x2 Breakdown Grid for the period */}
+                      {/* Breakdown Grid for the period */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Site Receipts</span>
@@ -1546,13 +1541,19 @@ export function PartnerHisaabSection({
                             +{formatINR(p.period.transfersInTotal)}
                           </span>
                         </div>
+                        <div className="p-2 rounded-lg bg-rose-500/5 border border-rose-500/10">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Worker Salary &amp; Wages</span>
+                          <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                            -{formatINR(p.period.workerPaymentsTotal || 0)}
+                          </span>
+                        </div>
                         <div className="p-2 rounded-lg bg-indigo-500/5 border border-indigo-500/10">
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Transfers Out</span>
                           <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
                             -{formatINR(p.period.transfersOutTotal)}
                           </span>
                         </div>
-                        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                        <div className="col-span-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Site Expenses</span>
                           <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
                             -{formatINR(p.period.expensesTotal)}
@@ -1606,7 +1607,8 @@ export function PartnerHisaabSection({
                     <th className="py-3 px-4 text-right">Cash in Hand (Live)</th>
                     <th className="py-3 px-4 text-right">Direct Site Receipts</th>
                     <th className="py-3 px-4 text-right">Transfers In</th>
-                    <th className="py-3 px-4 text-right">Transfers Out</th>
+                    <th className="py-3 px-4 text-right">Worker Salary &amp; Wages</th>
+                    <th className="py-3 px-4 text-right">Transfers to Partners</th>
                     <th className="py-3 px-4 text-right">Site Expenses</th>
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
@@ -1650,6 +1652,9 @@ export function PartnerHisaabSection({
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono text-sky-600 dark:text-sky-400 font-semibold">
                           +{formatINR(p.period.transfersInTotal)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">
+                          -{formatINR(p.period.workerPaymentsTotal || 0)}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
                           -{formatINR(p.period.transfersOutTotal)}

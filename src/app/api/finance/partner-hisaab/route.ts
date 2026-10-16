@@ -575,10 +575,22 @@ export async function GET(req: Request) {
           toUserId: uId,
           deletedAt: null,
         };
-        const periodTransfersOutWhere: any = {
+        const periodTransfersToPartnersWhere: any = {
+          organizationId: orgId,
+          fromUserId: uId,
+          toWorkerId: null,
+          transferType: { notIn: ['PARTNER_TO_WORKER', 'SUPERVISOR_TO_WORKER'] },
+          deletedAt: null,
+        };
+        const periodWorkerPaymentsWhere: any = {
           organizationId: orgId,
           fromUserId: uId,
           deletedAt: null,
+          OR: [
+            { toWorkerId: { not: null } },
+            { transferType: 'PARTNER_TO_WORKER' },
+            { transferType: 'SUPERVISOR_TO_WORKER' },
+          ],
         };
         const periodExpensesWhere: any = {
           organizationId: orgId,
@@ -589,11 +601,12 @@ export async function GET(req: Request) {
         if (hasDateFilter) {
           periodReceiptsWhere.date = dateFilter;
           periodTransfersInWhere.date = dateFilter;
-          periodTransfersOutWhere.date = dateFilter;
+          periodTransfersToPartnersWhere.date = dateFilter;
+          periodWorkerPaymentsWhere.date = dateFilter;
           periodExpensesWhere.date = dateFilter;
         }
 
-        const [pReceipts, pTransfersIn, pTransfersOut, pExpenses] = await Promise.all([
+        const [pReceipts, pTransfersIn, pTransfersToPartners, pWorkerPayments, pExpenses] = await Promise.all([
           prisma.projectReceipt.aggregate({
             where: periodReceiptsWhere,
             _sum: { amount: true },
@@ -605,7 +618,12 @@ export async function GET(req: Request) {
             _count: { id: true },
           }),
           prisma.fundTransfer.aggregate({
-            where: periodTransfersOutWhere,
+            where: periodTransfersToPartnersWhere,
+            _sum: { amount: true },
+            _count: { id: true },
+          }),
+          prisma.fundTransfer.aggregate({
+            where: periodWorkerPaymentsWhere,
             _sum: { amount: true },
             _count: { id: true },
           }),
@@ -641,8 +659,12 @@ export async function GET(req: Request) {
             receiptsCount: pReceipts._count.id || 0,
             transfersInTotal: pTransfersIn._sum.amount || 0,
             transfersInCount: pTransfersIn._count.id || 0,
-            transfersOutTotal: pTransfersOut._sum.amount || 0,
-            transfersOutCount: pTransfersOut._count.id || 0,
+            transfersOutTotal: pTransfersToPartners._sum.amount || 0,
+            transfersOutCount: pTransfersToPartners._count.id || 0,
+            workerPaymentsTotal: pWorkerPayments._sum.amount || 0,
+            workerPaymentsCount: pWorkerPayments._count.id || 0,
+            combinedTransfersOutTotal: (pTransfersToPartners._sum.amount || 0) + (pWorkerPayments._sum.amount || 0),
+            combinedTransfersOutCount: (pTransfersToPartners._count.id || 0) + (pWorkerPayments._count.id || 0),
             expensesTotal: pExpenses._sum.amount || partnerExpenseBreakdown.total || 0,
             expensesCount: pExpenses._count.id || partnerExpensesList.length || 0,
           },

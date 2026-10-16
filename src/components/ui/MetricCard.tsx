@@ -5,7 +5,7 @@ export interface MetricCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   variant?: 'default' | 'amber' | 'emerald' | 'rose' | 'blue';
   isAlert?: boolean;
 }
@@ -36,13 +36,23 @@ export function MetricCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{title}</p>
-          <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">{value}</p>
-          {subtitle && <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{subtitle}</p>}
+          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+            {title}
+          </p>
+          <p className="mt-1 sm:mt-2 text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">
+            {value}
+          </p>
+          {subtitle && (
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+              {subtitle}
+            </p>
+          )}
         </div>
-        <div className={clsx('p-2 sm:p-3 rounded-lg border flex items-center justify-center shrink-0', iconColor[variant])}>
-          {icon}
-        </div>
+        {icon && (
+          <div className={clsx('p-2 sm:p-3 rounded-lg border flex items-center justify-center shrink-0', iconColor[variant])}>
+            {icon}
+          </div>
+        )}
       </div>
     </div>
   );
