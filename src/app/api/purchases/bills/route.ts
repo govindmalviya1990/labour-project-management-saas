@@ -77,9 +77,12 @@ export async function GET(req: Request) {
       };
     });
 
-    // Apply status filter if requested
-    const filteredBills = status && status !== 'ALL'
-      ? billsWithAllocations.filter((b) => b.derivedStatus === status)
+    // Apply status filter if requested (supports single or comma-separated e.g. "UNPAID,PARTIAL")
+    const statusList = status && status !== 'ALL'
+      ? status.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+      : [];
+    const filteredBills = statusList.length > 0
+      ? billsWithAllocations.filter((b) => statusList.includes(b.derivedStatus))
       : billsWithAllocations;
 
     const totalBillsAmount = filteredBills.reduce((sum, b) => sum + b.totalAmount, 0);

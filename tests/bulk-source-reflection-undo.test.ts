@@ -185,6 +185,13 @@ async function runTestSuite() {
         return row;
       },
     },
+    transaction: {
+      create: async ({ data }: any) => {
+        const row = { id: `tx_${Date.now()}_${Math.random()}`, ...data };
+        ledgerDB.push({ entity: 'Transaction', data: row });
+        return row;
+      },
+    },
   };
 
   // Partner A batch: 3 workers in 2 categories

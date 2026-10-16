@@ -13,7 +13,8 @@ export async function GET(req: Request) {
     const orgId = session.organizationId;
 
     const { searchParams } = new URL(req.url);
-    const range = searchParams.get('range') || 'MONTHLY'; // TODAY, WEEKLY, MONTHLY, CUSTOM, ALL
+    const rawRange = searchParams.get('period') || searchParams.get('range') || 'MONTHLY';
+    const range = rawRange.toUpperCase(); // TODAY, WEEKLY, MONTHLY, CUSTOM, ALL
     const startDateParam = searchParams.get('startDate');
     const endDateParam = searchParams.get('endDate');
     const supplierId = searchParams.get('supplierId');
@@ -30,10 +31,8 @@ export async function GET(req: Request) {
     } else if (range === 'WEEKLY') {
       const day = now.getDay();
       const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      startDate = new Date(now.setDate(diff));
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999);
+      startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     } else if (range === 'MONTHLY') {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
