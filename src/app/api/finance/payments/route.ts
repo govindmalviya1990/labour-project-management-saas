@@ -3,6 +3,8 @@ import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { createPaymentSchema } from '@/lib/validations/finance';
 import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
+import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
+import { getPartnerWalletBalance, getBankAccountBalance } from '@/lib/finance/partnerWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,56 +103,78 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Worker not found' }, { status: 404 });
     }
 
-    // Atomic transaction for payment creation & ledger audit entry
+    const sourceType = (data.sourceType || (data.bankAccountId ? 'BANK' : 'PARTNER')) as 'PARTNER' | 'BANK';
+    const effectiveSourceId =
+      data.sourceId ||
+      (sourceType === 'BANK' ? data.bankAccountId : (data.walletOwnerId || session.userId));
+
+    if (!effectiveSourceId) {
+      return NextResponse.json(
+        { error: 'Please select a paying partner wallet or company bank account' },
+        { status: 400 }
+      );
+    }
+
+    // Guardrail: check balance fresh before deducting
+    if (sourceType === 'PARTNER') {
+      const payingPartner = await prisma.user.findFirst({
+        where: { id: effectiveSourceId },
+        select: { id: true, name: true },
+      });
+      if (!payingPartner) {
+        return NextResponse.json({ error: 'Paying partner not found' }, { status: 404 });
+      }
+      const wallet = await getPartnerWalletBalance(prisma, orgId, effectiveSourceId);
+      if (wallet.balance < data.amount) {
+        return NextResponse.json(
+          {
+            error: `Insufficient wallet balance for partner ${payingPartner.name}. Current balance: ₹${wallet.balance.toLocaleString('en-IN')}, required: ₹${data.amount.toLocaleString('en-IN')}`,
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      const bankAccount = await prisma.bankAccount.findFirst({
+        where: { id: effectiveSourceId, organizationId: orgId, deletedAt: null },
+      });
+      if (!bankAccount) {
+        return NextResponse.json({ error: 'Paying bank account not found' }, { status: 404 });
+      }
+      const bank = await getBankAccountBalance(prisma, effectiveSourceId);
+      if (bank.balance < data.amount) {
+        return NextResponse.json(
+          {
+            error: `Insufficient balance in ${bankAccount.name}. Current balance: ₹${bank.balance.toLocaleString('en-IN')}, required: ₹${data.amount.toLocaleString('en-IN')}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Atomic transaction for payment creation & ledger audit entry using unified executeWorkerPayment
     const result = await prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          organizationId: orgId,
-          workerId: data.workerId,
-          projectId: data.projectId || null,
-          siteId: data.siteId || null,
-          date: new Date(data.date),
-          transactionType: data.transactionType,
-          amount: data.amount,
-          paymentMethod: data.paymentMethod,
-          reference: data.reference || null,
-          notes: data.notes || null,
+      const execResult = await executeWorkerPayment({
+        tx,
+        organizationId: orgId,
+        worker,
+        sourceType,
+        sourceId: effectiveSourceId,
+        category: data.transactionType,
+        amount: data.amount,
+        date: new Date(data.date),
+        method: data.paymentMethod,
+        projectId: data.projectId || null,
+        siteId: data.siteId || null,
+        reference: data.reference || null,
+        remarks: data.notes || null,
+        session: {
+          userId: session.userId,
+          name: session.name,
+          email: session.email,
+          role: session.role,
         },
       });
-
-      // Record transaction in Khata ledger table
-      await tx.transaction.create({
-        data: {
-          organizationId: orgId,
-          workerId: data.workerId,
-          date: new Date(data.date),
-          sourceType: data.transactionType,
-          sourceId: payment.id,
-          description: `${data.transactionType}: ${data.paymentMethod}${data.reference ? ` (${data.reference})` : ''}`,
-          debit: data.amount, // Payment reduces contractor liability to worker
-          credit: 0,
-        },
-      });
-
-      // Also record as Expense under category 'LABOUR' so it reflects on Dashboard & Expense Reports
-      await tx.expense.create({
-        data: {
-          organizationId: orgId,
-          projectId: data.projectId || null,
-          siteId: data.siteId || null,
-          date: new Date(data.date),
-          category: 'LABOUR',
-          description: `Worker Payment: ${worker.name} (${data.transactionType})`,
-          amount: data.amount,
-          paidBy: session.name,
-          spentById: session.userId,
-          walletOwnerId: session.userId,
-          paymentMethod: data.paymentMethod,
-          notes: `Payment ID: ${payment.id}${data.notes ? ` - ${data.notes}` : ''}`,
-        },
-      });
-
-      return payment;
+      return execResult.payment;
     });
 
     // Record Audit Surveillance Entry with 48h Undo Window

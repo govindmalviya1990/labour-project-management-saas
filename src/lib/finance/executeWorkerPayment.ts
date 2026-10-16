@@ -148,6 +148,20 @@ export async function executeWorkerPayment(
     });
   }
 
+  // 4. Record in Khata ledger table (tx.transaction)
+  await tx.transaction.create({
+    data: {
+      organizationId,
+      workerId: worker.id,
+      date,
+      sourceType: txType,
+      sourceId: payment.id,
+      description: `${txType}: ${paymentMethod}${reference ? ` (${reference})` : ''}`,
+      debit: amount,
+      credit: 0,
+    },
+  });
+
   return {
     payment,
     expense,

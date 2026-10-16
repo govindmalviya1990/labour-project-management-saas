@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { createAllowanceSchema } from '@/lib/validations/finance';
+import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
+import { getPartnerWalletBalance, getBankAccountBalance } from '@/lib/finance/partnerWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +77,49 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Worker not found' }, { status: 404 });
     }
 
+    const sourceType = (data.sourceType || 'PARTNER') as 'PARTNER' | 'BANK';
+    const effectiveSourceId = data.sourceId || (sourceType === 'PARTNER' ? session.userId : null);
+
+    if (data.isPaidNow) {
+      if (!effectiveSourceId) {
+        return NextResponse.json(
+          { error: 'Please select a paying partner wallet or company bank account' },
+          { status: 400 }
+        );
+      }
+      if (sourceType === 'PARTNER') {
+        const wallet = await getPartnerWalletBalance(prisma, orgId, effectiveSourceId);
+        if (wallet.balance < data.amount) {
+          const payingPartner = await prisma.user.findFirst({
+            where: { id: effectiveSourceId },
+            select: { name: true },
+          });
+          return NextResponse.json(
+            {
+              error: `Insufficient wallet balance for partner ${payingPartner?.name || 'selected'}. Current balance: ₹${wallet.balance.toLocaleString('en-IN')}, required: ₹${data.amount.toLocaleString('en-IN')}`,
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        const bankAccount = await prisma.bankAccount.findFirst({
+          where: { id: effectiveSourceId, organizationId: orgId, deletedAt: null },
+        });
+        if (!bankAccount) {
+          return NextResponse.json({ error: 'Paying bank account not found' }, { status: 404 });
+        }
+        const bank = await getBankAccountBalance(prisma, effectiveSourceId);
+        if (bank.balance < data.amount) {
+          return NextResponse.json(
+            {
+              error: `Insufficient balance in ${bankAccount.name}. Current balance: ₹${bank.balance.toLocaleString('en-IN')}, required: ₹${data.amount.toLocaleString('en-IN')}`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const allowance = await tx.allowance.create({
         data: {
@@ -102,6 +147,31 @@ export async function POST(req: Request) {
           credit: data.amount, // Increases worker earnings
         },
       });
+
+      // If marked as paid immediately, debit source wallet or bank account and record payment
+      if (data.isPaidNow && effectiveSourceId) {
+        await executeWorkerPayment({
+          tx,
+          organizationId: orgId,
+          worker,
+          sourceType,
+          sourceId: effectiveSourceId,
+          category: `ALLOWANCE_${data.type}`,
+          amount: data.amount,
+          date: new Date(data.date),
+          method: data.paymentMethod || 'CASH',
+          projectId: data.projectId || null,
+          siteId: data.siteId || null,
+          reference: null,
+          remarks: `Allowance Paid: ${data.type}${data.description ? ` (${data.description})` : ''}`,
+          session: {
+            userId: session.userId,
+            name: session.name,
+            email: session.email,
+            role: session.role,
+          },
+        });
+      }
 
       return allowance;
     });

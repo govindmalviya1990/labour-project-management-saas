@@ -300,6 +300,14 @@ export default function MaterialsPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Link href="/materials/suppliers">
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3.5 py-2.5 h-auto flex items-center gap-1.5 shadow-md shadow-purple-950/30"
+            >
+              <Building2 className="w-4 h-4 text-purple-200" />
+              Suppliers &amp; Vendors
+            </Button>
+          </Link>
           <Button
             onClick={() => setStockReportModalOpen(true)}
             className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-950/40 px-4 py-2.5 h-auto flex items-center gap-2 border border-emerald-400/30"

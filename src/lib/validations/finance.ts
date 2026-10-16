@@ -40,8 +40,12 @@ export const createPaymentSchema = z.object({
   transactionType: paymentTransactionTypeEnum.default('PAYMENT'),
   amount: z.number().min(1, 'Amount must be greater than 0'),
   paymentMethod: paymentMethodEnum.default('CASH'),
-  reference: z.string().optional(),
-  notes: z.string().optional(),
+  sourceType: z.enum(['PARTNER', 'BANK']).default('PARTNER').optional(),
+  sourceId: z.string().optional().nullable(),
+  walletOwnerId: z.string().optional().nullable(),
+  bankAccountId: z.string().optional().nullable(),
+  reference: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const createAllowanceSchema = z.object({
@@ -51,7 +55,11 @@ export const createAllowanceSchema = z.object({
   date: z.string().min(10, 'Valid date is required'),
   type: allowanceTypeEnum.default('FOOD'),
   amount: z.number().min(1, 'Amount must be greater than 0'),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
+  isPaidNow: z.boolean().default(false).optional(),
+  sourceType: z.enum(['PARTNER', 'BANK']).default('PARTNER').optional(),
+  sourceId: z.string().optional().nullable(),
+  paymentMethod: paymentMethodEnum.default('CASH').optional(),
 });
 
 export const createExpenseSchema = z.object({

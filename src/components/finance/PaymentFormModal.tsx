@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { IndianRupee, CreditCard, AlertCircle } from 'lucide-react';
+import { IndianRupee, CreditCard, AlertCircle, Users, Landmark, Wallet } from 'lucide-react';
+import { formatINR } from '@/lib/calculations';
+import { clsx } from 'clsx';
 
 interface PaymentFormModalProps {
   isOpen: boolean;
@@ -27,6 +29,8 @@ export function PaymentFormModal({
 }: PaymentFormModalProps) {
   const [workers, setWorkers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     workerId: initialData?.workerId || defaultWorkerId || '',
@@ -36,6 +40,8 @@ export function PaymentFormModal({
     transactionType: initialData?.transactionType || defaultType,
     amount: initialData?.amount !== undefined ? initialData.amount : 0,
     paymentMethod: initialData?.paymentMethod || 'CASH',
+    sourceType: (initialData?.sourceType || 'PARTNER') as 'PARTNER' | 'BANK',
+    sourceId: initialData?.sourceId || '',
     reference: initialData?.reference || '',
     notes: initialData?.notes || '',
   });
@@ -46,12 +52,21 @@ export function PaymentFormModal({
   useEffect(() => {
     async function loadOptions() {
       try {
-        const [wRes, pRes] = await Promise.all([
+        const [wRes, pRes, partRes, bankRes] = await Promise.all([
           fetch('/api/workers?status=ACTIVE').then((r) => r.json()),
           fetch('/api/projects?status=RUNNING').then((r) => r.json()),
+          fetch('/api/partners').then((r) => r.json()).catch(() => ({ partners: [] })),
+          fetch('/api/finance/bank-accounts').then((r) => r.json()).catch(() => ({ bankAccounts: [] })),
         ]);
-        setWorkers(wRes.workers || []);
-        setProjects(pRes.projects || []);
+        const loadedWorkers = wRes.workers || [];
+        const loadedProjects = pRes.projects || [];
+        const loadedPartners = partRes.partners || [];
+        const loadedBankAccounts = bankRes.bankAccounts || [];
+
+        setWorkers(loadedWorkers);
+        setProjects(loadedProjects);
+        setPartners(loadedPartners);
+        setBankAccounts(loadedBankAccounts);
 
         if (initialData) {
           setFormData({
@@ -62,16 +77,20 @@ export function PaymentFormModal({
             transactionType: initialData.transactionType || 'PAYMENT',
             amount: initialData.amount || 0,
             paymentMethod: initialData.paymentMethod || 'CASH',
+            sourceType: initialData.sourceType || 'PARTNER',
+            sourceId: initialData.sourceId || (loadedPartners[0]?.id || ''),
             reference: initialData.reference || '',
             notes: initialData.notes || '',
           });
         } else {
           setFormData((prev) => ({
             ...prev,
-            workerId: defaultWorkerId || (wRes.workers?.[0]?.id || ''),
+            workerId: defaultWorkerId || (loadedWorkers[0]?.id || ''),
             projectId: defaultProjectId || '',
             transactionType: defaultType,
             amount: 0,
+            sourceType: prev.sourceType || 'PARTNER',
+            sourceId: prev.sourceId || (loadedPartners[0]?.id || loadedBankAccounts[0]?.id || ''),
           }));
         }
       } catch (e) {
@@ -94,6 +113,11 @@ export function PaymentFormModal({
     }
     if (!formData.amount || formData.amount <= 0) {
       setError('Please enter a valid payment amount');
+      return;
+    }
+
+    if (!formData.sourceId) {
+      setError('Please select a payment source (partner wallet or bank account)');
       return;
     }
 
@@ -126,6 +150,14 @@ export function PaymentFormModal({
     }
   };
 
+  const selectedPartner = partners.find((p) => p.id === formData.sourceId);
+  const selectedBank = bankAccounts.find((b) => b.id === formData.sourceId);
+  const currentSourceBalance =
+    formData.sourceType === 'PARTNER'
+      ? (selectedPartner?.walletBalance ?? 0)
+      : (selectedBank?.currentBalance ?? 0);
+  const isBalanceInsufficient = formData.amount > 0 && currentSourceBalance < formData.amount;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -148,6 +180,105 @@ export function PaymentFormModal({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Payment Source / Paying From */}
+        <div className="space-y-2 p-3 rounded-xl border border-slate-700/80 bg-slate-950/60">
+          <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+            <Wallet className="w-3.5 h-3.5" />
+            Payment Source (Paying From)
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const defaultPId = partners[0]?.id || '';
+                setFormData((prev) => ({
+                  ...prev,
+                  sourceType: 'PARTNER',
+                  sourceId: prev.sourceType === 'PARTNER' && prev.sourceId ? prev.sourceId : defaultPId,
+                  paymentMethod: 'CASH',
+                }));
+              }}
+              className={clsx(
+                'py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5',
+                formData.sourceType === 'PARTNER'
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-extrabold'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+              )}
+            >
+              <Users className="w-3.5 h-3.5" />
+              Partner / Owner Wallet
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const defaultBId = bankAccounts[0]?.id || '';
+                setFormData((prev) => ({
+                  ...prev,
+                  sourceType: 'BANK',
+                  sourceId: prev.sourceType === 'BANK' && prev.sourceId ? prev.sourceId : defaultBId,
+                  paymentMethod: 'BANK',
+                }));
+              }}
+              className={clsx(
+                'py-2 px-3 rounded-lg text-xs font-bold text-center transition-all border flex items-center justify-center gap-1.5',
+                formData.sourceType === 'BANK'
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-extrabold'
+                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+              )}
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              Company Bank Account
+            </button>
+          </div>
+
+          {formData.sourceType === 'PARTNER' ? (
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-400">
+                Select Paying Partner / Owner:
+              </label>
+              <select
+                value={formData.sourceId}
+                onChange={(e) => setFormData({ ...formData, sourceId: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500 font-medium"
+              >
+                {partners.length === 0 && <option value="">No partners found</option>}
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.role}) • Wallet Bal: {formatINR(p.walletBalance || 0)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-400">
+                Select Paying Bank Account:
+              </label>
+              <select
+                value={formData.sourceId}
+                onChange={(e) => setFormData({ ...formData, sourceId: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2 text-xs focus:border-amber-500 font-medium"
+              >
+                {bankAccounts.length === 0 && <option value="">No bank accounts found</option>}
+                {bankAccounts.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.bankName}) {b.accountLast4 ? `•••${b.accountLast4}` : ''} • Bal: {formatINR(b.currentBalance || 0)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {isBalanceInsufficient && (
+            <div className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-md p-2 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>
+                Note: Available balance ({formatINR(currentSourceBalance)}) is less than payment amount ({formatINR(formData.amount)}).
+              </span>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-1.5">
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
             Worker

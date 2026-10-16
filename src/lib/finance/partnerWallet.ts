@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@/lib/db/prisma';
-import { calculateWalletBalance, WalletBalanceResult } from '@/lib/calculations';
+import { calculateWalletBalance, calculateBankBalance, WalletBalanceResult } from '@/lib/calculations';
 
 export interface PartnerWalletDetails extends WalletBalanceResult {
   userId: string;
@@ -233,4 +233,82 @@ export async function getMultiplePartnersWalletBalances(
   }
 
   return resultMap;
+}
+
+export interface BankAccountBalanceDetails {
+  bankAccountId: string;
+  balance: number;
+  openingBalance: number;
+  totalDeposits: number;
+  totalReceipts: number;
+  totalTransfersFromPartner: number;
+  totalWithdrawals: number;
+  totalPayments: number;
+  totalTransfersToPartner: number;
+}
+
+export async function getBankAccountBalance(
+  client: Prisma.TransactionClient | typeof prisma,
+  bankAccountId: string
+): Promise<BankAccountBalanceDetails> {
+  const bankAccount = await client.bankAccount.findUnique({
+    where: { id: bankAccountId },
+    select: { openingBalance: true },
+  });
+
+  const [
+    depositsAgg,
+    receiptsAgg,
+    transferFromPartnerAgg,
+    withdrawalsAgg,
+    paymentsAgg,
+    transferToPartnerAgg,
+  ] = await Promise.all([
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'DEPOSIT', deletedAt: null },
+      _sum: { amount: true },
+    }),
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'RECEIPT', deletedAt: null },
+      _sum: { amount: true },
+    }),
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
+      _sum: { amount: true },
+    }),
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'WITHDRAWAL', deletedAt: null },
+      _sum: { amount: true },
+    }),
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'PAYMENT', deletedAt: null },
+      _sum: { amount: true },
+    }),
+    client.bankTransaction.aggregate({
+      where: { bankAccountId, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const calc = calculateBankBalance({
+    openingBalance: bankAccount?.openingBalance || 0,
+    totalDeposits: depositsAgg._sum.amount || 0,
+    totalReceipts: receiptsAgg._sum.amount || 0,
+    totalTransfersFromPartner: transferFromPartnerAgg._sum.amount || 0,
+    totalWithdrawals: withdrawalsAgg._sum.amount || 0,
+    totalPayments: paymentsAgg._sum.amount || 0,
+    totalTransfersToPartner: transferToPartnerAgg._sum.amount || 0,
+  });
+
+  return {
+    bankAccountId,
+    balance: calc.balance,
+    openingBalance: bankAccount?.openingBalance || 0,
+    totalDeposits: depositsAgg._sum.amount || 0,
+    totalReceipts: receiptsAgg._sum.amount || 0,
+    totalTransfersFromPartner: transferFromPartnerAgg._sum.amount || 0,
+    totalWithdrawals: withdrawalsAgg._sum.amount || 0,
+    totalPayments: paymentsAgg._sum.amount || 0,
+    totalTransfersToPartner: transferToPartnerAgg._sum.amount || 0,
+  };
 }

@@ -14,6 +14,7 @@ import {
   Layers,
   Edit2,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MetricCard } from '@/components/ui/MetricCard';
@@ -29,6 +30,8 @@ export default function WorkPage() {
   const [workers, setWorkers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'logs' | 'productivity'>('logs');
+  const [filterWorkerId, setFilterWorkerId] = useState<string>('ALL');
+  const [filterDate, setFilterDate] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -260,8 +263,20 @@ export default function WorkPage() {
     },
   ];
 
-  const totalQuantitySum = workRecords.reduce((sum, r) => sum + (r.quantity || 0), 0);
-  const totalWorkValueSum = workRecords.reduce((sum, r) => sum + (r.totalWorkValue || 0), 0);
+  const filteredWorkRecords = workRecords.filter((record) => {
+    if (filterWorkerId !== 'ALL') {
+      const wId = record.workerId || record.worker?.id;
+      if (wId !== filterWorkerId) return false;
+    }
+    if (filterDate) {
+      const recordDateStr = new Date(record.date).toISOString().split('T')[0];
+      if (recordDateStr !== filterDate) return false;
+    }
+    return true;
+  });
+
+  const totalQuantitySum = filteredWorkRecords.reduce((sum, r) => sum + (r.quantity || 0), 0);
+  const totalWorkValueSum = filteredWorkRecords.reduce((sum, r) => sum + (r.totalWorkValue || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -313,8 +328,8 @@ export default function WorkPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <MetricCard
           title="Total Work Logs"
-          value={workRecords.length}
-          subtitle="Completed assignments"
+          value={filteredWorkRecords.length}
+          subtitle={filterWorkerId !== 'ALL' || filterDate ? 'Filtered assignments' : 'Completed assignments'}
           icon={<Hammer className="w-5 h-5 text-indigo-400" />}
           variant="blue"
         />
@@ -352,7 +367,7 @@ export default function WorkPage() {
               : 'text-slate-400 hover:text-white hover:bg-slate-900'
           )}
         >
-          Daily Work Logs ({workRecords.length})
+          Daily Work Logs ({filteredWorkRecords.length})
         </button>
         <button
           type="button"
@@ -371,16 +386,97 @@ export default function WorkPage() {
 
       {/* TAB 1: WORK LOGS */}
       {activeTab === 'logs' && (
-        <DataTable
-          data={workRecords}
-          columns={columns}
-          keyExtractor={(r) => r.id}
-          searchPlaceholder="Search task, worker name, or project..."
-          emptyTitle="No work records logged yet"
-          emptyDescription="Record completed site tasks with quantities and rates to track labour output."
-          emptyActionLabel="Record First Task"
-          onEmptyAction={() => setIsModalOpen(true)}
-        />
+        <div className="space-y-4">
+          {/* Worker Name and Date Filters Bar */}
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+            {/* Filter by Worker Name */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 shrink-0">
+                <Users className="w-3.5 h-3.5 text-amber-400" />
+                Worker:
+              </label>
+              <select
+                value={filterWorkerId}
+                onChange={(e) => setFilterWorkerId(e.target.value)}
+                className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:border-amber-500 focus:outline-none"
+              >
+                <option value="ALL">All Workers ({workers.length})</option>
+                {workers.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.workerCode || w.category})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filter by Date */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                Date:
+              </label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Quick Date actions */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setFilterDate(new Date().toISOString().split('T')[0])}
+                className={clsx(
+                  'px-2 py-1 text-[11px] font-medium rounded transition-colors border',
+                  filterDate === new Date().toISOString().split('T')[0]
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-white'
+                )}
+              >
+                Today
+              </button>
+              {(filterWorkerId !== 'ALL' || filterDate !== '') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterWorkerId('ALL');
+                    setFilterDate('');
+                  }}
+                  className="px-2 py-1 text-[11px] font-medium rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-colors flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" />
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* Active Record Count */}
+            <div className="ml-auto text-xs text-slate-400">
+              Showing <span className="font-bold text-amber-400">{filteredWorkRecords.length}</span> of {workRecords.length} records
+            </div>
+          </div>
+
+          <DataTable
+            data={filteredWorkRecords}
+            columns={columns}
+            keyExtractor={(r) => r.id}
+            searchPlaceholder="Search task, worker name, or project..."
+            emptyTitle={
+              filterWorkerId !== 'ALL' || filterDate
+                ? 'No matching work records found'
+                : 'No work records logged yet'
+            }
+            emptyDescription={
+              filterWorkerId !== 'ALL' || filterDate
+                ? 'Try changing or clearing the worker or date filter above.'
+                : 'Record completed site tasks with quantities and rates to track labour output.'
+            }
+            emptyActionLabel="Record First Task"
+            onEmptyAction={() => setIsModalOpen(true)}
+          />
+        </div>
       )}
 
       {/* TAB 2: PRODUCTIVITY LEADERBOARD (Prompt Section 16) */}

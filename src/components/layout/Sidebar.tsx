@@ -54,7 +54,7 @@ export function Sidebar({
     Projects: true,
     Workers: true,
     Finance: true,
-    Materials: false,
+    Materials: true,
     Reports: false,
   });
 
@@ -132,8 +132,11 @@ export function Sidebar({
         },
         {
           title: 'Materials',
-          href: '/materials',
           icon: <Package className="w-4 h-4 text-orange-400" />,
+          children: [
+            { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
+          ],
         },
         {
           title: 'Notifications',
@@ -177,9 +180,12 @@ export function Sidebar({
           icon: <Hammer className="w-4 h-4 text-indigo-400" />,
         },
         {
-          title: 'Materials & Stock',
-          href: '/materials',
+          title: 'Materials',
           icon: <Package className="w-4 h-4 text-orange-400" />,
+          children: [
+            { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
+          ],
         },
         {
           title: 'Reports',
@@ -238,6 +244,14 @@ export function Sidebar({
           title: 'Quotations',
           href: '/quotations',
           icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" />,
+        },
+        {
+          title: 'Materials',
+          icon: <Package className="w-4 h-4 text-orange-400" />,
+          children: [
+            { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
+          ],
         },
         {
           title: 'Financial Reports',
@@ -305,8 +319,11 @@ export function Sidebar({
       },
       {
         title: 'Materials',
-        href: '/materials',
-        icon: <Package className="w-4 h-4" />,
+        icon: <Package className="w-4 h-4 text-orange-400" />,
+        children: [
+          { title: 'Materials & Stock', href: '/materials' },
+          { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
+        ],
       },
       {
         title: 'Reports',
