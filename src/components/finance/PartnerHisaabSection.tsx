@@ -2507,199 +2507,54 @@ export function PartnerHisaabSection({
           </div>
         </div>
 
-        {/* Ledger Toolbar (Search & Filter) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Type Filter (Smooth Sliding on Mobile) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-smooth w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setLedgerTypeFilter('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                ledgerTypeFilter === 'ALL'
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              All Entries ({ledger.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setLedgerTypeFilter('RECEIPT')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                ledgerTypeFilter === 'RECEIPT'
-                  ? 'bg-emerald-600 text-white font-bold'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-              }`}
-            >
-              {isBankSelected ? 'Client Receipts in Bank' : 'Client Receipts'}
-            </button>
-            {isBankSelected ? (
-              <>
+        {/* Ledger Toolbar (Search & Filter Card) */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          {/* Row 1: Search Bar & Action Toggles */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:max-w-md">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder={
+                  isBankSelected
+                    ? 'Search bank records, ref, amount...'
+                    : isAllSelected
+                    ? 'Search all transactions, names, ref, amount...'
+                    : `Search ${selectedPartner?.name || 'partner'}'s hisaab...`
+                }
+                value={ledgerSearchQuery}
+                onChange={(e) => setLedgerSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-8 py-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
+              {ledgerSearchQuery && (
                 <button
                   type="button"
-                  onClick={() => setLedgerTypeFilter('BANK_DEPOSIT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'BANK_DEPOSIT'
-                      ? 'bg-sky-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
+                  onClick={() => setLedgerSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                  title="Clear search"
                 >
-                  Bank Deposits
+                  <X className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'TRANSFER_OUT'
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Transfers to Partners
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('BANK_WITHDRAWAL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'BANK_WITHDRAWAL'
-                      ? 'bg-amber-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Cash Withdrawals
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('EXPENSE')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'EXPENSE'
-                      ? 'bg-rose-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Direct Payments
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'WORKER_PAYMENT'
-                      ? 'bg-purple-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Worker Salary &amp; Wages
-                </button>
-              </>
-            ) : isAllSelected ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('EXPENSE')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'EXPENSE'
-                      ? 'bg-amber-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Site Expenses
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'WORKER_PAYMENT'
-                      ? 'bg-rose-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Worker Salary &amp; Wages
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('TRANSFER')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'TRANSFER'
-                      ? 'bg-sky-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Transfers Between Partners
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('BANK')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'BANK'
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Bank Deposits &amp; Withdrawals
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('TRANSFER_IN')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'TRANSFER_IN'
-                      ? 'bg-sky-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Transfers Received
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('EXPENSE')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'EXPENSE'
-                      ? 'bg-amber-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Site Expenses
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'WORKER_PAYMENT'
-                      ? 'bg-rose-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Worker Salary &amp; Wages
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'TRANSFER_OUT'
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Transfers Out to Partners
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLedgerTypeFilter('BANK')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap ${
-                    ledgerTypeFilter === 'BANK'
-                      ? 'bg-sky-600 text-white font-bold'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  Bank In / Out
-                </button>
-              </>
-            )}
-          </div>
+              )}
+            </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+            {/* Right: Owner Toggle & Reset Button */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {(ledgerTypeFilter !== 'ALL' || ledgerSearchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLedgerTypeFilter('ALL');
+                    setLedgerSearchQuery('');
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Clear Filters
+                </button>
+              )}
+
               {userRole === 'OWNER' && (
                 <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none shrink-0 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-colors">
                   <input
@@ -2711,26 +2566,242 @@ export function PartnerHisaabSection({
                   <span>Show deleted</span>
                 </label>
               )}
-
-              {/* Search Input */}
-              <div className="relative flex-1 sm:w-auto sm:min-w-[220px]">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={
-                    isBankSelected
-                      ? 'Search bank records...'
-                      : isAllSelected
-                      ? 'Search all transactions...'
-                      : 'Search partner hisaab...'
-                  }
-                  value={ledgerSearchQuery}
-                  onChange={(e) => setLedgerSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
             </div>
           </div>
+
+          {/* Divider */}
+          <div className="h-px bg-slate-100 dark:bg-slate-800/80 -mx-1" />
+
+          {/* Row 2: Filter Buttons (Clean Wrapping) */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+              <Filter className="w-3 h-3 text-indigo-500" />
+              Filter:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setLedgerTypeFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                ledgerTypeFilter === 'ALL'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold shadow-sm'
+                  : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              All Entries ({ledger.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLedgerTypeFilter('RECEIPT')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                ledgerTypeFilter === 'RECEIPT'
+                  ? 'bg-emerald-600 text-white font-bold shadow-sm'
+                  : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+              }`}
+            >
+              {isBankSelected ? 'Client Receipts in Bank' : 'Client Receipts'}
+            </button>
+
+            {isBankSelected ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('BANK_DEPOSIT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'BANK_DEPOSIT'
+                      ? 'bg-sky-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Bank Deposits
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'TRANSFER_OUT'
+                      ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Transfers to Partners
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('BANK_WITHDRAWAL')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'BANK_WITHDRAWAL'
+                      ? 'bg-amber-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Cash Withdrawals
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('EXPENSE')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'EXPENSE'
+                      ? 'bg-rose-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Direct Payments
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'WORKER_PAYMENT'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Worker Salary &amp; Wages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('SUPPLIER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'SUPPLIER_PAYMENT'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Supplier Payments
+                </button>
+              </>
+            ) : isAllSelected ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('EXPENSE')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'EXPENSE'
+                      ? 'bg-amber-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Site Expenses
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'WORKER_PAYMENT'
+                      ? 'bg-rose-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Worker Salary &amp; Wages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('SUPPLIER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'SUPPLIER_PAYMENT'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Supplier Payments
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('TRANSFER')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'TRANSFER'
+                      ? 'bg-sky-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Transfers Between Partners
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('BANK')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'BANK'
+                      ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Bank Deposits &amp; Withdrawals
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('TRANSFER_IN')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'TRANSFER_IN'
+                      ? 'bg-sky-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Transfers Received
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('EXPENSE')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'EXPENSE'
+                      ? 'bg-amber-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Site Expenses
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('WORKER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'WORKER_PAYMENT'
+                      ? 'bg-rose-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Worker Salary &amp; Wages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('SUPPLIER_PAYMENT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'SUPPLIER_PAYMENT'
+                      ? 'bg-purple-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Supplier Payments
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('TRANSFER_OUT')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'TRANSFER_OUT'
+                      ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Transfers Out to Partners
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLedgerTypeFilter('BANK')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 whitespace-nowrap transition-all ${
+                    ledgerTypeFilter === 'BANK'
+                      ? 'bg-sky-600 text-white font-bold shadow-sm'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/60'
+                  }`}
+                >
+                  Bank In / Out
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
           {/* Mobile Transaction Statement Cards View */}
           <div className="block md:hidden space-y-2.5">
