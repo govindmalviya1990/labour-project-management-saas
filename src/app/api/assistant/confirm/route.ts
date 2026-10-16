@@ -114,6 +114,9 @@ export async function POST(req: Request) {
         // FUND_TRANSFER (Give Money to Worker or User)
         // -----------------------------------------------------
         case 'FUND_TRANSFER': {
+          if (!['OWNER', 'MANAGER', 'PARTNER'].includes(role)) {
+            throw new Error('Aapke role ke paas cash transfer ya worker advance approve karne ki permission nahi hai.');
+          }
           if (!amount || amount <= 0) throw new Error('Valid amount is required');
 
           // If giving to a Worker -> Create Worker Payment + FundTransfer (toWorkerId)
@@ -121,9 +124,16 @@ export async function POST(req: Request) {
             let targetWorkerId = receiverId;
             if (!targetWorkerId && receiverName) {
               const w = await tx.worker.findFirst({
-                where: { organizationId: orgId, name: { contains: receiverName }, deletedAt: null },
+                where: { organizationId: orgId, name: { contains: receiverName, mode: 'insensitive' }, deletedAt: null },
               });
               targetWorkerId = w?.id;
+            } else if (targetWorkerId) {
+              const w = await tx.worker.findFirst({
+                where: { organizationId: orgId, id: targetWorkerId, deletedAt: null },
+              });
+              if (!w) {
+                targetWorkerId = undefined;
+              }
             }
 
             if (!targetWorkerId) throw new Error(`Worker "${receiverName || 'Worker'}" not found`);
@@ -164,13 +174,31 @@ export async function POST(req: Request) {
           // If transferring to another User / Partner / Supervisor
           let targetUserId = receiverId;
           if (!targetUserId && receiverName) {
-            const u = await tx.user.findFirst({
-              where: { name: { contains: receiverName } },
+            const orgUser = await tx.organizationUser.findFirst({
+              where: {
+                organizationId: orgId,
+                status: 'ACTIVE',
+                user: {
+                  name: { contains: receiverName, mode: 'insensitive' },
+                },
+              },
+              include: { user: true },
             });
-            targetUserId = u?.id;
+            targetUserId = orgUser?.userId;
+          } else if (targetUserId) {
+            const orgUser = await tx.organizationUser.findFirst({
+              where: {
+                organizationId: orgId,
+                userId: targetUserId,
+                status: 'ACTIVE',
+              },
+            });
+            if (!orgUser) {
+              targetUserId = undefined;
+            }
           }
 
-          if (!targetUserId) throw new Error(`User "${receiverName || 'Team Member'}" not found`);
+          if (!targetUserId) throw new Error(`User "${receiverName || 'Team Member'}" not found in your organization`);
 
           const transfer = await tx.fundTransfer.create({
             data: {
@@ -407,14 +435,24 @@ export async function POST(req: Request) {
         // WORKER_PAYMENT (Direct Khata Payout)
         // -----------------------------------------------------
         case 'WORKER_PAYMENT': {
+          if (!['OWNER', 'MANAGER', 'PARTNER'].includes(role)) {
+            throw new Error('Aapke role ke paas worker payment approve karne ki permission nahi hai.');
+          }
           if (!amount || amount <= 0) throw new Error('Valid amount is required');
 
           let targetWorkerId = receiverId;
           if (!targetWorkerId && receiverName) {
             const w = await tx.worker.findFirst({
-              where: { organizationId: orgId, name: { contains: receiverName }, deletedAt: null },
+              where: { organizationId: orgId, name: { contains: receiverName, mode: 'insensitive' }, deletedAt: null },
             });
             targetWorkerId = w?.id;
+          } else if (targetWorkerId) {
+            const w = await tx.worker.findFirst({
+              where: { organizationId: orgId, id: targetWorkerId, deletedAt: null },
+            });
+            if (!w) {
+              targetWorkerId = undefined;
+            }
           }
 
           if (!targetWorkerId) throw new Error('Worker not found');

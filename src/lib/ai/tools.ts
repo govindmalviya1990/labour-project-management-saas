@@ -3,8 +3,11 @@ import { ToolExecutionContext, LlmToolDefinition } from './types';
 import {
   calculateWalletBalance,
   calculateDailyCashFlow,
+  calculateBankBalance,
+  calculateOverallMoneyPosition,
   formatINR,
 } from '@/lib/calculations';
+import { computeSupplierBalance } from '@/lib/supplierBalance';
 import { getStartOfDayUTC } from '@/lib/auth/day-lock';
 import { normalizeRole } from '@/lib/auth/roles';
 import {
@@ -57,11 +60,24 @@ export const READ_ONLY_TOOL_DEFINITIONS: LlmToolDefinition[] = [
     },
   },
   {
-    name: 'getPartnerWallets',
-    description: 'Get live closing cash in hand and wallet balance for all partners. Accessible in full only by OWNER/MANAGER. Partners can only see their own balance.',
+    name: 'getMoneyPosition',
+    description: 'Get live overall company money position: total cash across all partners, supervisor petty cash, and live balances of all company bank accounts.',
     parameters: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'getPartnerWallets',
+    description: 'Get live closing cash in hand and wallet balance for all partners or a specific partner (includes opening balance, receipts, expenses, transfers, and supplier payments).',
+    parameters: {
+      type: 'object',
+      properties: {
+        partnerName: {
+          type: 'string',
+          description: 'Optional partner name to filter (e.g. Akshay Tak, Rajesh Thakur).',
+        },
+      },
     },
   },
   {
@@ -162,6 +178,74 @@ export const READ_ONLY_TOOL_DEFINITIONS: LlmToolDefinition[] = [
         projectId: {
           type: 'string',
           description: 'Filter by project ID.',
+        },
+      },
+    },
+  },
+  {
+    name: 'getWorkerAdvanceList',
+    description: 'Get list of all workers who currently have an outstanding advance (advance baaki hai).',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'getWorkerPaymentsList',
+    description: 'List salary, wage, and advance payments given to workers within a date range, or paid by a specific partner/user.',
+    parameters: {
+      type: 'object',
+      properties: {
+        startDate: {
+          type: 'string',
+          description: 'Start date in YYYY-MM-DD format.',
+        },
+        endDate: {
+          type: 'string',
+          description: 'End date in YYYY-MM-DD format.',
+        },
+        workerName: {
+          type: 'string',
+          description: 'Optional filter by worker name.',
+        },
+        fromUserName: {
+          type: 'string',
+          description: 'Optional filter by the partner or user who made the payment (e.g. Rajesh Thakur, Akshay Tak).',
+        },
+      },
+    },
+  },
+  {
+    name: 'getSupplierBalances',
+    description: 'Get supplier ledger and outstanding balance for all suppliers or a specific supplier (bills, payments, returns, net balance, and aging).',
+    parameters: {
+      type: 'object',
+      properties: {
+        supplierName: {
+          type: 'string',
+          description: 'Optional supplier name to filter.',
+        },
+      },
+    },
+  },
+  {
+    name: 'getPayrollSummary',
+    description: 'Get total labour cost, attendance wages, allowances, and worker earnings for a given month or date range (e.g. pichhle mahine ka labour cost).',
+    parameters: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          enum: ['THIS_MONTH', 'LAST_MONTH', 'THIS_WEEK', 'CUSTOM'],
+          description: 'Time period for payroll summary.',
+        },
+        startDate: {
+          type: 'string',
+          description: 'Start date in YYYY-MM-DD format (for CUSTOM period).',
+        },
+        endDate: {
+          type: 'string',
+          description: 'End date in YYYY-MM-DD format (for CUSTOM period).',
         },
       },
     },
@@ -627,6 +711,175 @@ export async function executeTool(
     }
 
     // ---------------------------------------------------------
+    // 1b. getMoneyPosition
+    // ---------------------------------------------------------
+    case 'getMoneyPosition': {
+      if (!isOwnerOrManager && role !== 'PARTNER') {
+        return { error: 'Supervisors do not have access to company money position.' };
+      }
+
+      const memberships = await prisma.organizationUser.findMany({
+        where: { organizationId: ctx.organizationId, status: 'ACTIVE' },
+        include: { user: { select: { id: true, name: true, email: true, mobile: true } } },
+      });
+
+      const partnerUsers = memberships
+        .filter((m: any) => ['PARTNER', 'OWNER'].includes(normalizeRole(m.role)))
+        .map((m: any) => ({
+          ...m.user,
+          openingBalance: m.openingBalance || 0,
+          role: m.role,
+        }));
+
+      const supervisorUsers = memberships
+        .filter((m: any) => normalizeRole(m.role) === 'SITE_SUPERVISOR')
+        .map((m: any) => ({
+          ...m.user,
+          openingBalance: m.openingBalance || 0,
+          role: m.role,
+        }));
+
+      const partnerWallets = await Promise.all(
+        partnerUsers.map(async (u: any) => {
+          const [mIn, tIn, tOut, exp, bankDep, bankWith, supPay] = await Promise.all([
+            prisma.projectReceipt.aggregate({
+              where: { organizationId: ctx.organizationId, receivedById: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: ctx.organizationId, toUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: ctx.organizationId, fromUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.expense.aggregate({
+              where: { organizationId: ctx.organizationId, walletOwnerId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: ctx.organizationId, createdById: u.id, type: 'DEPOSIT', deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: ctx.organizationId, createdById: u.id, type: 'WITHDRAWAL', deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.supplierPayment.aggregate({
+              where: { organizationId: ctx.organizationId, sourceId: u.id, sourceType: 'PARTNER', deletedAt: null },
+              _sum: { amount: true },
+            }),
+          ]);
+
+          const bal = calculateWalletBalance({
+            openingBalance: u.openingBalance || 0,
+            totalMoneyIn: mIn._sum?.amount || 0,
+            totalTransfersIn: tIn._sum?.amount || 0,
+            totalTransfersOut: (tOut._sum?.amount || 0) + (supPay._sum?.amount || 0),
+            totalExpenses: exp._sum?.amount || 0,
+            totalBankDeposits: bankDep._sum?.amount || 0,
+            totalBankWithdrawals: bankWith._sum?.amount || 0,
+          });
+
+          return {
+            id: u.id,
+            name: u.name,
+            balance: bal.balance,
+          };
+        })
+      );
+
+      const supervisorWallets = await Promise.all(
+        supervisorUsers.map(async (u: any) => {
+          const [tIn, exp, tOut] = await Promise.all([
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: ctx.organizationId, toUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.expense.aggregate({
+              where: { organizationId: ctx.organizationId, spentById: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.fundTransfer.aggregate({
+              where: { organizationId: ctx.organizationId, fromUserId: u.id, deletedAt: null },
+              _sum: { amount: true },
+            }),
+          ]);
+          const bal = (tIn._sum.amount || 0) - (exp._sum.amount || 0) - (tOut._sum.amount || 0);
+          return { id: u.id, name: u.name, balance: Math.round(bal * 100) / 100 };
+        })
+      );
+
+      const bankAccounts = await prisma.bankAccount.findMany({
+        where: { organizationId: ctx.organizationId, deletedAt: null },
+      });
+
+      const bankBalances = await Promise.all(
+        bankAccounts.map(async (b: any) => {
+          const [txs, supPays] = await Promise.all([
+            prisma.bankTransaction.findMany({
+              where: { bankAccountId: b.id, deletedAt: null },
+              select: { type: true, amount: true },
+            }),
+            prisma.supplierPayment.aggregate({
+              where: { organizationId: ctx.organizationId, sourceId: b.id, sourceType: 'BANK', deletedAt: null },
+              _sum: { amount: true },
+            }),
+          ]);
+
+          let totalInflow = 0;
+          let totalOutflow = (supPays._sum?.amount || 0);
+
+          for (const t of txs) {
+            if (['DEPOSIT', 'RECEIPT', 'TRANSFER_IN'].includes(t.type)) {
+              totalInflow += t.amount;
+            } else {
+              totalOutflow += t.amount;
+            }
+          }
+
+          const balance = Math.round((Number(b.openingBalance || 0) + totalInflow - totalOutflow) * 100) / 100;
+          return {
+            id: b.id,
+            name: b.name,
+            bankName: b.bankName,
+            accountLast4: b.accountLast4,
+            balance,
+          };
+        })
+      );
+
+      const moneyPos = calculateOverallMoneyPosition({
+        partnerWallets,
+        supervisorWallets,
+        bankBalances,
+      });
+
+      return {
+        totalMoney: moneyPos.totalMoney,
+        formattedTotalMoney: formatINR(moneyPos.totalMoney),
+        totalPartnersCash: moneyPos.totalPartnersCash,
+        formattedPartnersCash: formatINR(moneyPos.totalPartnersCash),
+        totalSupervisorsCash: moneyPos.totalSupervisorsCash,
+        formattedSupervisorsCash: formatINR(moneyPos.totalSupervisorsCash),
+        totalBankBalance: moneyPos.totalBankBalance,
+        formattedBankBalance: formatINR(moneyPos.totalBankBalance),
+        partnerWallets: moneyPos.breakdown.partnerWallets.map((p) => ({
+          name: p.name,
+          balance: p.balance,
+          formattedBalance: formatINR(p.balance),
+        })),
+        bankBalances: moneyPos.breakdown.bankBalances.map((b) => ({
+          name: b.name,
+          bankName: b.bankName,
+          balance: b.balance,
+          formattedBalance: formatINR(b.balance),
+        })),
+      };
+    }
+
+    // ---------------------------------------------------------
     // 2. getPartnerWallets
     // ---------------------------------------------------------
     case 'getPartnerWallets': {
@@ -654,13 +907,25 @@ export async function executeTool(
         include: { user: { select: { id: true, name: true, email: true, mobile: true } } },
       });
 
-      const partnerUsers = memberships
+      let partnerUsers = memberships
         .filter((m: any) => ['PARTNER', 'OWNER'].includes(normalizeRole(m.role)))
-        .map((m: any) => m.user);
+        .map((m: any) => ({
+          ...m.user,
+          openingBalance: m.openingBalance || 0,
+          role: m.role,
+        }));
+
+      if (args.partnerName) {
+        const qName = String(args.partnerName).toLowerCase().trim();
+        const filtered = partnerUsers.filter((u: any) => u.name.toLowerCase().includes(qName));
+        if (filtered.length > 0) {
+          partnerUsers = filtered;
+        }
+      }
 
       const summaries = await Promise.all(
         partnerUsers.map(async (u: any) => {
-          const [mIn, tIn, tOut, exp] = await Promise.all([
+          const [mIn, tIn, tOut, exp, bankDep, bankWith, supPay] = await Promise.all([
             prisma.projectReceipt.aggregate({
               where: { organizationId: ctx.organizationId, receivedById: u.id, deletedAt: null },
               _sum: { amount: true },
@@ -677,13 +942,28 @@ export async function executeTool(
               where: { organizationId: ctx.organizationId, walletOwnerId: u.id, deletedAt: null },
               _sum: { amount: true },
             }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: ctx.organizationId, createdById: u.id, type: 'DEPOSIT', deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.bankTransaction.aggregate({
+              where: { organizationId: ctx.organizationId, createdById: u.id, type: 'WITHDRAWAL', deletedAt: null },
+              _sum: { amount: true },
+            }),
+            prisma.supplierPayment.aggregate({
+              where: { organizationId: ctx.organizationId, sourceId: u.id, sourceType: 'PARTNER', deletedAt: null },
+              _sum: { amount: true },
+            }),
           ]);
 
           const bal = calculateWalletBalance({
-            totalMoneyIn: mIn._sum.amount || 0,
-            totalTransfersIn: tIn._sum.amount || 0,
-            totalTransfersOut: tOut._sum.amount || 0,
-            totalExpenses: exp._sum.amount || 0,
+            openingBalance: u.openingBalance || 0,
+            totalMoneyIn: mIn._sum?.amount || 0,
+            totalTransfersIn: tIn._sum?.amount || 0,
+            totalTransfersOut: (tOut._sum?.amount || 0) + (supPay._sum?.amount || 0),
+            totalExpenses: exp._sum?.amount || 0,
+            totalBankDeposits: bankDep._sum?.amount || 0,
+            totalBankWithdrawals: bankWith._sum?.amount || 0,
           });
 
           return {
@@ -713,7 +993,7 @@ export async function executeTool(
       };
 
       // Role Scope: Partner or Supervisor restricted to self or assigned
-      if (role === 'PARTNER' || role === 'SITE_SUPERVISOR') {
+      if (role === 'PARTNER' || role === 'SITE_SUPERVISOR' || role === 'ACCOUNTANT') {
         where.OR = [
           { walletOwnerId: ctx.userId },
           { spentById: ctx.userId },
@@ -721,7 +1001,7 @@ export async function executeTool(
       }
 
       if (args.category) {
-        where.category = { contains: args.category };
+        where.category = { contains: args.category, mode: 'insensitive' };
       }
       if (args.projectId) {
         where.projectId = args.projectId;
@@ -732,23 +1012,48 @@ export async function executeTool(
         if (args.endDate) where.date.lte = new Date(args.endDate);
       }
 
-      const expenses = await prisma.expense.findMany({
-        where,
-        take: 20,
-        orderBy: { date: 'desc' },
-        include: {
-          project: { select: { name: true } },
-          spentBy: { select: { name: true } },
-        },
-      });
+      const [totalAgg, categoryGroups, recentExpenses] = await Promise.all([
+        prisma.expense.aggregate({
+          where,
+          _sum: { amount: true },
+          _count: { id: true },
+        }),
+        prisma.expense.groupBy({
+          by: ['category'],
+          where,
+          _sum: { amount: true },
+          _count: { id: true },
+          orderBy: { _sum: { amount: 'desc' } },
+          take: 10,
+        }),
+        prisma.expense.findMany({
+          where,
+          take: 20,
+          orderBy: { date: 'desc' },
+          include: {
+            project: { select: { name: true } },
+            spentBy: { select: { name: true } },
+          },
+        }),
+      ]);
 
-      const totalAmount = expenses.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+      const totalAmount = totalAgg._sum.amount || 0;
+      const totalCount = totalAgg._count.id || 0;
+
+      const topCategories = categoryGroups.map((cg: any) => ({
+        category: cg.category || 'General',
+        amount: cg._sum.amount || 0,
+        formattedAmount: formatINR(cg._sum.amount || 0),
+        count: cg._count.id,
+      }));
 
       return {
-        count: expenses.length,
+        count: totalCount,
         totalAmount,
         formattedTotal: formatINR(totalAmount),
-        expenses: expenses.map((e: any) => ({
+        topCategories,
+        breakdown: topCategories,
+        expenses: recentExpenses.map((e: any) => ({
           id: e.id,
           date: e.date.toISOString().split('T')[0],
           description: e.description,
@@ -795,8 +1100,8 @@ export async function executeTool(
         return { error: `No worker found matching "${args.workerName || args.workerId || ''}"` };
       }
 
-      // Fetch live attendance earnings, salary records, allowances, and payments/transfers
-      const [attendanceRecords, salaryRecordsAgg, allowancesAgg, paymentsAgg, fundTransfersAgg] = await Promise.all([
+      // Fetch live attendance earnings, piece-rate work, salary records, allowances, and payments/transfers
+      const [attendanceRecords, salaryRecordsAgg, allowancesAgg, paymentsAgg, fundTransfersAgg, workRecordsAgg] = await Promise.all([
         prisma.attendance.findMany({
           where: { organizationId: ctx.organizationId, workerId: worker.id },
           select: { status: true, wageForDay: true },
@@ -817,18 +1122,24 @@ export async function executeTool(
           where: { organizationId: ctx.organizationId, toWorkerId: worker.id, deletedAt: null, linkedPaymentId: null },
           _sum: { amount: true },
         }),
+        prisma.workRecord.aggregate({
+          where: { organizationId: ctx.organizationId, workerId: worker.id },
+          _sum: { totalWorkValue: true },
+        }),
       ]);
 
       const attendanceEarned = attendanceRecords.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+      const pieceRateEarned = workRecordsAgg._sum.totalWorkValue || 0;
       const salaryEarned = (salaryRecordsAgg._sum?.netPayable ?? salaryRecordsAgg._sum?.totalGrossSalary) || 0;
-      const earnedBase = Math.max(attendanceEarned, salaryEarned);
-      const totalAllowances = allowancesAgg._sum.amount || 0;
-      const totalEarned = earnedBase + totalAllowances;
+      const earnedBase = Math.max(attendanceEarned + pieceRateEarned, salaryEarned);
+      const totalAllowances = allowancesAgg._sum?.amount || 0;
+      const opBal = (worker as any).openingBalance || 0;
 
+      const totalCredits = Math.max(0, opBal) + earnedBase + totalAllowances;
       const directPaid = paymentsAgg._sum.amount || 0;
       const transferPaid = fundTransfersAgg._sum.amount || 0;
-      const totalPaid = directPaid + transferPaid;
-      const remainingDues = Math.round((totalEarned - totalPaid) * 100) / 100;
+      const totalDebits = Math.abs(Math.min(0, opBal)) + directPaid + transferPaid;
+      const remainingDues = Math.round((totalCredits - totalDebits) * 100) / 100;
 
       const presentDays = attendanceRecords.filter((a) => a.status === 'PRESENT').length;
       const halfDays = attendanceRecords.filter((a) => a.status === 'HALF_DAY').length;
@@ -840,14 +1151,15 @@ export async function executeTool(
         workerCode: worker.workerCode,
         category: worker.category,
         dailyWage: worker.dailyWage,
+        openingBalance: opBal,
         presentDays,
         halfDays,
         absentDays,
-        totalEarned,
-        totalPaid,
+        totalEarned: earnedBase + totalAllowances,
+        totalPaid: directPaid + transferPaid,
         pendingDues: remainingDues,
         formattedPendingDues: formatINR(remainingDues),
-        status: remainingDues <= 0 ? 'FULLY_PAID' : 'PENDING_DUES',
+        status: remainingDues < 0 ? 'ADVANCE' : remainingDues === 0 ? 'FULLY_PAID' : 'PENDING_DUES',
       };
     }
 
@@ -866,7 +1178,7 @@ export async function executeTool(
       if (args.projectId) {
         where.id = args.projectId;
       } else if (args.projectName) {
-        where.name = { contains: args.projectName };
+        where.name = { contains: args.projectName, mode: 'insensitive' };
       }
 
       const projects = await prisma.project.findMany({
@@ -922,7 +1234,7 @@ export async function executeTool(
       };
 
       if (args.materialName) {
-        where.name = { contains: args.materialName };
+        where.name = { contains: args.materialName, mode: 'insensitive' };
       }
 
       const materials = await prisma.material.findMany({
@@ -1031,6 +1343,285 @@ export async function executeTool(
         formattedTotal: formatINR(totalPendingReceivable),
         projectsCount: pendingReceivables.length,
         pendingProjects: pendingReceivables.slice(0, 10),
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 8b. getWorkerAdvanceList
+    // ---------------------------------------------------------
+    case 'getWorkerAdvanceList': {
+      const workers = await prisma.worker.findMany({
+        where: { organizationId: ctx.organizationId, status: 'ACTIVE', deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          workerCode: true,
+          category: true,
+          dailyWage: true,
+          mobile: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      const workersWithAdvance: any[] = [];
+      for (const w of workers) {
+        const [att, allow, pay, fTrans] = await Promise.all([
+          prisma.attendance.aggregate({
+            where: { organizationId: ctx.organizationId, workerId: w.id },
+            _sum: { wageForDay: true },
+          }),
+          prisma.allowance.aggregate({
+            where: { organizationId: ctx.organizationId, workerId: w.id, deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.payment.aggregate({
+            where: { organizationId: ctx.organizationId, workerId: w.id, deletedAt: null },
+            _sum: { amount: true },
+          }),
+          prisma.fundTransfer.aggregate({
+            where: { organizationId: ctx.organizationId, toWorkerId: w.id, deletedAt: null, linkedPaymentId: null },
+            _sum: { amount: true },
+          }),
+        ]);
+
+        const opBal = (w as any).openingBalance || 0;
+        const totalEarned = (att._sum?.wageForDay || 0) + (allow._sum?.amount || 0);
+        const totalPaid = (pay._sum?.amount || 0) + (fTrans._sum?.amount || 0);
+        const credits = Math.max(0, opBal) + totalEarned;
+        const debits = Math.abs(Math.min(0, opBal)) + totalPaid;
+        const netPayable = credits - debits;
+
+        if (netPayable < 0) {
+          workersWithAdvance.push({
+            id: w.id,
+            name: w.name,
+            workerCode: w.workerCode,
+            category: w.category,
+            mobile: w.mobile,
+            advanceAmount: Math.abs(netPayable),
+            formattedAdvance: formatINR(Math.abs(netPayable)),
+          });
+        }
+      }
+
+      const totalAdvanceDue = workersWithAdvance.reduce((sum, w) => sum + w.advanceAmount, 0);
+
+      return {
+        count: workersWithAdvance.length,
+        totalAdvanceDue,
+        formattedTotalAdvance: formatINR(totalAdvanceDue),
+        workers: workersWithAdvance,
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 8c. getWorkerPaymentsList
+    // ---------------------------------------------------------
+    case 'getWorkerPaymentsList': {
+      const wherePayment: any = { organizationId: ctx.organizationId, deletedAt: null };
+      const whereTransfer: any = { organizationId: ctx.organizationId, toWorkerId: { not: null }, deletedAt: null };
+
+      if (args.startDate || args.endDate) {
+        wherePayment.date = {};
+        whereTransfer.date = {};
+        if (args.startDate) {
+          wherePayment.date.gte = new Date(args.startDate);
+          whereTransfer.date.gte = new Date(args.startDate);
+        }
+        if (args.endDate) {
+          wherePayment.date.lte = new Date(args.endDate);
+          whereTransfer.date.lte = new Date(args.endDate);
+        }
+      }
+
+      if (args.fromUserName) {
+        const userMatch = await prisma.user.findFirst({
+          where: { name: { contains: args.fromUserName, mode: 'insensitive' } },
+        });
+        if (userMatch) {
+          whereTransfer.fromUserId = userMatch.id;
+        }
+      }
+
+      const [payments, transfers] = await Promise.all([
+        prisma.payment.findMany({
+          where: wherePayment,
+          include: {
+            worker: { select: { id: true, name: true, category: true } },
+          },
+          orderBy: { date: 'desc' },
+          take: 50,
+        }),
+        prisma.fundTransfer.findMany({
+          where: whereTransfer,
+          include: {
+            toWorker: { select: { id: true, name: true, category: true } },
+            fromUser: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+          take: 50,
+        }),
+      ]);
+
+      const items = [
+        ...payments.map((p: any) => ({
+          id: p.id,
+          date: p.date.toISOString().split('T')[0],
+          amount: p.amount,
+          formattedAmount: formatINR(p.amount),
+          workerName: p.worker?.name || 'Worker',
+          type: p.transactionType || 'SALARY',
+          paidBy: 'Company',
+          method: p.paymentMethod || 'CASH',
+        })),
+        ...transfers.filter((t: any) => !t.linkedPaymentId).map((t: any) => ({
+          id: t.id,
+          date: t.date.toISOString().split('T')[0],
+          amount: t.amount,
+          formattedAmount: formatINR(t.amount),
+          workerName: t.toWorker?.name || 'Worker',
+          type: t.purpose || 'TRANSFER',
+          paidBy: t.fromUser?.name || 'Partner',
+          method: 'CASH',
+        })),
+      ].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+      const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+
+      return {
+        count: items.length,
+        totalAmount,
+        formattedTotal: formatINR(totalAmount),
+        payments: items.slice(0, 30),
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 8d. getSupplierBalances
+    // ---------------------------------------------------------
+    case 'getSupplierBalances': {
+      const where: any = { organizationId: ctx.organizationId, deletedAt: null };
+      if (args.supplierName) {
+        where.name = { contains: args.supplierName, mode: 'insensitive' };
+      }
+
+      const suppliers = await prisma.supplier.findMany({
+        where,
+        include: {
+          purchaseBills: { where: { deletedAt: null }, select: { id: true, totalAmount: true, billDate: true, billNumber: true } },
+          supplierPayments: { where: { deletedAt: null }, select: { id: true, amount: true, date: true, billId: true } },
+          purchaseReturns: { where: { deletedAt: null }, select: { id: true, amount: true, returnDate: true, billId: true } },
+        },
+        orderBy: { name: 'asc' },
+      });
+
+      const supplierList = suppliers.map((s: any) => {
+        const billsTotal = s.purchaseBills.reduce((sum: number, b: any) => sum + (b.totalAmount || 0), 0);
+        const paymentsTotal = s.supplierPayments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+        const returnsTotal = s.purchaseReturns.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+
+        const bal = computeSupplierBalance({
+          openingBalance: s.openingBalance,
+          billsTotal,
+          paymentsTotal,
+          returnsTotal,
+        });
+
+        return {
+          id: s.id,
+          name: s.name,
+          mobile: s.mobile,
+          openingBalance: s.openingBalance,
+          totalPurchases: bal.netPurchases,
+          totalPaid: bal.totalPayments,
+          remainingBalance: bal.remainingBalance,
+          formattedBalance: formatINR(bal.remainingBalance),
+          status: bal.status,
+        };
+      });
+
+      const totalPayableDues = supplierList
+        .filter((s: any) => s.remainingBalance > 0)
+        .reduce((sum: number, s: any) => sum + s.remainingBalance, 0);
+
+      const totalAdvanceWithSuppliers = supplierList
+        .filter((s: any) => s.remainingBalance < 0)
+        .reduce((sum: number, s: any) => sum + Math.abs(s.remainingBalance), 0);
+
+      return {
+        totalSuppliers: supplierList.length,
+        totalPayableDues,
+        formattedPayableDues: formatINR(totalPayableDues),
+        totalAdvanceWithSuppliers,
+        formattedAdvanceWithSuppliers: formatINR(totalAdvanceWithSuppliers),
+        suppliers: supplierList,
+      };
+    }
+
+    // ---------------------------------------------------------
+    // 8e. getPayrollSummary
+    // ---------------------------------------------------------
+    case 'getPayrollSummary': {
+      const now = new Date();
+      let startDate: Date;
+      let endDate: Date;
+      let periodLabel = args.period || 'THIS_MONTH';
+
+      if (args.period === 'LAST_MONTH') {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        periodLabel = 'Pichhla Mahina (Last Month)';
+      } else if (args.period === 'THIS_WEEK') {
+        const day = now.getDay();
+        const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+        startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        periodLabel = 'Is Hafte (This Week)';
+      } else if (args.startDate || args.endDate) {
+        startDate = args.startDate ? new Date(args.startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+        endDate = args.endDate ? new Date(args.endDate) : new Date();
+        periodLabel = 'Custom Range';
+      } else {
+        // THIS_MONTH
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        periodLabel = 'Is Mahine (This Month)';
+      }
+
+      const [attAgg, allowAgg, workAgg] = await Promise.all([
+        prisma.attendance.aggregate({
+          where: { organizationId: ctx.organizationId, date: { gte: startDate, lte: endDate } },
+          _sum: { wageForDay: true },
+          _count: { id: true },
+        }),
+        prisma.allowance.aggregate({
+          where: { organizationId: ctx.organizationId, date: { gte: startDate, lte: endDate }, deletedAt: null },
+          _sum: { amount: true },
+        }),
+        prisma.workRecord.aggregate({
+          where: { organizationId: ctx.organizationId, date: { gte: startDate, lte: endDate } },
+          _sum: { totalWorkValue: true },
+        }),
+      ]);
+
+      const attWages = attAgg._sum.wageForDay || 0;
+      const allowWages = allowAgg._sum.amount || 0;
+      const pieceRateWages = workAgg._sum.totalWorkValue || 0;
+      const totalLabourCost = attWages + allowWages + pieceRateWages;
+
+      return {
+        period: periodLabel,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        totalLabourCost,
+        formattedLabourCost: formatINR(totalLabourCost),
+        attendanceWages: attWages,
+        formattedAttendanceWages: formatINR(attWages),
+        allowanceWages: allowWages,
+        formattedAllowanceWages: formatINR(allowWages),
+        pieceRateWages,
+        formattedPieceRateWages: formatINR(pieceRateWages),
+        attendanceEntriesCount: attAgg._count.id,
       };
     }
 

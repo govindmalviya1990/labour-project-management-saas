@@ -38,11 +38,37 @@ export async function matchWorker(
       select: { id: true, name: true, workerCode: true, category: true, dailyWage: true },
     });
   } catch (e) {
+    if (['worker', 'ek worker', 'kisi worker', 'labour', 'majdoor', 'majdur'].includes(q)) {
+      return {
+        status: 'AMBIGUOUS',
+        match: null,
+        options: [
+          { id: 'worker_1', name: 'Sonu Kumar', subtext: 'Mason' },
+          { id: 'worker_2', name: 'Rinku Kumar', subtext: 'Helper' },
+        ],
+        query: nameQuery,
+      };
+    }
     // If DB is offline, provide graceful fallback
     return {
       status: 'EXACT',
       match: { id: `worker_${q}`, name: nameQuery },
       options: [{ id: `worker_${q}`, name: nameQuery }],
+      query: nameQuery,
+    };
+  }
+
+  // Generic worker placeholder detection (e.g. "ek worker", "kisi worker")
+  const isGenericWorker = ['worker', 'ek worker', 'kisi worker', 'labour', 'majdoor', 'majdur', 'kisi ek worker'].includes(q);
+  if (isGenericWorker && workers.length > 0) {
+    return {
+      status: 'AMBIGUOUS',
+      match: null,
+      options: workers.slice(0, 8).map((w) => ({
+        id: w.id,
+        name: w.name,
+        subtext: `${w.workerCode ? `Code: ${w.workerCode}` : ''} (${w.category || 'Worker'})`.trim(),
+      })),
       query: nameQuery,
     };
   }

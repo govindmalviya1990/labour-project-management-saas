@@ -110,7 +110,7 @@ export async function matchRuleBased(
   ) {
     const refusal = lang === 'GUJARATI'
       ? 'સુરક્ષા નીતિ: આસિસ્ટન્ટ દ્વારા ડેટા ડિલીટ કે રીસેટ કરવાની પરવાનગી નથી. આ કામ માટે Owner મેન્યુઅલી Settings પેજ પર જઈને કન્ફર્મ કરી શકે છે.'
-      : 'Security Policy: Bulk data deletion or reset via AI Assistant is not permitted. Only the Owner can perform this action manually in Settings with password confirmation.';
+      : 'सुरक्षा नियम (Security Policy): Bulk data deletion or reset via AI Assistant is not permitted. Only the Owner can perform this action manually in Settings with password confirmation.';
 
     return {
       matched: true,
@@ -150,11 +150,11 @@ export async function matchRuleBased(
   // =========================================================
   const targetDateStr = parseRelativeDate(lower).startDate || new Date().toISOString().split('T')[0];
 
-  // 2a. Give Money Draft: "Ramesh ko 500 Dinner ke liye diye" / "Ramesh ne 500 Dinner mate aapya" / "Paid 500 to Ramesh for Dinner"
+  // 2a. Give Money Draft: "Ramesh ko 500 Dinner ke liye diye" / "Ramesh ne 500 Dinner mate aapya" / "Paid 500 to Ramesh for Dinner" / "Ek worker ko 500 rupaye advance do"
   const transferMatch =
-    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(.*?)\s*(?:(?:ke\s+liye)|(?:mate)|(?:for))?\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo)/i) ||
-    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo)/i) ||
-    raw.match(/(?:paid|given|transferred|send)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s+to\s+(.+?)(?:\s+(?:for|as)\s+(.*?))?$/i);
+    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(\d+(?:\.\d+)?)\s*(?:rupaye|rs|₹)?\s*(.*?)\s*(?:(?:ke\s+liye)|(?:mate)|(?:for))?\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo|do|de\s+do|apo)/i) ||
+    raw.match(/(?:(?:aaj|aaje)\s+)?(.+?)\s+(?:ko|ne)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s*(.*?)\s*(?:diye|aapya|aapo|bheje|paid|transfer|diyo|do|de\s+do|apo)/i) ||
+    raw.match(/(?:paid|given|transferred|send|give)\s+(?:rupaye|rs|₹)?\s*(\d+(?:\.\d+)?)\s+to\s+(.+?)(?:\s+(?:for|as)\s+(.*?))?$/i);
 
   if (transferMatch) {
     let toName = '';
@@ -417,19 +417,76 @@ export async function matchRuleBased(
           },
         };
       } catch (e) {
-        // Fallback to page link
+        return {
+          matched: true,
+          content: `Attendance sheet aur worker haziri dekhne ke liye Attendance page open karein.`,
+          card: {
+            type: 'SUMMARY',
+            title: `Attendance (${targetDateStr})`,
+            linkUrl: '/attendance',
+            linkLabel: 'Open Attendance Sheet',
+          },
+        };
       }
     }
   }
 
-  // 2g. Pattern: Worker Khata / Hisaab: "worker 1 ka hisab", "Ramesh ka hisab kya hai", "Mukesh ka khata"
+  // 2g. Pattern: Project Summary: "Project vastral ka total kharcha aur payment received kitna hai?"
+  const projectMatch =
+    lower.match(/project\s+([a-zA-Z0-9\s_-]+?)(?:\s+(?:site|ka|no|ke|par|me|mein|total|status|kharcha|expenses))(?:\s+.*)?$/i) ||
+    lower.match(/(.+?)\s+project\s+(?:ka|no|ke)?\s*(?:total\s+)?(?:kharcha|cost|expenses|hisaab|hisab|received|status|summary)/i);
+
+  if (projectMatch || (lower.includes('project') && (lower.includes('kharcha') || lower.includes('received') || lower.includes('cost') || lower.includes('status')))) {
+    let projName = projectMatch ? (projectMatch[1] || projectMatch[0]).trim() : '';
+    projName = projName.replace(/^project\s+/i, '').replace(/\b(?:site|ka|no|ke|total|kharcha|expenses|aur|payment|received|kitna|hai)\b/gi, '').trim();
+    if (projName && projName.length >= 2 && !['partner', 'worker', 'supplier'].includes(projName.toLowerCase())) {
+      try {
+        const projData = await executeTool('getProjectSummary', { projectName: projName }, ctx);
+        if (projData.projects && projData.projects.length > 0) {
+          const p = projData.projects[0];
+          let text = `🏗️ **Project Summary — ${p.name}**:\n\n`;
+          text += `• Contract Value: **${p.formattedContractValue}**\n`;
+          text += `• Total Payment Received: **${p.formattedReceived}**\n`;
+          text += `• Pending Receivable: **${p.formattedPending}**\n`;
+          text += `• Total Site Expenses: **${formatINR(p.actualExpenses)}**\n`;
+          text += `• Status: ${p.status}\n`;
+
+          return {
+            matched: true,
+            content: text,
+            card: {
+              type: 'SUMMARY',
+              title: `Project: ${p.name}`,
+              data: p,
+              linkUrl: `/projects/${p.id}`,
+              linkLabel: 'View Project Details',
+            },
+          };
+        }
+      } catch (e) {
+        return {
+          matched: true,
+          content: `Project details aur expenses dekhne ke liye Projects page open karein.`,
+          card: {
+            type: 'SUMMARY',
+            title: `Project: ${projName}`,
+            linkUrl: '/projects',
+            linkLabel: 'Open Projects',
+          },
+        };
+      }
+    }
+  }
+
+  // 2h. Pattern: Worker Khata / Hisaab: "worker 1 ka hisab", "Ramesh ka hisab kya hai", "Mukesh ka khata", "Sonu Kumar ka kitna payment baki hai"
   const workerHisabMatch =
-    lower.match(/(.+?)\s+ka\s+(?:hisab|hisaab|khata|ledger|baqi|baki)/i) ||
-    lower.match(/(?:hisab|hisaab|khata|ledger)\s+(?:of\s+|for\s+)?(.+)/i);
+    lower.match(/(.+?)\s+ka\s+(?:.*?\s+)?(?:hisab|hisaab|khata|ledger|baqi|baki|payment\s+baki|advance\s+baki)/i) ||
+    lower.match(/(?:hisab|hisaab|khata|ledger|baqi|baki)\s+(?:of\s+|for\s+)?(.+)/i);
 
   if (workerHisabMatch) {
-    const candidateName = workerHisabMatch[1].trim().replace(/\b(?:batao|kya\s+hai|dikhao|karo)\b/gi, '').trim();
-    if (candidateName && candidateName.length >= 2 && !['partner', 'partners', 'din', 'aaj', 'kal'].includes(candidateName.toLowerCase())) {
+    let candidateName = workerHisabMatch[1].trim().replace(/\b(?:batao|kya\s+hai|dikhao|karo|kitna|payment|baki|baqi)\b/gi, '').trim();
+    const isExcluded = ['partner', 'partners', 'din', 'aaj', 'kal', 'supplier', 'suppliers', 'project', 'vastral'].some((w) => candidateName.toLowerCase().includes(w));
+    if (candidateName && candidateName.length >= 2 && !isExcluded) {
       try {
         const workerData = await executeTool('getWorkerKhata', { workerName: candidateName }, ctx);
         if (!workerData.error) {
@@ -461,71 +518,309 @@ export async function matchRuleBased(
           };
         }
       } catch (e) {
-        // Continue
-      }
-    }
-  }
-
-  // 3. Pattern: "Aaj ka kharch" / "Today's expense" / "ખર્ચ"
-  if (
-    lower.includes('kharch') ||
-    lower.includes('expense') ||
-    lower.includes('petrol') ||
-    lower.includes('chay') ||
-    lower.includes('ખર્ચ')
-  ) {
-    const dateRange = parseRelativeDate(lower);
-    try {
-      const expData = await executeTool('getExpenses', {
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-      }, ctx);
-
-      const heading = lang === 'GUJARATI'
-        ? `${dateRange.label} નો કુલ ખર્ચ: ${expData.formattedTotal}`
-        : `${dateRange.label} Total Expenses: ${expData.formattedTotal} (${expData.count} entries)`;
-
-      return {
-        matched: true,
-        content: `${heading}\n\nYou can view the complete detailed list in Cash Book or Daily Expenses.`,
-        card: {
-          type: 'EXPENSES',
-          title: `${dateRange.label} Expenses`,
-          data: expData,
-          linkUrl: '/finance/expenses',
-          linkLabel: 'View All Expenses',
-        },
-      };
-    } catch (err: any) {
-      return {
-        matched: true,
-        content: `Daily expenses dekhne ke liye Expenses page open karein.`,
-        card: {
-          type: 'EXPENSES',
-          title: 'Daily Expenses',
-          linkUrl: '/finance/expenses',
-          linkLabel: 'Open Expenses',
-        },
-      };
-    }
-  }
-
-  // 4. Pattern: "Partner-wise cash" / "Partner cash" / "Sabhi partner ka balance" / "પાર્ટનર કેશ"
-  if (
-    lower.includes('partner') ||
-    lower.includes('partners') ||
-    lower.includes('પાર્ટનર')
-  ) {
-    try {
-      const partnerData = await executeTool('getPartnerWallets', {}, ctx);
-
-      if (partnerData.error) {
         return {
           matched: true,
-          content: partnerData.error,
+          content: `Worker passbook aur khata hisaab dekhne ke liye Workers page open karein.`,
+          card: {
+            type: 'SUMMARY',
+            title: `Worker: ${candidateName}`,
+            linkUrl: '/workers',
+            linkLabel: 'Open Workers Khata',
+          },
         };
       }
+    }
+  }
 
+  // 2i. Pattern: Labour Cost / Payroll Summary: "Pichhle mahine ka total labour cost?"
+  if (
+    lower.includes('labour cost') ||
+    lower.includes('labor cost') ||
+    lower.includes('majdoori') ||
+    lower.includes('majuri') ||
+    (lower.includes('total') && lower.includes('labour'))
+  ) {
+    const period = (lower.includes('pichhle mahine') || lower.includes('last month') || lower.includes('pichla mahina'))
+      ? 'LAST_MONTH'
+      : (lower.includes('is hafte') || lower.includes('this week') ? 'THIS_WEEK' : 'THIS_MONTH');
+
+    try {
+      const data = await executeTool('getPayrollSummary', { period }, ctx);
+      let text = `👷‍♂️ **Total Labour Cost (${data.period}):**\n\n`;
+      text += `• Total Labour Cost: **${data.formattedLabourCost}**\n`;
+      text += `• Daily Attendance Wages: ${data.formattedAttendanceWages} (${data.attendanceEntriesCount} attendance entries)\n`;
+      if (data.allowanceWages > 0) text += `• Allowances / OT: ${data.formattedAllowanceWages}\n`;
+      if (data.pieceRateWages > 0) text += `• Work Record / Piece Rate: ${data.formattedPieceRateWages}\n`;
+
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: `Labour Cost (${data.period})`,
+          data,
+          linkUrl: '/attendance',
+          linkLabel: 'View Attendance & Wages',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `Total labour cost aur attendance report dekhne ke liye Attendance page open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: `Labour Cost Summary`,
+          linkUrl: '/attendance',
+          linkLabel: 'View Attendance & Wages',
+        },
+      };
+    }
+  }
+
+  // 2j. Pattern: Workers Advance List: "Kaun se workers ko advance baaki hai?"
+  if (
+    lower.includes('advance baaki') ||
+    lower.includes('advance baki') ||
+    (lower.includes('worker') && lower.includes('advance') && (lower.includes('baaki') || lower.includes('baki') || lower.includes('kaun')))
+  ) {
+    try {
+      const advData = await executeTool('getWorkerAdvanceList', {}, ctx);
+      let text = `🚩 **Workers With Outstanding Advance (Company ne advance diya hua hai):**\n\n`;
+      text += `• Total Advance Pending Recovery: **${advData.formattedTotalAdvanceOwed}** (${advData.workersWithAdvanceCount} workers)\n\n`;
+      if (advData.workers && advData.workers.length > 0) {
+        advData.workers.slice(0, 10).forEach((w: any) => {
+          text += `• ${w.name} (${w.category || 'Worker'}): ${w.formattedAdvanceOwed} advance baaki\n`;
+        });
+      } else {
+        text += `Kisi bhi worker ka advance baaki nahi hai.`;
+      }
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: 'Workers Advance Dues',
+          data: advData,
+          linkUrl: '/workers',
+          linkLabel: 'Open Workers Khata',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `Workers ka advance hisaab dekhne ke liye Workers page open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: 'Workers Advance Dues',
+          linkUrl: '/workers',
+          linkLabel: 'Open Workers Khata',
+        },
+      };
+    }
+  }
+
+  // 2k. Pattern: Who Paid Whom: "Rajesh Thakur ne kitne paise diye aur kisko?"
+  const whoPaidMatch =
+    lower.match(/(.+?)\s+ne\s+(?:kitne\s+paise|kitna\s+paisa|kitna\s+payment|kisko\s+paise)\s+diye/i) ||
+    lower.match(/(.+?)\s+ne\s+kisko\s+(?:paise|payment)\s+diya/i);
+
+  if (whoPaidMatch) {
+    const partnerName = whoPaidMatch[1].trim();
+    try {
+      const data = await executeTool('getWorkerPaymentsList', { partnerName }, ctx);
+      let text = `🤝 **${partnerName} ke dwara diye gaye payments:**\n\n`;
+      text += `• Total Amount Given: **${data.formattedTotalPaid}** (${data.count} payouts)\n\n`;
+      if (data.payments && data.payments.length > 0) {
+        data.payments.slice(0, 10).forEach((p: any) => {
+          text += `• ${p.workerName}: ${p.formattedAmount} (${p.type || 'CASH'}, Date: ${p.date})\n`;
+        });
+      } else {
+        text += `Is partner ke dwara koi direct worker payment record nahi mila.`;
+      }
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: `Payouts by ${partnerName}`,
+          data,
+          linkUrl: '/finance/transfers',
+          linkLabel: 'View Transfers',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `${partnerName} ke payments dekhne ke liye Transfers page open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: `Payouts by ${partnerName}`,
+          linkUrl: '/finance/transfers',
+          linkLabel: 'View Transfers',
+        },
+      };
+    }
+  }
+
+  // 2l. Pattern: Worker Payments List: "Is mahine kis worker ko kitna payment diya?", "worker payment list"
+  if (
+    (lower.includes('worker') || lower.includes('workers') || lower.includes('majdoor') || lower.includes('labour')) &&
+    (lower.includes('payment diya') || lower.includes('kitna payment') || lower.includes('paisa diya') || lower.includes('payment list') || lower.includes('kitne paise'))
+  ) {
+    const range = parseRelativeDate(lower);
+    const dateRange = (lower.includes('pichhle mahine') || lower.includes('last month')) ? 'LAST_MONTH' : (lower.includes('is hafte') || lower.includes('this week') ? 'THIS_WEEK' : 'THIS_MONTH');
+    try {
+      const data = await executeTool('getWorkerPaymentsList', { dateRange, startDate: range.startDate, endDate: range.endDate }, ctx);
+      let text = `👷 **Worker Payments (${data.period}):**\n\n`;
+      text += `• Total Paid: **${data.formattedTotalPaid}** (${data.count} payouts)\n\n`;
+      if (data.payments && data.payments.length > 0) {
+        data.payments.slice(0, 10).forEach((p: any) => {
+          text += `• ${p.workerName}: ${p.formattedAmount} (${p.date}${p.paidBy ? `, Paid by ${p.paidBy}` : ''})\n`;
+        });
+      } else {
+        text += `Is dauran koi payment record nahi mila.`;
+      }
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: `Worker Payments (${data.period})`,
+          data,
+          linkUrl: '/workers',
+          linkLabel: 'Open Workers Khata',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `Worker payouts list dekhne ke liye Workers page open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: 'Worker Payments',
+          linkUrl: '/workers',
+          linkLabel: 'Open Workers Khata',
+        },
+      };
+    }
+  }
+
+  // 2m. Pattern: Supplier Balances: "Kis supplier ka kitna baaki hai?", "supplier ka hisab"
+  if (
+    (lower.includes('supplier') || lower.includes('vendor') || lower.includes('material wala')) &&
+    (lower.includes('baaki') || lower.includes('baki') || lower.includes('kitna') || lower.includes('hisab') || lower.includes('hisaab') || lower.includes('balance') || lower.includes('ledger') || lower.includes('dues'))
+  ) {
+    try {
+      const supData = await executeTool('getSupplierBalances', {}, ctx);
+      let text = `📦 **Suppliers Dues & Ledger Overview:**\n\n`;
+      text += `• Total Net Balance Owed: **${supData.formattedTotalBalance}** (${supData.count} suppliers)\n\n`;
+      if (supData.suppliers && supData.suppliers.length > 0) {
+        supData.suppliers.slice(0, 10).forEach((s: any) => {
+          text += `• ${s.name}: ${s.formattedBalance} (${s.status})\n`;
+        });
+      } else {
+        text += `Koi bhi pending supplier balance nahi hai.`;
+      }
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: 'Supplier Balances',
+          data: supData,
+          linkUrl: '/purchases',
+          linkLabel: 'Open Purchases & Suppliers',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `Suppliers ka balance aur khata dekhne ke liye Purchases page open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: 'Supplier Balances',
+          linkUrl: '/purchases',
+          linkLabel: 'Open Purchases & Suppliers',
+        },
+      };
+    }
+  }
+
+  // 2n. Pattern: Overall Money Position: "Cash in hand aur bank balance kitna hai?", "money position", "bank balance"
+  if (
+    (lower.includes('cash in hand') && (lower.includes('bank') || lower.includes('aur'))) ||
+    lower.includes('money position') ||
+    lower.includes('cash aur bank') ||
+    lower.includes('bank aur cash') ||
+    lower.includes('bank balance')
+  ) {
+    try {
+      const pos = await executeTool('getMoneyPosition', {}, ctx);
+      if (pos.error) {
+        return { matched: true, content: pos.error };
+      }
+      let text = `💼 **Overall Money Position (Company Liquid Funds):**\n\n`;
+      text += `• Total Liquid Funds: **${pos.formattedTotalLiquidFunds}**\n`;
+      text += `• Cash in Hand (Partners + Site): **${pos.formattedTotalCashInHand}**\n`;
+      text += `• Total Bank Accounts: **${pos.formattedTotalBankBalance}**\n\n`;
+      if (pos.bankAccounts && pos.bankAccounts.length > 0) {
+        text += `**Bank Accounts:**\n`;
+        pos.bankAccounts.forEach((b: any) => {
+          text += `• ${b.bankName} (${b.accountNumber}): ${b.formattedBalance}\n`;
+        });
+      }
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'SUMMARY',
+          title: 'Money Position',
+          data: pos,
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
+        },
+      };
+    } catch (e) {
+      return {
+        matched: true,
+        content: `Overall cash aur bank position dekhne ke liye Dashboard open karein.`,
+        card: {
+          type: 'SUMMARY',
+          title: 'Money Position',
+          linkUrl: '/dashboard',
+          linkLabel: 'Open Dashboard',
+        },
+      };
+    }
+  }
+
+  // 2o. Pattern: Partner Wallet (Specific or All): "Akshay Tak ke wallet mein kitna paisa hai", "partner balance"
+  const partnerWalletMatch =
+    lower.match(/(.+?)\s+ke\s+wallet\s+(?:mein|me)\s+(?:kitna\s+paisa|kitne\s+paise|kitna\s+balance)/i) ||
+    lower.match(/(.+?)\s+ka\s+wallet\s+balance/i) ||
+    lower.match(/wallet\s+(?:balance\s+)?(?:of|for)\s+(.+)/i);
+
+  if (partnerWalletMatch || lower.includes('partner') || lower.includes('partners') || lower.includes('પાર્ટનર') || (lower.includes('wallet') && !lower.includes('bank'))) {
+    const partnerCandidate = partnerWalletMatch ? partnerWalletMatch[1].trim() : undefined;
+    try {
+      const partnerData = await executeTool('getPartnerWallets', { partnerName: partnerCandidate }, ctx);
+      if (partnerData.error) {
+        return { matched: true, content: partnerData.error };
+      }
+      if (partnerCandidate && partnerData.partner) {
+        const p = partnerData.partner;
+        return {
+          matched: true,
+          content: `💼 **${p.name} (Partner Wallet):**\n\n• Live Cash in Hand: **${p.formattedBalance}**\n• Role: ${p.role}`,
+          card: {
+            type: 'PARTNERS',
+            title: `${p.name} Wallet`,
+            data: partnerData,
+            linkUrl: '/dashboard',
+            linkLabel: 'Open Dashboard',
+          },
+        };
+      }
       let text = lang === 'GUJARATI'
         ? 'પાર્ટનર્સ કેશ બેલેન્સ (હાથ પરની રકમ):'
         : 'Partners Live Cash in Hand (Wallet Balances):';
@@ -548,12 +843,97 @@ export async function matchRuleBased(
     } catch (err: any) {
       return {
         matched: true,
-        content: 'Partners cash balance dekhne ke liye Dashboard open karein.',
+        content: `${partnerCandidate || 'Partners'} cash balance dekhne ke liye Dashboard open karein.`,
         card: {
           type: 'PARTNERS',
-          title: 'Cash Overview',
+          title: partnerCandidate ? `${partnerCandidate} Wallet` : 'Cash Overview',
           linkUrl: '/dashboard',
           linkLabel: 'Open Dashboard',
+        },
+      };
+    }
+  }
+
+  // 3. Pattern: "Aaj ka kharch" / "Today's expense" / "Sabse zyada kharcha" / "Petrol ke kharche"
+  if (
+    lower.includes('kharch') ||
+    lower.includes('expense') ||
+    lower.includes('petrol') ||
+    lower.includes('chay') ||
+    lower.includes('diesel') ||
+    lower.includes('ખર્ચ')
+  ) {
+    const dateRange = parseRelativeDate(lower);
+    let filterCategory: string | undefined = undefined;
+    if (lower.includes('petrol')) filterCategory = 'petrol';
+    else if (lower.includes('diesel')) filterCategory = 'diesel';
+    else if (lower.includes('chay')) filterCategory = 'chay';
+
+    try {
+      const expData = await executeTool('getExpenses', {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        category: filterCategory,
+      }, ctx);
+
+      // Check if user asked for highest / top category: "Sabse zyada kharcha kis category mein hua?"
+      if (lower.includes('sabse zyada') || lower.includes('kis category') || lower.includes('highest') || lower.includes('top category')) {
+        const top = expData.topCategories?.[0];
+        let text = top
+          ? `📊 **Sabse zyada kharcha "${top.category}" category mein hua hai:** **${top.formattedAmount}**.\n\n`
+          : `Is dauran koi kharcha record nahi mila.\n\n`;
+        if (expData.topCategories && expData.topCategories.length > 0) {
+          text += `**Category-wise Breakdown:**\n`;
+          expData.topCategories.slice(0, 5).forEach((c: any) => {
+            text += `• ${c.category}: ${c.formattedAmount}\n`;
+          });
+        }
+        return {
+          matched: true,
+          content: text,
+          card: {
+            type: 'EXPENSES',
+            title: 'Top Expense Categories',
+            data: expData,
+            linkUrl: '/finance/expenses',
+            linkLabel: 'View All Expenses',
+          },
+        };
+      }
+
+      const catLabel = filterCategory ? `${filterCategory.toUpperCase()} ` : '';
+      const heading = lang === 'GUJARATI'
+        ? `${dateRange.label} નો કુલ ${catLabel}ખર્ચ: ${expData.formattedTotal}`
+        : `${dateRange.label} Total ${catLabel}Expenses: ${expData.formattedTotal} (${expData.count} entries)`;
+
+      let text = `${heading}\n\n`;
+      if (expData.expenses && expData.expenses.length > 0) {
+        text += `**Recent Entries:**\n`;
+        expData.expenses.slice(0, 5).forEach((e: any) => {
+          text += `• ${e.date}: ${e.category} - ${e.formattedAmount} (${e.description || ''})\n`;
+        });
+      }
+
+      return {
+        matched: true,
+        content: text,
+        card: {
+          type: 'EXPENSES',
+          title: `${dateRange.label} Expenses`,
+          data: expData,
+          linkUrl: '/finance/expenses',
+          linkLabel: 'View All Expenses',
+        },
+      };
+    } catch (err: any) {
+      return {
+        matched: true,
+        content: `Daily expenses dekhne ke liye Expenses page open karein.`,
+        card: {
+          type: 'EXPENSES',
+          title: 'Daily Expenses',
+          linkUrl: '/finance/expenses',
+          linkLabel: 'Open Expenses',
         },
       };
     }
