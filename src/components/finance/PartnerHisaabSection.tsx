@@ -123,6 +123,14 @@ export interface WorkerQueueItem {
   amount: number;
 }
 
+export interface ExpenseQueueItem {
+  id: string;
+  category: string;
+  description: string;
+  vendor?: string;
+  amount: number;
+}
+
 export interface PurposeOptionItem {
   id: string;
   name: string;
@@ -130,9 +138,11 @@ export interface PurposeOptionItem {
 }
 
 const DEFAULT_EXPENSE_CATEGORIES = [
-  'Food & Refreshments',
-  'Fuel & Travel',
   'Site Materials / Hardware',
+  'Dinner',
+  'Petrol',
+  'Fuel & Travel',
+  'Food & Refreshments',
   'Tools & Equipment',
   'Site Maintenance & Repairs',
   'Worker Food & Tea',
@@ -435,6 +445,13 @@ export function PartnerHisaabSection({
   const [isSavingInlineWorker, setIsSavingInlineWorker] = useState(false);
   const [inlineWorkerError, setInlineWorkerError] = useState('');
 
+  // Bulk Expense Queue State
+  const [expenseQueue, setExpenseQueue] = useState<ExpenseQueueItem[]>([]);
+  const [expenseQueueError, setExpenseQueueError] = useState('');
+  const [expenseAmountInput, setExpenseAmountInput] = useState('');
+  const [expenseDescriptionInput, setExpenseDescriptionInput] = useState('');
+  const [expenseVendorInput, setExpenseVendorInput] = useState('');
+
   // Auto-clear success notification
   useEffect(() => {
     if (successMessage) {
@@ -648,6 +665,13 @@ export function PartnerHisaabSection({
     setInlineWorkerMobile('');
     setInlineWorkerWage('800');
 
+    // Reset bulk expense queue state
+    setExpenseQueue([]);
+    setExpenseQueueError('');
+    setExpenseAmountInput('');
+    setExpenseDescriptionInput('');
+    setExpenseVendorInput('');
+
     setIsTransferModalOpen(true);
   };
 
@@ -749,6 +773,74 @@ export function PartnerHisaabSection({
 
   const handleRemoveWorkerFromQueue = (id: string) => {
     setWorkerPaymentQueue((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // Bulk Expense Queue Computations & Helpers
+  const expenseQueueGroupedByCategory = useMemo(() => {
+    const groups: Record<string, { items: ExpenseQueueItem[]; subtotal: number }> = {};
+    for (const item of expenseQueue) {
+      if (!groups[item.category]) {
+        groups[item.category] = { items: [], subtotal: 0 };
+      }
+      groups[item.category].items.push(item);
+      groups[item.category].subtotal = Math.round((groups[item.category].subtotal + item.amount) * 100) / 100;
+    }
+    return groups;
+  }, [expenseQueue]);
+
+  const totalExpenseQueueAmount = useMemo(() => {
+    return Math.round(expenseQueue.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+  }, [expenseQueue]);
+
+  const isExpenseQueueBalanceExceeded = totalExpenseQueueAmount > sourceAvailableBalance;
+
+  const handleAddExpenseToQueue = () => {
+    setExpenseQueueError('');
+
+    const finalCategory =
+      sendMoneyForm.expenseCategorySelect === '__CUSTOM__'
+        ? sendMoneyForm.customCategoryName.trim()
+        : sendMoneyForm.expenseCategorySelect;
+
+    if (!finalCategory) {
+      setExpenseQueueError('Please enter a valid expense category.');
+      return;
+    }
+
+    const amt = parseFloat(expenseAmountInput);
+    if (isNaN(amt) || amt <= 0) {
+      setExpenseQueueError('Please enter a valid amount greater than ₹0.');
+      return;
+    }
+
+    // Description is required if the category is custom or generic
+    const isGeneric =
+      ['miscellaneous', 'other', '__custom__'].includes(finalCategory.toLowerCase()) ||
+      sendMoneyForm.expenseCategorySelect === '__CUSTOM__';
+    if (isGeneric && !expenseDescriptionInput.trim()) {
+      setExpenseQueueError('Please enter an expense description for this category.');
+      return;
+    }
+
+    const newItem: ExpenseQueueItem = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      category: finalCategory,
+      description: expenseDescriptionInput.trim() || finalCategory,
+      vendor: expenseVendorInput.trim() || undefined,
+      amount: Math.round(amt * 100) / 100,
+    };
+
+    // Do NOT block duplicates (the same category/description/amount can repeat legitimately)
+    setExpenseQueue((prev) => [...prev, newItem]);
+    // Clear description, vendor and amount; KEEP category!
+    setExpenseDescriptionInput('');
+    setExpenseVendorInput('');
+    setExpenseAmountInput('');
+    setExpenseQueueError('');
+  };
+
+  const handleRemoveExpenseFromQueue = (id: string) => {
+    setExpenseQueue((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleSaveInlineWorker = async () => {
@@ -884,7 +976,64 @@ export function PartnerHisaabSection({
     }
 
     // ==========================================
-    // SINGLE FLOW FOR TO_PARTNER, BANK_DEPOSIT, SELF_EXPENSE
+    // BULK EXPENSE FLOW (SELF / EXPENSE)
+    // ==========================================
+    if (sendMoneyForm.destinationType === 'SELF_EXPENSE') {
+      if (expenseQueue.length === 0) {
+        setTransferError('Please add at least one expense to the queue.');
+        return;
+      }
+
+      if (isExpenseQueueBalanceExceeded) {
+        setTransferError(
+          `Total expense (${formatINR(totalExpenseQueueAmount)}) exceeds available balance (${formatINR(sourceAvailableBalance)}).`
+        );
+        return;
+      }
+
+      setIsSubmittingTransfer(true);
+      try {
+        const payload = {
+          sourceType: sendMoneyForm.sourceType,
+          sourceId: sendMoneyForm.sourceId,
+          method: sendMoneyForm.paymentMethod,
+          date: sendMoneyForm.date,
+          projectId: sendMoneyForm.projectId || undefined,
+          siteId: sendMoneyForm.siteId || undefined,
+          reference: sendMoneyForm.reference || sendMoneyForm.notes || undefined,
+          items: expenseQueue.map((item) => ({
+            category: item.category,
+            description: item.description,
+            vendor: item.vendor || undefined,
+            amount: item.amount,
+          })),
+        };
+
+        const res = await fetch('/api/finance/expenses/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const resData = await res.json();
+        if (!res.ok) {
+          throw new Error(resData.error || 'Failed to record bulk expenses');
+        }
+
+        setSuccessMessage(resData.message || 'Expenses recorded successfully!');
+        setExpenseQueue([]);
+        setIsTransferModalOpen(false);
+        loadPartnerHisaab();
+      } catch (err: any) {
+        setTransferError(err.message || 'Something went wrong while recording expenses');
+      } finally {
+        setIsSubmittingTransfer(false);
+      }
+      return;
+    }
+
+    // ==========================================
+    // SINGLE FLOW FOR TO_PARTNER, BANK_DEPOSIT
     // ==========================================
     const parsedAmount = parseFloat(sendMoneyForm.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -2898,9 +3047,120 @@ export function PartnerHisaabSection({
               </div>
             )}
 
-            {/* Destination 4: Self / Site Expense Options */}
+            {/* Destination 4: Self / Site Expense Options (Bulk Multi-Expense Flow) */}
             {sendMoneyForm.destinationType === 'SELF_EXPENSE' && (
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3.5 pt-2">
+                {/* Common Batch Parameters (Apply to all expenses in queue) */}
+                <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Transaction Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={sendMoneyForm.date}
+                        onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, date: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Payment Method:
+                      </label>
+                      <select
+                        value={sendMoneyForm.paymentMethod}
+                        onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="CASH">Cash in Hand</option>
+                        <option value="BANK">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                        <option value="UPI">UPI / QR Code</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Link to Project (Optional):
+                      </label>
+                      <select
+                        value={sendMoneyForm.projectId}
+                        onChange={(e) => {
+                          const projId = e.target.value;
+                          const proj = projects.find((p) => p.id === projId);
+                          setSendMoneyForm((prev) => ({
+                            ...prev,
+                            projectId: projId,
+                            siteId: proj?.sites && proj.sites.length > 0 ? proj.sites[0].id : '',
+                          }));
+                        }}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      >
+                        <option value="">-- No Specific Project --</option>
+                        {projects.map((pr) => (
+                          <option key={pr.id} value={pr.id}>
+                            {pr.name} ({pr.projectCode})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Site:
+                      </label>
+                      {(() => {
+                        const selectedProj = projects.find((p) => p.id === sendMoneyForm.projectId);
+                        if (!selectedProj || !selectedProj.sites || selectedProj.sites.length === 0) {
+                          return (
+                            <div className="w-full px-3 py-1.5 rounded-lg bg-slate-200/50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-400 dark:text-slate-500">
+                              No site
+                            </div>
+                          );
+                        }
+                        return (
+                          <select
+                            value={sendMoneyForm.siteId}
+                            onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, siteId: e.target.value }))}
+                            className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          >
+                            {selectedProj.sites.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                      Reference / UTR / Remarks (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. UTR123456, Paid via GPay, Cash handed over"
+                      value={sendMoneyForm.reference || sendMoneyForm.notes}
+                      onChange={(e) =>
+                        setSendMoneyForm((prev) => ({
+                          ...prev,
+                          reference: e.target.value,
+                          notes: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* 1. Expense Category FIRST */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
                     Expense Category:
@@ -2915,14 +3175,14 @@ export function PartnerHisaabSection({
                         {c}
                       </option>
                     ))}
-                    <option value="__CUSTOM__">+ Create New Custom Category...</option>
+                    <option value="__CUSTOM__">+ Add Custom Category...</option>
                   </select>
                 </div>
 
                 {sendMoneyForm.expenseCategorySelect === '__CUSTOM__' && (
                   <div>
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      New Category Name:
+                      Custom Category Name:
                     </label>
                     <input
                       type="text"
@@ -2934,6 +3194,7 @@ export function PartnerHisaabSection({
                   </div>
                 )}
 
+                {/* 2. Description and 3. Vendor / Shop Name */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
@@ -2942,8 +3203,8 @@ export function PartnerHisaabSection({
                     <input
                       type="text"
                       placeholder="e.g. Petrol for site visit, cement bags"
-                      value={sendMoneyForm.expenseDescription}
-                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, expenseDescription: e.target.value }))}
+                      value={expenseDescriptionInput}
+                      onChange={(e) => setExpenseDescriptionInput(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
@@ -2954,18 +3215,149 @@ export function PartnerHisaabSection({
                     <input
                       type="text"
                       placeholder="e.g. Sharma Hardware, HP Petrol Pump"
-                      value={sendMoneyForm.vendorName}
-                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, vendorName: e.target.value }))}
+                      value={expenseVendorInput}
+                      onChange={(e) => setExpenseVendorInput(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
+                </div>
+
+                {/* 4. Amount with "Add to list" button */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Amount (₹):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        step="any"
+                        min="1"
+                        placeholder="0.00"
+                        value={expenseAmountInput}
+                        onChange={(e) => setExpenseAmountInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddExpenseToQueue();
+                          }
+                        }}
+                        className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddExpenseToQueue}
+                      className="px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add to list</span>
+                    </button>
+                  </div>
+                </div>
+
+                {expenseQueueError && (
+                  <div className="flex items-center gap-1.5 text-xs text-rose-500 font-semibold p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{expenseQueueError}</span>
+                  </div>
+                )}
+
+                {/* 4. The Queue Grouped by Category */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                      <span>Expense Queue ({expenseQueue.length})</span>
+                    </span>
+                    {expenseQueue.length > 0 && (
+                      <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400">
+                        Queue Total: {formatINR(totalExpenseQueueAmount)}
+                      </span>
+                    )}
+                  </div>
+
+                  {expenseQueue.length === 0 ? (
+                    <div className="py-6 px-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        No expenses added to queue yet.
+                      </p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        Choose category, enter description, amount and click &quot;Add to list&quot; to queue multiple expenses.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto space-y-3 p-3 rounded-xl bg-slate-100/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                      {Object.entries(expenseQueueGroupedByCategory).map(([cat, group]) => (
+                        <div key={cat} className="space-y-1.5">
+                          {/* Category Header with Subtotal */}
+                          <div className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-slate-200/80 dark:bg-slate-800/80 text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              <span>{cat}</span>
+                              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                ({group.items.length} {group.items.length === 1 ? 'expense' : 'expenses'})
+                              </span>
+                            </div>
+                            <span className="font-mono text-amber-600 dark:text-amber-400">
+                              Subtotal: {formatINR(group.subtotal)}
+                            </span>
+                          </div>
+
+                          {/* Expense Rows */}
+                          <div className="space-y-1 pl-2">
+                            {group.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between py-1 px-2 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                    {item.description}
+                                  </span>
+                                  {item.vendor && (
+                                    <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                                      ({item.vendor})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2.5 shrink-0">
+                                  <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                    {formatINR(item.amount)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveExpenseFromQueue(item.id)}
+                                    className="text-slate-400 hover:text-rose-500 transition-colors p-0.5 rounded"
+                                    title="Remove expense from queue"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Source Balance Exceeded Warning */}
+                  {isExpenseQueueBalanceExceeded && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>
+                        Total queue amount ({formatINR(totalExpenseQueueAmount)}) exceeds available source balance ({formatINR(sourceAvailableBalance)}). Please reduce amounts or remove expenses.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* 3. COMMON FIELDS FOR NON-WORKER DESTINATIONS */}
-          {sendMoneyForm.destinationType !== 'TO_WORKER' && (
+          {/* 3. COMMON FIELDS FOR NON-WORKER & NON-EXPENSE DESTINATIONS (TO_PARTNER, BANK_DEPOSIT) */}
+          {sendMoneyForm.destinationType !== 'TO_WORKER' && sendMoneyForm.destinationType !== 'SELF_EXPENSE' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -3074,6 +3466,17 @@ export function PartnerHisaabSection({
                   {workerPaymentQueue.length} {workerPaymentQueue.length === 1 ? 'payment' : 'payments'}
                 </span>
               </div>
+            ) : sendMoneyForm.destinationType === 'SELF_EXPENSE' ? (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500 dark:text-slate-400">Total:</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                  {formatINR(totalExpenseQueueAmount)}
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className="font-semibold text-slate-600 dark:text-slate-300">
+                  {expenseQueue.length} {expenseQueue.length === 1 ? 'expense' : 'expenses'}
+                </span>
+              </div>
             ) : (
               <div />
             )}
@@ -3105,6 +3508,25 @@ export function PartnerHisaabSection({
                     <>
                       <Send className="w-3.5 h-3.5 mr-1.5" />
                       Confirm and send all ({workerPaymentQueue.length})
+                    </>
+                  )}
+                </Button>
+              ) : sendMoneyForm.destinationType === 'SELF_EXPENSE' ? (
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmittingTransfer || expenseQueue.length === 0 || isExpenseQueueBalanceExceeded}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
+                >
+                  {isSubmittingTransfer ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Processing Bulk Expenses...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Confirm and send all ({expenseQueue.length})
                     </>
                   )}
                 </Button>

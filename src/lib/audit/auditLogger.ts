@@ -1,4 +1,5 @@
 import prisma from '@/lib/db/prisma';
+import { Prisma } from '@prisma/client';
 
 export interface RecordLoginParams {
   organizationId?: string | null;
@@ -13,6 +14,7 @@ export interface RecordLoginParams {
 }
 
 export interface RecordAuditParams {
+  tx?: Prisma.TransactionClient;
   organizationId: string;
   userId?: string | null;
   userName?: string | null;
@@ -63,7 +65,8 @@ export async function recordAudit(params: RecordAuditParams) {
     const oldStr = params.oldValue !== undefined ? JSON.stringify(params.oldValue) : null;
     const newStr = params.newValue !== undefined ? JSON.stringify(params.newValue) : null;
 
-    return await prisma.auditLog.create({
+    const client = (params.tx || prisma) as typeof prisma;
+    return await client.auditLog.create({
       data: {
         organizationId: params.organizationId,
         userId: params.userId || null,
@@ -163,7 +166,7 @@ export async function undoAuditAction(params: {
   // Perform reverse action according to entity type
   if (action === 'DELETE') {
     // RESTORE DELETED RECORD
-    await restoreDeletedEntity(entityType, entityId, oldData, params.organizationId);
+    await restoreDeletedEntity(entityType, entityId, oldData, params.organizationId, newData);
   } else if (action === 'UPDATE') {
     // REVERT MODIFIED FIELDS BACK TO OLD VALUE
     if (!oldData) {
@@ -172,7 +175,7 @@ export async function undoAuditAction(params: {
     await revertUpdatedEntity(entityType, entityId, oldData);
   } else if (action === 'CREATE') {
     // UNDO CREATION: Soft delete or remove newly added record
-    await undoCreatedEntity(entityType, entityId);
+    await undoCreatedEntity(entityType, entityId, newData);
   }
 
   // Update audit log record
@@ -211,14 +214,22 @@ export async function undoAuditAction(params: {
 /**
  * Entity Restore Handler for DELETED records
  */
-async function restoreDeletedEntity(entityType: string, entityId: string, oldData: any, organizationId: string) {
+async function restoreDeletedEntity(entityType: string, entityId: string, oldData: any, organizationId: string, newData?: any) {
   switch (entityType) {
-    case 'Expense':
+    case 'Expense': {
       await prisma.expense.update({
         where: { id: entityId },
         data: { deletedAt: null, deletedById: null },
       });
+      const bankTxId = newData?.bankTransactionId || oldData?.bankTransactionId;
+      if (bankTxId) {
+        await prisma.bankTransaction.updateMany({
+          where: { id: bankTxId },
+          data: { deletedAt: null },
+        });
+      }
       break;
+    }
 
     case 'Attendance':
       await prisma.attendance.update({
@@ -352,12 +363,19 @@ async function revertUpdatedEntity(entityType: string, entityId: string, oldData
 /**
  * Entity Undo Handler for CREATED records (Soft-delete or purge newly created entity)
  */
-async function undoCreatedEntity(entityType: string, entityId: string) {
+async function undoCreatedEntity(entityType: string, entityId: string, newData?: any) {
   const now = new Date();
   switch (entityType) {
-    case 'Expense':
+    case 'Expense': {
       await prisma.expense.update({ where: { id: entityId }, data: { deletedAt: now } });
+      if (newData?.bankTransactionId) {
+        await prisma.bankTransaction.updateMany({
+          where: { id: newData.bankTransactionId },
+          data: { deletedAt: now },
+        });
+      }
       break;
+    }
     case 'Attendance':
       await prisma.attendance.update({ where: { id: entityId }, data: { deletedAt: now } });
       break;
