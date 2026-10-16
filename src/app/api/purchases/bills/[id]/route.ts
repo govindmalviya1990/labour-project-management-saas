@@ -44,6 +44,7 @@ export async function GET(
         derivedPaidAmount: allocated ? allocated.paidAmount : 0,
         derivedReturnAmount: allocated ? allocated.returnAmount : 0,
         derivedNetDue: allocated ? allocated.netDue : bill.totalAmount,
+        derivedDueAmount: allocated ? allocated.netDue : bill.totalAmount,
         derivedStatus: allocated ? allocated.status : bill.status,
       },
     });

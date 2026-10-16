@@ -6,7 +6,7 @@ export interface MetricCardProps {
   value: string | number;
   subtitle?: string;
   icon?: React.ReactNode;
-  variant?: 'default' | 'amber' | 'emerald' | 'rose' | 'blue';
+  variant?: 'default' | 'amber' | 'emerald' | 'rose' | 'blue' | 'purple';
   isAlert?: boolean;
 }
 
@@ -24,6 +24,7 @@ export function MetricCard({
     emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30',
     rose: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/15 border-rose-200 dark:border-rose-500/30',
     blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/30',
+    purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/15 border-purple-200 dark:border-purple-500/30',
   };
 
   return (

@@ -72,6 +72,7 @@ export async function GET(req: Request) {
         derivedPaidAmount: allocated ? allocated.paidAmount : 0,
         derivedReturnAmount: allocated ? allocated.returnAmount : 0,
         derivedNetDue: allocated ? allocated.netDue : bill.totalAmount,
+        derivedDueAmount: allocated ? allocated.netDue : bill.totalAmount,
         derivedStatus: allocated ? allocated.status : bill.status,
       };
     });
@@ -82,8 +83,8 @@ export async function GET(req: Request) {
       : billsWithAllocations;
 
     const totalBillsAmount = filteredBills.reduce((sum, b) => sum + b.totalAmount, 0);
-    const totalPaidAmount = filteredBills.reduce((sum, b) => sum + b.derivedPaidAmount, 0);
-    const totalDueAmount = filteredBills.reduce((sum, b) => sum + b.derivedNetDue, 0);
+    const totalPaidAmount = filteredBills.reduce((sum, b) => sum + (b.derivedPaidAmount || 0), 0);
+    const totalDueAmount = filteredBills.reduce((sum, b) => sum + (b.derivedNetDue ?? b.derivedDueAmount ?? b.totalAmount), 0);
 
     return NextResponse.json({
       bills: filteredBills,

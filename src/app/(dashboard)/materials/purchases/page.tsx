@@ -100,28 +100,61 @@ export default function PurchasesPage() {
         if (selectedSupplierFilter) url += `&supplierId=${selectedSupplierFilter}`;
         if (startDate && endDate) url += `&startDate=${startDate}&endDate=${endDate}`;
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load purchase bills');
-        const d = await res.json();
-        setBills(d.bills || []);
+        const [resBills, resPayments, resSuppliers] = await Promise.all([
+          fetch(url),
+          fetch(`/api/purchases/payments?period=${period}${selectedSupplierFilter ? `&supplierId=${selectedSupplierFilter}` : ''}`),
+          fetch(`/api/purchases/suppliers`),
+        ]);
+
+        if (!resBills.ok) throw new Error('Failed to load purchase bills');
+        const dBills = await resBills.json();
+        setBills(dBills.bills || []);
+
+        if (resPayments.ok) {
+          const dPayments = await resPayments.json();
+          setPayments(dPayments.payments || []);
+        }
+        if (resSuppliers.ok) {
+          const dSuppliers = await resSuppliers.json();
+          setSuppliers(dSuppliers.suppliers || []);
+          setSupplierOverallSummary(dSuppliers.summary || null);
+        }
       } else if (activeTab === 'PAYMENTS') {
         let url = `/api/purchases/payments?period=${period}`;
         if (selectedSupplierFilter) url += `&supplierId=${selectedSupplierFilter}`;
         if (startDate && endDate) url += `&startDate=${startDate}&endDate=${endDate}`;
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load supplier payments');
-        const d = await res.json();
+        const [resPayments, resBills] = await Promise.all([
+          fetch(url),
+          fetch(`/api/purchases/bills?period=${period}${selectedSupplierFilter ? `&supplierId=${selectedSupplierFilter}` : ''}`),
+        ]);
+
+        if (!resPayments.ok) throw new Error('Failed to load supplier payments');
+        const d = await resPayments.json();
         setPayments(d.payments || []);
+
+        if (resBills.ok) {
+          const dBills = await resBills.json();
+          setBills(dBills.bills || []);
+        }
       } else if (activeTab === 'SUPPLIERS') {
         let url = `/api/purchases/suppliers`;
         if (searchQuery) url += `?search=${encodeURIComponent(searchQuery)}`;
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to load suppliers');
-        const d = await res.json();
+        const [resSuppliers, resBills] = await Promise.all([
+          fetch(url),
+          fetch(`/api/purchases/bills?period=${period}`),
+        ]);
+
+        if (!resSuppliers.ok) throw new Error('Failed to load suppliers');
+        const d = await resSuppliers.json();
         setSuppliers(d.suppliers || []);
         setSupplierOverallSummary(d.summary || null);
+
+        if (resBills.ok) {
+          const dBills = await resBills.json();
+          setBills(dBills.bills || []);
+        }
       } else if (activeTab === 'REPORTS') {
         let url = `/api/purchases/reports?period=${period}`;
         if (startDate && endDate) url += `&startDate=${startDate}&endDate=${endDate}`;
@@ -210,7 +243,7 @@ export default function PurchasesPage() {
       b.totalAmount || 0,
       b.derivedPaidAmount || 0,
       b.derivedReturnAmount || 0,
-      b.derivedDueAmount || 0,
+      b.derivedNetDue ?? b.derivedDueAmount ?? 0,
       `"${b.derivedStatus || b.status}"`,
     ]);
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -492,7 +525,7 @@ export default function PurchasesPage() {
                         {formatINR(bill.derivedPaidAmount || 0)}
                       </td>
                       <td className="py-2.5 px-3.5 font-mono font-bold text-right text-purple-600 dark:text-purple-400">
-                        {formatINR(bill.derivedDueAmount ?? bill.totalAmount)}
+                        {formatINR(bill.derivedNetDue ?? bill.derivedDueAmount ?? bill.totalAmount)}
                       </td>
                       <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
                         <span

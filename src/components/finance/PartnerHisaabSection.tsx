@@ -71,6 +71,8 @@ export interface PartnerSummaryItem {
     transfersInCount: number;
     transfersOutTotal: number;
     transfersOutCount: number;
+    supplierPaymentsTotal?: number;
+    supplierPaymentsCount?: number;
     workerPaymentsTotal?: number;
     workerPaymentsCount?: number;
     combinedTransfersOutTotal?: number;
@@ -84,7 +86,7 @@ export interface LedgerEntry {
   id: string;
   rawId: string;
   date: string;
-  type: 'RECEIPT' | 'TRANSFER_IN' | 'BANK_WITHDRAWAL' | 'TRANSFER_OUT' | 'EXPENSE' | 'BANK_DEPOSIT' | 'OPENING_BALANCE' | 'BALANCE_BROUGHT_FORWARD' | 'TRANSFER' | 'WORKER_PAYMENT';
+  type: 'RECEIPT' | 'TRANSFER_IN' | 'BANK_WITHDRAWAL' | 'TRANSFER_OUT' | 'EXPENSE' | 'BANK_DEPOSIT' | 'OPENING_BALANCE' | 'BALANCE_BROUGHT_FORWARD' | 'TRANSFER' | 'WORKER_PAYMENT' | 'SUPPLIER_PAYMENT';
   entityType?: string;
   model?: string;
   categoryLabel: string;
@@ -795,10 +797,11 @@ export function PartnerHisaabSection({
         acc.receipts += p.period.receiptsTotal || 0;
         acc.transfersIn += p.period.transfersInTotal || 0;
         acc.transfersOut += p.period.transfersOutTotal || 0;
+        acc.supplierPayments += p.period.supplierPaymentsTotal || 0;
         acc.workerPayments += p.period.workerPaymentsTotal || 0;
         return acc;
       },
-      { totalCash: 0, receipts: 0, transfersIn: 0, transfersOut: 0, workerPayments: 0, expenses: 0 }
+      { totalCash: 0, receipts: 0, transfersIn: 0, transfersOut: 0, supplierPayments: 0, workerPayments: 0, expenses: 0 }
     );
     // Align total company expenses with overallExpensesTotal to match chart & all categories
     res.expenses = overallExpensesTotal;
@@ -1772,8 +1775,8 @@ export function PartnerHisaabSection({
 
       {/* 4. Metric KPI Cards */}
       {selectedPartner ? (
-        // 1) INDIVIDUAL PARTNER VIEW: 5 Focused Metric Cards without round icons for clean full readability
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        // 1) INDIVIDUAL PARTNER VIEW: Focused Metric Cards
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           <MetricCard
             title={`${selectedPartner.name}'s Cash Balance`}
             value={formatINR(selectedPartner.currentBalance)}
@@ -1797,6 +1800,12 @@ export function PartnerHisaabSection({
             value={formatINR(selectedPartner.period.workerPaymentsTotal || 0)}
             subtitle={`${selectedPartner.period.workerPaymentsCount || 0} worker payout(s)`}
             variant="rose"
+          />
+          <MetricCard
+            title="Supplier Payments"
+            value={formatINR(selectedPartner.period.supplierPaymentsTotal || 0)}
+            subtitle={`${selectedPartner.period.supplierPaymentsCount || 0} supplier payout(s)`}
+            variant="purple"
           />
           <MetricCard
             title="Transfers Out to Partners"
@@ -2018,6 +2027,14 @@ export function PartnerHisaabSection({
                             -{formatINR(p.period.expensesTotal)}
                           </span>
                         </div>
+                        {(p.period.supplierPaymentsTotal || 0) > 0 && (
+                          <div className="col-span-2 p-2 rounded-lg bg-purple-500/5 border border-purple-500/10 flex items-center justify-between">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">Supplier Payments</span>
+                            <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+                              -{formatINR(p.period.supplierPaymentsTotal || 0)}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Card Action Buttons */}
@@ -2078,6 +2095,7 @@ export function PartnerHisaabSection({
                     <th className="py-3 px-4 text-right">Direct Site Receipts</th>
                     <th className="py-3 px-4 text-right">Transfers In</th>
                     <th className="py-3 px-4 text-right">Worker Salary &amp; Wages</th>
+                    <th className="py-3 px-4 text-right">Supplier Payments</th>
                     <th className="py-3 px-4 text-right">Transfers to Partners</th>
                     <th className="py-3 px-4 text-right">Site Expenses</th>
                     <th className="py-3 px-4 text-center">Actions</th>
@@ -2125,6 +2143,9 @@ export function PartnerHisaabSection({
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">
                           -{formatINR(p.period.workerPaymentsTotal || 0)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono text-purple-600 dark:text-purple-400 font-semibold">
+                          {(p.period.supplierPaymentsTotal || 0) > 0 ? `-${formatINR(p.period.supplierPaymentsTotal || 0)}` : '-'}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
                           -{formatINR(p.period.transfersOutTotal)}

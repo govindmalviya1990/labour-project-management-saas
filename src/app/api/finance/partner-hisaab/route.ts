@@ -523,7 +523,13 @@ export async function GET(req: Request) {
           fromUserId: uId,
           toWorkerId: null,
           linkedPaymentId: null,
-          transferType: { notIn: ['PARTNER_TO_WORKER', 'SUPERVISOR_TO_WORKER'] },
+          transferType: { notIn: ['PARTNER_TO_WORKER', 'SUPERVISOR_TO_WORKER', 'PARTNER_TO_SUPPLIER'] },
+          deletedAt: null,
+        };
+        const periodSupplierPaymentsWhere: any = {
+          organizationId: orgId,
+          fromUserId: uId,
+          transferType: 'PARTNER_TO_SUPPLIER',
           deletedAt: null,
         };
         const periodWorkerPaymentsWhere: any = {
@@ -553,11 +559,12 @@ export async function GET(req: Request) {
           periodReceiptsWhere.date = dateFilter;
           periodTransfersInWhere.date = dateFilter;
           periodTransfersToPartnersWhere.date = dateFilter;
+          periodSupplierPaymentsWhere.date = dateFilter;
           periodWorkerPaymentsWhere.date = dateFilter;
           periodExpensesWhere.date = dateFilter;
         }
 
-        const [pReceipts, pTransfersIn, pTransfersToPartners, pWorkerPayments, pExpenses] = await Promise.all([
+        const [pReceipts, pTransfersIn, pTransfersToPartners, pSupplierPayments, pWorkerPayments, pExpenses] = await Promise.all([
           prisma.projectReceipt.aggregate({
             where: periodReceiptsWhere,
             _sum: { amount: true },
@@ -570,6 +577,11 @@ export async function GET(req: Request) {
           }),
           prisma.fundTransfer.aggregate({
             where: periodTransfersToPartnersWhere,
+            _sum: { amount: true },
+            _count: { id: true },
+          }),
+          prisma.fundTransfer.aggregate({
+            where: periodSupplierPaymentsWhere,
             _sum: { amount: true },
             _count: { id: true },
           }),
@@ -615,10 +627,12 @@ export async function GET(req: Request) {
             transfersInCount: pTransfersIn._count.id || 0,
             transfersOutTotal: pTransfersToPartners._sum.amount || 0,
             transfersOutCount: pTransfersToPartners._count.id || 0,
+            supplierPaymentsTotal: pSupplierPayments._sum.amount || 0,
+            supplierPaymentsCount: pSupplierPayments._count.id || 0,
             workerPaymentsTotal: pWorkerPayments._sum.amount || 0,
             workerPaymentsCount: pWorkerPayments._count.id || 0,
-            combinedTransfersOutTotal: (pTransfersToPartners._sum.amount || 0) + (pWorkerPayments._sum.amount || 0),
-            combinedTransfersOutCount: (pTransfersToPartners._count.id || 0) + (pWorkerPayments._count.id || 0),
+            combinedTransfersOutTotal: (pTransfersToPartners._sum.amount || 0) + (pWorkerPayments._sum.amount || 0) + (pSupplierPayments._sum.amount || 0),
+            combinedTransfersOutCount: (pTransfersToPartners._count.id || 0) + (pWorkerPayments._count.id || 0) + (pSupplierPayments._count.id || 0),
             expensesTotal: pExpenses._sum.amount || partnerExpenseBreakdown.total || 0,
             expensesCount: pExpenses._count.id || partnerExpensesList.length || 0,
           },
@@ -1434,9 +1448,11 @@ export async function GET(req: Request) {
         });
       });
 
-      // 2. Fund Transfers (Transfers between partners & Worker Payments)
+      // 2. Fund Transfers (Transfers between partners, Supplier Payments & Worker Payments)
       orgTransfers.forEach((t) => {
-        const isWorker = Boolean(t.toWorker || t.toWorkerId || t.linkedPaymentId);
+        const isWorker = Boolean(t.toWorker || t.toWorkerId || t.linkedPaymentId || t.transferType === 'PARTNER_TO_WORKER' || t.transferType === 'SUPERVISOR_TO_WORKER');
+        const isSupplier = t.transferType === 'PARTNER_TO_SUPPLIER' || (Boolean(t.purpose) && t.purpose.includes('Supplier Payment'));
+
         if (isWorker) {
           ledgerEntries.push({
             id: `trout-${t.id}`,
@@ -1470,6 +1486,38 @@ export async function GET(req: Request) {
             fromUserId: t.fromUserId,
             toWorkerId: t.toWorkerId,
             linkedPaymentId: t.linkedPaymentId,
+          });
+        } else if (isSupplier) {
+          const supMatch = t.purpose?.match(/Supplier Payment:\s*(.+)$/i);
+          const supplierName = supMatch ? supMatch[1].trim() : 'Supplier';
+          ledgerEntries.push({
+            id: `trout-${t.id}`,
+            rawId: t.id,
+            date: t.date.toISOString(),
+            type: 'SUPPLIER_PAYMENT',
+            entityType: 'SupplierPayment',
+            model: 'FundTransfer',
+            isWorkerPayment: false,
+            categoryLabel: 'Supplier Payment',
+            title: `Supplier Payment: ${supplierName}`,
+            subtitle: `Paid by ${t.fromUser?.name || 'Partner'}${t.project?.name ? ` • ${t.project.name}` : ''}`,
+            credit: 0,
+            debit: t.amount,
+            amount: t.amount,
+            paymentMethod: t.paymentMethod,
+            reference: t.reference,
+            notes: t.notes,
+            remarks: t.notes,
+            category: 'SUPPLIER_PAYMENT',
+            projectId: t.projectId,
+            siteId: t.siteId,
+            createdAt: t.createdAt.toISOString(),
+            isEdited: Boolean(t.isEdited),
+            editReason: t.editReason,
+            isDeleted: Boolean(t.deletedAt),
+            deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
+            deleteReason: t.deleteReason,
+            fromUserId: t.fromUserId,
           });
         } else {
           ledgerEntries.push({
