@@ -64,11 +64,11 @@ async function runTestSuite() {
     totalExpenses: 3000,
   });
   const moneyPosition = calculateOverallMoneyPosition({
-    partnerWallets: [{ partnerId: 'p1', partnerName: 'Partner 1', balance: p1.balance }],
+    partnerWallets: [{ id: 'p1', name: 'Partner 1', balance: p1.balance }],
     supervisorWallets: [],
     bankBalances: [
-      { bankAccountId: 'b1', bankName: 'HDFC', balance: bankA.balance },
-      { bankAccountId: 'b2', bankName: 'ICICI OD', balance: bankOD.balance },
+      { id: 'b1', name: 'Current A/C', bankName: 'HDFC', balance: bankA.balance },
+      { id: 'b2', name: 'OD A/C', bankName: 'ICICI OD', balance: bankOD.balance },
     ],
   });
   console.log('Overall Money Position Result:', moneyPosition);
