@@ -66,7 +66,7 @@ export function AddPurchaseBillModal({
   const [isUploading, setIsUploading] = useState(false);
 
   // Charges
-  const [gstAmount, setGstAmount] = useState<string>('0');
+  const [gstRate, setGstRate] = useState<string>('0');
   const [transportCharges, setTransportCharges] = useState<string>('0');
   const [discount, setDiscount] = useState<string>('0');
 
@@ -155,7 +155,12 @@ export function AddPurchaseBillModal({
       setReceivedBy(initialBill.receivedBy || '');
       setNotes(initialBill.notes || '');
       setAttachmentUrl(initialBill.attachmentUrl || '');
-      setGstAmount(String(initialBill.gstAmount || 0));
+      if (initialBill.subtotal && initialBill.subtotal > 0 && initialBill.gstAmount) {
+        const computedRate = Math.round(((initialBill.gstAmount / initialBill.subtotal) * 100) * 100) / 100;
+        setGstRate(String(computedRate));
+      } else {
+        setGstRate('0');
+      }
       setTransportCharges(String(initialBill.transportCharges || 0));
       setDiscount(String(initialBill.discount || 0));
       setItems(
@@ -181,7 +186,7 @@ export function AddPurchaseBillModal({
       setReceivedBy('');
       setNotes('');
       setAttachmentUrl('');
-      setGstAmount('0');
+      setGstRate('0');
       setTransportCharges('0');
       setDiscount('0');
       setItems([]);
@@ -204,12 +209,17 @@ export function AddPurchaseBillModal({
     return items.reduce((sum, item) => sum + item.amount, 0);
   }, [items]);
 
+  const calculatedGstAmount = useMemo(() => {
+    const rate = parseFloat(gstRate) || 0;
+    if (rate <= 0 || subtotal <= 0) return 0;
+    return Math.round(((subtotal * rate) / 100) * 100) / 100;
+  }, [subtotal, gstRate]);
+
   const totalAmount = useMemo(() => {
-    const gst = parseFloat(gstAmount) || 0;
     const transport = parseFloat(transportCharges) || 0;
     const disc = parseFloat(discount) || 0;
-    return Math.max(0, Math.round((subtotal + gst + transport - disc) * 100) / 100);
-  }, [subtotal, gstAmount, transportCharges, discount]);
+    return Math.max(0, Math.round((subtotal + calculatedGstAmount + transport - disc) * 100) / 100);
+  }, [subtotal, calculatedGstAmount, transportCharges, discount]);
 
   // Available source balance
   const sourceAvailableBalance = useMemo(() => {
@@ -401,7 +411,7 @@ export function AddPurchaseBillModal({
         receivedBy: receivedBy.trim() || null,
         notes: notes.trim() || null,
         attachmentUrl: attachmentUrl || null,
-        gstAmount: parseFloat(gstAmount) || 0,
+        gstAmount: calculatedGstAmount,
         transportCharges: parseFloat(transportCharges) || 0,
         discount: parseFloat(discount) || 0,
         items: items.map((it) => ({
@@ -862,17 +872,43 @@ export function AddPurchaseBillModal({
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                GST Amount (₹)
-              </label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                value={gstAmount}
-                onChange={(e) => setGstAmount(e.target.value)}
-                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-semibold"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                  GST (%)
+                </label>
+                <span className="text-[11px] font-mono font-bold text-purple-600 dark:text-purple-400">
+                  {formatINR(calculatedGstAmount)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+                {['0', '5', '12', '18', '28'].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setGstRate(rate)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all border ${
+                      gstRate === rate
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max="100"
+                  placeholder="GST %"
+                  value={gstRate}
+                  onChange={(e) => setGstRate(e.target.value)}
+                  className="w-full pr-7 pl-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-white"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+              </div>
             </div>
 
             <div>
