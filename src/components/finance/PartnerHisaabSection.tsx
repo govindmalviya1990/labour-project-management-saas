@@ -33,6 +33,7 @@ import {
   Trash2,
   History,
   Lock,
+  Truck,
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/Button';
@@ -378,6 +379,7 @@ export function PartnerHisaabSection({
   const [totalBankBalance, setTotalBankBalance] = useState<number>(0);
   const [bankSummary, setBankSummary] = useState<any>(null);
   const [workers, setWorkers] = useState<WorkerItem[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [purposeOptions, setPurposeOptions] = useState<PurposeOptionItem[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [overallExpensesByCategory, setOverallExpensesByCategory] = useState<CategoryExpenseItem[]>([]);
@@ -456,7 +458,7 @@ export function PartnerHisaabSection({
   const [sendMoneyForm, setSendMoneyForm] = useState({
     sourceType: 'PARTNER' as 'PARTNER' | 'BANK',
     sourceId: '',
-    destinationType: 'TO_PARTNER' as 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE',
+    destinationType: 'TO_PARTNER' as 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE' | 'TO_SUPPLIER',
     // Destination 1: Partner
     toPartnerId: '',
     transferSourceType: 'DIRECT' as 'DIRECT' | 'FROM_RECEIPT',
@@ -472,6 +474,9 @@ export function PartnerHisaabSection({
     customCategoryName: '',
     expenseDescription: '',
     vendorName: '',
+    // Destination 5: Supplier
+    toSupplierId: '',
+    toPurchaseBillId: '',
     // Common
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -585,6 +590,7 @@ export function PartnerHisaabSection({
       setTotalBankBalance(data.totalBankBalance || 0);
       setBankSummary(data.bankSummary || null);
       setWorkers(data.workers || []);
+      setSuppliers(data.suppliers || []);
       setPurposeOptions(data.purposeOptions || []);
       setOverallExpensesByCategory(data.overallExpensesByCategory || []);
       setOverallExpensesTotal(data.overallExpensesTotal || 0);
@@ -876,8 +882,9 @@ export function PartnerHisaabSection({
   const openSendMoneyModal = (opts?: {
     defaultSourceType?: 'PARTNER' | 'BANK';
     defaultSourceId?: string;
-    defaultDestType?: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE';
+    defaultDestType?: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE' | 'TO_SUPPLIER';
     defaultTargetPartnerId?: string;
+    defaultTargetSupplierId?: string;
   }) => {
     setTransferError('');
 
@@ -898,7 +905,7 @@ export function PartnerHisaabSection({
       }
     }
 
-    const destType: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE' =
+    const destType: 'TO_PARTNER' | 'INTERNAL_BANK_DEPOSIT' | 'TO_WORKER' | 'SELF_EXPENSE' | 'TO_SUPPLIER' =
       opts?.defaultDestType || 'TO_PARTNER';
 
     let toPartId = opts?.defaultTargetPartnerId || '';
@@ -914,6 +921,7 @@ export function PartnerHisaabSection({
     }
 
     const toWorkId = workers.length > 0 ? workers[0].id : '';
+    const toSuppId = opts?.defaultTargetSupplierId || (suppliers.length > 0 ? suppliers[0].id : '');
 
     setSendMoneyForm({
       sourceType: srcType,
@@ -930,6 +938,8 @@ export function PartnerHisaabSection({
       customCategoryName: '',
       expenseDescription: '',
       vendorName: '',
+      toSupplierId: toSuppId,
+      toPurchaseBillId: '',
       amount: '',
       date: new Date().toISOString().split('T')[0],
       paymentMethod: srcType === 'BANK' ? 'BANK' : 'CASH',
@@ -1358,6 +1368,13 @@ export function PartnerHisaabSection({
       }
     }
 
+    if (sendMoneyForm.destinationType === 'TO_SUPPLIER') {
+      if (!sendMoneyForm.toSupplierId) {
+        setTransferError('Please select a recipient supplier.');
+        return;
+      }
+    }
+
     setIsSubmittingTransfer(true);
     try {
       const finalExpenseCategory =
@@ -1370,6 +1387,8 @@ export function PartnerHisaabSection({
         sourceId: sendMoneyForm.sourceId,
         destinationType: sendMoneyForm.destinationType,
         toPartnerId: sendMoneyForm.toPartnerId,
+        toSupplierId: sendMoneyForm.toSupplierId || undefined,
+        toPurchaseBillId: sendMoneyForm.toPurchaseBillId || undefined,
         receiptId: sendMoneyForm.transferSourceType === 'FROM_RECEIPT' ? sendMoneyForm.receiptId : undefined,
         toBankAccountId: sendMoneyForm.toBankAccountId,
         expenseCategory: finalExpenseCategory,
@@ -1383,6 +1402,8 @@ export function PartnerHisaabSection({
             ? 'PARTNER_TRANSFER'
             : sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT'
             ? 'BANK_DEPOSIT'
+            : sendMoneyForm.destinationType === 'TO_SUPPLIER'
+            ? 'SUPPLIER_PAYMENT'
             : finalExpenseCategory,
         projectId: sendMoneyForm.projectId || undefined,
         siteId: sendMoneyForm.siteId || undefined,
@@ -3156,8 +3177,8 @@ export function PartnerHisaabSection({
               Transfer Destination (Send Money To):
             </span>
 
-            {/* Destination Mode Selector (4 Options) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Destination Mode Selector (5 Options) */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
                 type="button"
                 onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'TO_PARTNER' }))}
@@ -3205,6 +3226,18 @@ export function PartnerHisaabSection({
               >
                 <Tag className="w-4 h-4" />
                 <span>Self / Expense</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSendMoneyForm((prev) => ({ ...prev, destinationType: 'TO_SUPPLIER' }))}
+                className={`py-2 px-2.5 rounded-lg text-xs font-bold text-center transition-all border flex flex-col items-center justify-center gap-1 ${
+                  sendMoneyForm.destinationType === 'TO_SUPPLIER'
+                    ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                <span>To Supplier</span>
               </button>
             </div>
 
@@ -3990,6 +4023,41 @@ export function PartnerHisaabSection({
                       </span>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Destination 5: Supplier Payment Options */}
+            {sendMoneyForm.destinationType === 'TO_SUPPLIER' && (
+              <div className="space-y-3 pt-2">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                      Select Supplier *
+                    </label>
+                    <Link
+                      href="/materials/purchases"
+                      className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Purchases &amp; Suppliers
+                    </Link>
+                  </div>
+                  <select
+                    value={sendMoneyForm.toSupplierId}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, toSupplierId: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">-- Choose Recipient Supplier --</option>
+                    {suppliers.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.mobile ? `(${s.mobile})` : ''} • Balance: {formatINR(s.currentBalance ?? s.balance ?? 0)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Payment will credit this supplier&apos;s ledger and debit the selected source wallet/bank account once without double-counting.
+                  </p>
                 </div>
               </div>
             )}

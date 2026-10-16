@@ -4,6 +4,7 @@ import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations';
 import { getPartnerWalletBalance, getMultiplePartnersWalletBalances } from '@/lib/finance/partnerWallet';
 import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
+import { executeSupplierPayment } from '@/lib/finance/executeSupplierPayment';
 import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
@@ -832,19 +833,43 @@ export async function GET(req: Request) {
 
       transfersOut.forEach((t) => {
         const isWorker = Boolean(t.toWorker || t.toWorkerId || t.linkedPaymentId);
-        const recipientName = t.toWorker?.name || t.toUser?.name || 'Partner/Supervisor';
+        const isSupplier = t.transferType === 'PARTNER_TO_SUPPLIER' || (Boolean(t.purpose) && t.purpose.includes('Supplier Payment'));
+        const supMatch = t.purpose?.match(/Supplier Payment:\s*(.+)$/i);
+        const supplierName = supMatch ? supMatch[1].trim() : 'Supplier';
+        const recipientName = isSupplier
+          ? supplierName
+          : (t.toWorker?.name || t.toUser?.name || 'Partner/Supervisor');
+
+        let entryType = 'TRANSFER_OUT';
+        let entityType = 'FundTransfer';
+        let categoryLabel = 'Transfer Out';
+        let title = `To: ${recipientName}`;
+
+        if (isWorker) {
+          entryType = 'WORKER_PAYMENT';
+          entityType = 'Payment';
+          categoryLabel = `Worker Payment (${t.purpose || 'Labour'})`;
+          title = `Worker: ${recipientName}`;
+        } else if (isSupplier) {
+          entryType = 'SUPPLIER_PAYMENT';
+          entityType = 'SupplierPayment';
+          categoryLabel = 'Supplier Payment';
+          title = `Supplier Payment: ${recipientName}`;
+        }
+
         ledgerEntries.push({
           id: `trout-${t.id}`,
           rawId: t.id,
           date: t.date.toISOString(),
-          type: isWorker ? 'WORKER_PAYMENT' : 'TRANSFER_OUT',
-          entityType: isWorker ? 'Payment' : 'FundTransfer',
+          type: entryType,
+          entityType: entityType,
           model: 'FundTransfer',
           isWorkerPayment: isWorker,
+          isSupplierPayment: isSupplier,
           workerId: t.toWorkerId,
           workerName: t.toWorker?.name,
-          categoryLabel: isWorker ? `Worker Payment (${t.purpose || 'Labour'})` : 'Transfer Out',
-          title: `${isWorker ? 'Worker: ' : 'To: '}${recipientName}`,
+          categoryLabel,
+          title,
           subtitle: (t.purpose ? `${t.purpose}` : '') + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: 0,
           debit: t.amount,
@@ -1848,6 +1873,18 @@ export async function GET(req: Request) {
       orderBy: { name: 'asc' },
     });
 
+    // 10. Fetch active suppliers for "Send Money to Supplier"
+    const suppliers = await prisma.supplier.findMany({
+      where: { organizationId: orgId, deletedAt: null, status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+        mobile: true,
+        gstNumber: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
     return NextResponse.json({
       partners: partnersSummary,
       selectedPartnerId: partnerId,
@@ -1858,6 +1895,7 @@ export async function GET(req: Request) {
       totalBankBalance,
       bankSummary,
       workers,
+      suppliers,
       purposeOptions,
       currentUserId: session.userId,
       userRole,
@@ -1907,6 +1945,9 @@ export async function POST(req: Request) {
       toBankAccountId,
       toWorkerId,
       workerReason,
+      toSupplierId,
+      supplierId,
+      billId,
       expenseCategory,
       expenseDescription,
       vendorName,
@@ -2297,6 +2338,81 @@ export async function POST(req: Request) {
           message: `Successfully recorded bank payment of ₹${parsedAmount.toLocaleString('en-IN')} under ${category}!`,
         });
       }
+    }
+
+    // ==========================================
+    // DESTINATION 5: PAYMENT TO SUPPLIER / VENDOR
+    // ==========================================
+    if (destinationType === 'TO_SUPPLIER') {
+      const targetSupplierId = toSupplierId || supplierId;
+      if (!targetSupplierId) {
+        return NextResponse.json(
+          { error: 'Please select the supplier to pay.' },
+          { status: 400 }
+        );
+      }
+
+      const supplier = await prisma.supplier.findFirst({
+        where: { id: targetSupplierId, organizationId: orgId, deletedAt: null },
+      });
+      if (!supplier) {
+        return NextResponse.json(
+          { error: 'Selected supplier not found.' },
+          { status: 404 }
+        );
+      }
+
+      const effectiveSourceId = sourceType === 'PARTNER' ? effectivePartnerId : sourceBankAccount.id;
+
+      const result = await prisma.$transaction(
+        async (tx) => {
+          return await executeSupplierPayment({
+            tx,
+            organizationId: orgId,
+            supplier,
+            billId: billId || null,
+            sourceType,
+            sourceId: effectiveSourceId,
+            amount: parsedAmount,
+            date: txDate,
+            method: paymentMethod,
+            projectId: projectId || null,
+            siteId: siteId || null,
+            reference: reference?.trim() || null,
+            notes: enrichedNotes || null,
+            session,
+          });
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
+
+      // Record Audit Surveillance Entry with 48h Undo Window
+      const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+      await recordAudit({
+        organizationId: orgId,
+        userId: session.userId,
+        userName: session.name,
+        userRole: session.role,
+        entityType: 'SupplierPayment',
+        entityId: result.supplierPayment.id,
+        action: 'CREATE',
+        newValue: result.supplierPayment,
+        details: formatAuditDetails('CREATE', 'SupplierPayment', {
+          name: supplier.name,
+          amount: parsedAmount,
+          category: `Paid via ${sourceType}`,
+        }),
+        ipAddress,
+      });
+
+      return NextResponse.json({
+        success: true,
+        payment: result.supplierPayment,
+        transfer: result.fundTransfer,
+        bankTx: result.bankTransaction,
+        sourceBalanceAfter: result.sourceBalanceAfter,
+        message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} to supplier ${supplier.name}!`,
+      });
     }
 
     return NextResponse.json(

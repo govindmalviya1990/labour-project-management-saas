@@ -354,6 +354,47 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
       });
       break;
 
+    case 'PurchaseBill':
+      await prisma.purchaseBill.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      break;
+
+    case 'SupplierPayment': {
+      const sp = await prisma.supplierPayment.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      if (sp.fundTransferId) {
+        await prisma.fundTransfer.updateMany({
+          where: { id: sp.fundTransferId },
+          data: { deletedAt: null, deletedById: null, deleteReason: null },
+        });
+      }
+      if (sp.bankTransactionId) {
+        await prisma.bankTransaction.updateMany({
+          where: { id: sp.bankTransactionId },
+          data: { deletedAt: null, deletedById: null, deleteReason: null },
+        });
+      }
+      break;
+    }
+
+    case 'PurchaseReturn':
+      await prisma.purchaseReturn.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      break;
+
+    case 'Supplier':
+      await prisma.supplier.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null },
+      });
+      break;
+
     default:
       throw new Error(`Restore is not supported for entity ${entityType}`);
   }
@@ -404,6 +445,18 @@ async function revertUpdatedEntity(entityType: string, entityId: string, oldData
       break;
     case 'BankAccount':
       await prisma.bankAccount.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'PurchaseBill':
+      await prisma.purchaseBill.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'SupplierPayment':
+      await prisma.supplierPayment.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'PurchaseReturn':
+      await prisma.purchaseReturn.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'Supplier':
+      await prisma.supplier.update({ where: { id: entityId }, data: updatable });
       break;
     default:
       throw new Error(`Revert is not supported for entity ${entityType}`);
@@ -465,6 +518,25 @@ async function undoCreatedEntity(entityType: string, entityId: string, newData?:
       break;
     case 'FundTransfer':
       await prisma.fundTransfer.update({ where: { id: entityId }, data: { deletedAt: now } });
+      break;
+    case 'PurchaseBill':
+      await prisma.purchaseBill.update({ where: { id: entityId }, data: { deletedAt: now } });
+      break;
+    case 'SupplierPayment': {
+      const sp = await prisma.supplierPayment.update({ where: { id: entityId }, data: { deletedAt: now } });
+      if (sp.fundTransferId) {
+        await prisma.fundTransfer.updateMany({ where: { id: sp.fundTransferId }, data: { deletedAt: now } });
+      }
+      if (sp.bankTransactionId) {
+        await prisma.bankTransaction.updateMany({ where: { id: sp.bankTransactionId }, data: { deletedAt: now } });
+      }
+      break;
+    }
+    case 'PurchaseReturn':
+      await prisma.purchaseReturn.update({ where: { id: entityId }, data: { deletedAt: now } });
+      break;
+    case 'Supplier':
+      await prisma.supplier.update({ where: { id: entityId }, data: { deletedAt: now, status: 'INACTIVE' } });
       break;
     default:
       throw new Error(`Undo create is not supported for entity ${entityType}`);
