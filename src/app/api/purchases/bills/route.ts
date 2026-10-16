@@ -111,14 +111,29 @@ export async function POST(req: Request) {
     const validated = createPurchaseBillSchema.safeParse(body);
 
     if (!validated.success) {
+      const err = validated.error.errors[0];
+      const field = err?.path?.length ? `${err.path.join('.')}: ` : '';
       return NextResponse.json(
-        { error: validated.error.errors[0]?.message || 'Invalid purchase bill data' },
+        { error: `${field}${err?.message || 'Invalid purchase bill data'}` },
         { status: 400 }
       );
     }
 
     const data = validated.data;
     const billDate = new Date(data.billDate);
+
+    // Auto-calculate subtotal and totalAmount if not provided or to ensure arithmetic consistency
+    const itemsSubtotal = data.items.reduce(
+      (sum, it) => sum + (it.amount || Math.round(it.quantity * it.rate * 100) / 100),
+      0
+    );
+    const subtotal = data.subtotal !== undefined ? data.subtotal : itemsSubtotal;
+    const gstAmount = data.gstAmount ?? 0;
+    const transportCharges = data.transportCharges ?? 0;
+    const discount = data.discount ?? 0;
+    const totalAmount = data.totalAmount !== undefined
+      ? data.totalAmount
+      : Math.max(0, Math.round((subtotal + gstAmount + transportCharges - discount) * 100) / 100);
 
     // Verify supplier exists
     const supplier = await prisma.supplier.findFirst({
@@ -144,11 +159,11 @@ export async function POST(req: Request) {
             receivedBy: data.receivedBy?.trim() || null,
             notes: data.notes?.trim() || null,
             attachmentUrl: data.attachmentUrl || null,
-            subtotal: data.subtotal,
-            gstAmount: data.gstAmount,
-            transportCharges: data.transportCharges,
-            discount: data.discount,
-            totalAmount: data.totalAmount,
+            subtotal,
+            gstAmount,
+            transportCharges,
+            discount,
+            totalAmount,
             status: 'UNPAID', // Will be re-computed or updated if payNow
             createdById: session.userId,
             items: {

@@ -411,9 +411,11 @@ export function AddPurchaseBillModal({
         receivedBy: receivedBy.trim() || null,
         notes: notes.trim() || null,
         attachmentUrl: attachmentUrl || null,
+        subtotal: subtotal,
         gstAmount: calculatedGstAmount,
         transportCharges: parseFloat(transportCharges) || 0,
         discount: parseFloat(discount) || 0,
+        totalAmount: totalAmount,
         items: items.map((it) => ({
           materialId: it.materialId || null,
           materialName: it.materialName,

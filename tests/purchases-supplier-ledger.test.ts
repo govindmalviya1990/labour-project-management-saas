@@ -289,8 +289,48 @@ async function runTests() {
   assert(agingResult.aging.bracket90Plus === 40000, 'Bracket 90+ days is 40,000');
   assert(agingResult.aging.totalDue === 100000, 'Total due is 100,000');
 
+  // -------------------------------------------------------------
+  // Test 13: Exact user bill payload schema validation
+  // -------------------------------------------------------------
+  console.log('\nTest 13: Exact user bill payload validation (Vishal, goods, ₹1,280)');
+  const { createPurchaseBillSchema } = await import('../src/lib/validations/purchases');
+  const userPayload = {
+    supplierId: 'cm_sup_vishal_123',
+    billDate: '2026-10-16',
+    billNumber: '12325',
+    projectId: 'cm_prj_vastral_916',
+    siteId: null,
+    vehicleNumber: null,
+    receivedBy: null,
+    notes: null,
+    attachmentUrl: null,
+    subtotal: 1000,
+    gstAmount: 180,
+    transportCharges: 100,
+    discount: 0,
+    totalAmount: 1280,
+    items: [
+      {
+        materialName: 'goods',
+        quantity: 10,
+        unit: 'bags',
+        rate: 100,
+        amount: 1000,
+      },
+    ],
+  };
+  const parseResult = createPurchaseBillSchema.safeParse(userPayload);
+  assert(parseResult.success === true, 'User purchase bill payload parses successfully with 0 errors');
+
+  // Also verify when subtotal or totalAmount is omitted from payload, schema still passes
+  const payloadWithoutTotals = { ...userPayload };
+  delete (payloadWithoutTotals as any).subtotal;
+  delete (payloadWithoutTotals as any).totalAmount;
+  const parseWithoutTotals = createPurchaseBillSchema.safeParse(payloadWithoutTotals);
+  assert(parseWithoutTotals.success === true, 'Payload without subtotal/totalAmount also succeeds (auto-computed by backend)');
+
   console.log('\n======================================================');
-  console.log('🎉 ALL PURCHASES & SUPPLIER LEDGER TESTS PASSED (12/12)!');
+  console.log('🎉 ALL PURCHASES & SUPPLIER LEDGER TESTS PASSED (13/13)!');
   console.log('======================================================\n');
 }
 

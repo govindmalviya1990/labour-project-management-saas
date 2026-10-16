@@ -19,11 +19,11 @@ export const createPurchaseBillSchema = z.object({
   receivedBy: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   attachmentUrl: z.string().optional().nullable(),
-  subtotal: z.number().min(0).default(0),
-  gstAmount: z.number().min(0).default(0),
-  transportCharges: z.number().min(0).default(0),
-  discount: z.number().min(0).default(0),
-  totalAmount: z.number().positive('Total amount must be greater than 0'),
+  subtotal: z.number().min(0).optional(),
+  gstAmount: z.number().min(0).optional().default(0),
+  transportCharges: z.number().min(0).optional().default(0),
+  discount: z.number().min(0).optional().default(0),
+  totalAmount: z.number().positive('Total amount must be greater than 0').optional(),
   items: z.array(purchaseItemInputSchema).min(1, 'At least one item is required in the bill'),
   // Optional "Pay Now" at time of bill creation
   payNow: z
