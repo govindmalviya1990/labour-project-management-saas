@@ -16,7 +16,7 @@ export const wageUnitEnum = z.enum(['PER_DAY', 'PER_MONTH', 'PER_UNIT']);
 export const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE']);
 
 export const createWorkerSchema = z.object({
-  workerCode: z.string().min(1, 'Worker code is required'),
+  workerCode: z.string().optional(),
   name: z.string().min(2, 'Worker name is required'),
   fatherOrHusbandName: z.string().optional(),
   mobile: z.string().optional(),

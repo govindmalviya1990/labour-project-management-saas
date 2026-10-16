@@ -128,30 +128,67 @@ export async function POST(req: Request) {
     }
 
     const data = validated.data;
+    const trimmedName = data.name.trim();
+    const cleanMobile = data.mobile?.trim() || null;
 
-    // Check unique workerCode in organization
-    const existing = await prisma.worker.findFirst({
+    // Fetch existing active workers in organization for duplicate check & code generation
+    const existingWorkers = await prisma.worker.findMany({
       where: {
         organizationId: orgId,
-        workerCode: data.workerCode,
         deletedAt: null,
       },
     });
 
-    if (existing) {
-      return NextResponse.json(
-        { error: `Worker code '${data.workerCode}' is already registered in your organization.` },
-        { status: 409 }
+    // 1. Duplicate check: same name (case-insensitive, trimmed) or same mobile in org
+    const duplicateWorker = existingWorkers.find((w) => {
+      const nameMatch = (w.name || '').trim().toLowerCase() === trimmedName.toLowerCase();
+      const mobileMatch = Boolean(cleanMobile && w.mobile && w.mobile.trim() === cleanMobile);
+      return nameMatch || mobileMatch;
+    });
+
+    if (duplicateWorker) {
+      return NextResponse.json({
+        success: true,
+        exists: true,
+        worker: duplicateWorker,
+        message: `Worker "${duplicateWorker.name}" (${duplicateWorker.workerCode}) already exists in your organization.`,
+      });
+    }
+
+    // 2. Generate workerCode on server if not provided (next free WRK-###)
+    let workerCode = data.workerCode?.trim();
+    if (!workerCode) {
+      let maxNum = 0;
+      for (const w of existingWorkers) {
+        const match = (w.workerCode || '').match(/^WRK-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+      const nextNum = maxNum + 1;
+      workerCode = `WRK-${nextNum.toString().padStart(3, '0')}`;
+    } else {
+      const codeExists = existingWorkers.some(
+        (w) => (w.workerCode || '').trim().toUpperCase() === workerCode!.toUpperCase()
       );
+      if (codeExists) {
+        return NextResponse.json(
+          { error: `Worker code '${workerCode}' is already registered in your organization.` },
+          { status: 409 }
+        );
+      }
     }
 
     const worker = await prisma.worker.create({
       data: {
         organizationId: orgId,
-        workerCode: data.workerCode,
-        name: data.name,
+        workerCode,
+        name: trimmedName,
         fatherOrHusbandName: data.fatherOrHusbandName || null,
-        mobile: data.mobile || null,
+        mobile: cleanMobile,
         address: data.address || null,
         skill: data.skill || null,
         category: data.category,

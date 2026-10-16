@@ -110,6 +110,15 @@ export interface WorkerItem {
   mobile?: string;
 }
 
+export interface WorkerQueueItem {
+  id: string;
+  workerId: string;
+  workerName: string;
+  workerCode?: string;
+  category: string;
+  amount: number;
+}
+
 export interface PurposeOptionItem {
   id: string;
   name: string;
@@ -411,6 +420,17 @@ export function PartnerHisaabSection({
     notes: '',
   });
 
+  // Bulk Worker Payment Queue & Inline Worker Form State
+  const [workerPaymentQueue, setWorkerPaymentQueue] = useState<WorkerQueueItem[]>([]);
+  const [queueError, setQueueError] = useState('');
+  const [workerAmountInput, setWorkerAmountInput] = useState('');
+  const [showAddWorkerInline, setShowAddWorkerInline] = useState(false);
+  const [inlineWorkerName, setInlineWorkerName] = useState('');
+  const [inlineWorkerMobile, setInlineWorkerMobile] = useState('');
+  const [inlineWorkerWage, setInlineWorkerWage] = useState('800');
+  const [isSavingInlineWorker, setIsSavingInlineWorker] = useState(false);
+  const [inlineWorkerError, setInlineWorkerError] = useState('');
+
   // Auto-clear success notification
   useEffect(() => {
     if (successMessage) {
@@ -613,6 +633,16 @@ export function PartnerHisaabSection({
       notes: '',
     });
 
+    // Reset bulk worker queue state
+    setWorkerPaymentQueue([]);
+    setQueueError('');
+    setWorkerAmountInput('');
+    setShowAddWorkerInline(false);
+    setInlineWorkerError('');
+    setInlineWorkerName('');
+    setInlineWorkerMobile('');
+    setInlineWorkerWage('800');
+
     setIsTransferModalOpen(true);
   };
 
@@ -633,11 +663,224 @@ export function PartnerHisaabSection({
     }
   };
 
-  // Submit Send Money Transaction
+  // Bulk Worker Payment Queue Computations & Helpers
+  const queueGroupedByCategory = useMemo(() => {
+    const groups: Record<string, { items: WorkerQueueItem[]; subtotal: number }> = {};
+    for (const item of workerPaymentQueue) {
+      if (!groups[item.category]) {
+        groups[item.category] = { items: [], subtotal: 0 };
+      }
+      groups[item.category].items.push(item);
+      groups[item.category].subtotal = Math.round((groups[item.category].subtotal + item.amount) * 100) / 100;
+    }
+    return groups;
+  }, [workerPaymentQueue]);
+
+  const totalQueueAmount = useMemo(() => {
+    return Math.round(workerPaymentQueue.reduce((sum, item) => sum + item.amount, 0) * 100) / 100;
+  }, [workerPaymentQueue]);
+
+  const isQueueBalanceExceeded = totalQueueAmount > sourceAvailableBalance;
+
+  const handleAddWorkerToQueue = () => {
+    setQueueError('');
+
+    const finalCategory =
+      sendMoneyForm.workerReasonSelect === '__CUSTOM__'
+        ? sendMoneyForm.customWorkerReason.trim()
+        : sendMoneyForm.workerReasonSelect;
+
+    if (!finalCategory) {
+      setQueueError('Please enter a custom category name.');
+      return;
+    }
+
+    if (!sendMoneyForm.toWorkerId || sendMoneyForm.toWorkerId === '__ADD_NEW__') {
+      setQueueError('Please select a worker from the dropdown.');
+      return;
+    }
+
+    const amt = parseFloat(workerAmountInput);
+    if (isNaN(amt) || amt <= 0) {
+      setQueueError('Please enter a valid amount greater than ₹0.');
+      return;
+    }
+
+    const targetWorker = workers.find((w) => w.id === sendMoneyForm.toWorkerId);
+    if (!targetWorker) {
+      setQueueError('Selected worker not found.');
+      return;
+    }
+
+    // Duplicate check: Block same worker under the same category
+    const isDuplicate = workerPaymentQueue.some(
+      (item) =>
+        item.workerId === targetWorker.id &&
+        item.category.trim().toLowerCase() === finalCategory.trim().toLowerCase()
+    );
+
+    if (isDuplicate) {
+      setQueueError(
+        `Worker "${targetWorker.name}" is already in the queue for category "${finalCategory}". Same worker cannot be added twice under the same category.`
+      );
+      return;
+    }
+
+    const newItem: WorkerQueueItem = {
+      id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      workerId: targetWorker.id,
+      workerName: targetWorker.name,
+      workerCode: targetWorker.workerCode,
+      category: finalCategory,
+      amount: Math.round(amt * 100) / 100,
+    };
+
+    setWorkerPaymentQueue((prev) => [...prev, newItem]);
+    // Clear worker & amount, KEEP category selected!
+    setWorkerAmountInput('');
+    setSendMoneyForm((prev) => ({ ...prev, toWorkerId: '' }));
+    setQueueError('');
+  };
+
+  const handleRemoveWorkerFromQueue = (id: string) => {
+    setWorkerPaymentQueue((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleSaveInlineWorker = async () => {
+    setInlineWorkerError('');
+    if (!inlineWorkerName.trim()) {
+      setInlineWorkerError('Worker full name is required.');
+      return;
+    }
+
+    setIsSavingInlineWorker(true);
+    try {
+      const parsedWage = parseFloat(inlineWorkerWage);
+      const wage = isNaN(parsedWage) || parsedWage < 0 ? 800 : parsedWage;
+
+      const res = await fetch('/api/workers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inlineWorkerName.trim(),
+          mobile: inlineWorkerMobile.trim() || undefined,
+          dailyWage: wage,
+          wageUnit: 'PER_DAY',
+          category: 'Mason',
+          status: 'ACTIVE',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create worker');
+      }
+
+      if (data.worker) {
+        const targetWorker: WorkerItem = {
+          id: data.worker.id,
+          name: data.worker.name,
+          workerCode: data.worker.workerCode,
+          category: data.worker.category,
+          mobile: data.worker.mobile,
+        };
+
+        // Add to dropdown if not already in list
+        setWorkers((prev) => {
+          if (prev.some((w) => w.id === targetWorker.id)) return prev;
+          return [targetWorker, ...prev];
+        });
+
+        // Auto-select this worker in the dropdown
+        setSendMoneyForm((prev) => ({
+          ...prev,
+          toWorkerId: targetWorker.id,
+        }));
+
+        setShowAddWorkerInline(false);
+        setInlineWorkerName('');
+        setInlineWorkerMobile('');
+        setInlineWorkerWage('800');
+        setInlineWorkerError('');
+
+        if (data.exists && data.message) {
+          setSuccessMessage(`ℹ️ ${data.message}`);
+        } else if (data.message) {
+          setSuccessMessage(`✅ ${data.message} (${targetWorker.workerCode})`);
+        }
+      }
+    } catch (err: any) {
+      setInlineWorkerError(err.message || 'Failed to save worker');
+    } finally {
+      setIsSavingInlineWorker(false);
+    }
+  };
+
+  // Submit Send Money Transaction (Bulk for TO_WORKER, single for other destinations)
   const handleSendMoneySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTransferError('');
 
+    // ==========================================
+    // BULK WORKER PAYMENT FLOW
+    // ==========================================
+    if (sendMoneyForm.destinationType === 'TO_WORKER') {
+      if (workerPaymentQueue.length === 0) {
+        setTransferError('Please add at least one worker payment to the queue.');
+        return;
+      }
+
+      if (isQueueBalanceExceeded) {
+        setTransferError(
+          `Total payment (${formatINR(totalQueueAmount)}) exceeds available balance (${formatINR(sourceAvailableBalance)}).`
+        );
+        return;
+      }
+
+      setIsSubmittingTransfer(true);
+      try {
+        const payload = {
+          sourceType: sendMoneyForm.sourceType,
+          sourceId: sendMoneyForm.sourceId,
+          method: sendMoneyForm.paymentMethod,
+          date: sendMoneyForm.date,
+          projectId: sendMoneyForm.projectId || undefined,
+          siteId: sendMoneyForm.siteId || undefined,
+          reference: sendMoneyForm.reference || undefined,
+          items: workerPaymentQueue.map((item) => ({
+            workerId: item.workerId,
+            category: item.category,
+            amount: item.amount,
+            remarks: sendMoneyForm.notes ? `${sendMoneyForm.notes}` : undefined,
+          })),
+        };
+
+        const res = await fetch('/api/finance/worker-payments/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const resData = await res.json();
+        if (!res.ok) {
+          throw new Error(resData.error || 'Failed to record bulk worker payments');
+        }
+
+        setSuccessMessage(resData.message || 'Worker payments recorded successfully!');
+        setWorkerPaymentQueue([]);
+        setIsTransferModalOpen(false);
+        loadPartnerHisaab();
+      } catch (err: any) {
+        setTransferError(err.message || 'Something went wrong while recording payments');
+      } finally {
+        setIsSubmittingTransfer(false);
+      }
+      return;
+    }
+
+    // ==========================================
+    // SINGLE FLOW FOR TO_PARTNER, BANK_DEPOSIT, SELF_EXPENSE
+    // ==========================================
     const parsedAmount = parseFloat(sendMoneyForm.amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setTransferError('Please enter a valid amount greater than ₹0.');
@@ -676,20 +919,8 @@ export function PartnerHisaabSection({
       }
     }
 
-    if (sendMoneyForm.destinationType === 'TO_WORKER') {
-      if (!sendMoneyForm.toWorkerId) {
-        setTransferError('Please select the worker to pay.');
-        return;
-      }
-    }
-
     setIsSubmittingTransfer(true);
     try {
-      const finalWorkerReason =
-        sendMoneyForm.workerReasonSelect === '__CUSTOM__'
-          ? sendMoneyForm.customWorkerReason.trim() || 'Worker Payment'
-          : sendMoneyForm.workerReasonSelect;
-
       const finalExpenseCategory =
         sendMoneyForm.expenseCategorySelect === '__CUSTOM__'
           ? sendMoneyForm.customCategoryName.trim() || 'Miscellaneous'
@@ -702,8 +933,6 @@ export function PartnerHisaabSection({
         toPartnerId: sendMoneyForm.toPartnerId,
         receiptId: sendMoneyForm.transferSourceType === 'FROM_RECEIPT' ? sendMoneyForm.receiptId : undefined,
         toBankAccountId: sendMoneyForm.toBankAccountId,
-        toWorkerId: sendMoneyForm.toWorkerId,
-        workerReason: finalWorkerReason,
         expenseCategory: finalExpenseCategory,
         expenseDescription: sendMoneyForm.expenseDescription,
         vendorName: sendMoneyForm.vendorName,
@@ -715,8 +944,6 @@ export function PartnerHisaabSection({
             ? 'PARTNER_TRANSFER'
             : sendMoneyForm.destinationType === 'INTERNAL_BANK_DEPOSIT'
             ? 'BANK_DEPOSIT'
-            : sendMoneyForm.destinationType === 'TO_WORKER'
-            ? finalWorkerReason
             : finalExpenseCategory,
         projectId: sendMoneyForm.projectId || undefined,
         siteId: sendMoneyForm.siteId || undefined,
@@ -2287,27 +2514,84 @@ export function PartnerHisaabSection({
               </div>
             )}
 
-            {/* Destination 3: Worker Payment Options */}
+            {/* Destination 3: Worker Payment Options (Bulk Multi-Worker Flow) */}
             {sendMoneyForm.destinationType === 'TO_WORKER' && (
-              <div className="space-y-3 pt-2">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                    Select Worker / Labour:
-                  </label>
-                  <select
-                    value={sendMoneyForm.toWorkerId}
-                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, toWorkerId: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    <option value="">-- Choose Worker --</option>
-                    {workers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} {w.workerCode ? `(${w.workerCode})` : ''} {w.category ? `• ${w.category}` : ''}
-                      </option>
-                    ))}
-                  </select>
+              <div className="space-y-3.5 pt-2">
+                {/* Common Batch Parameters (Apply to all payments in queue) */}
+                <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Payment Date *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={sendMoneyForm.date}
+                        onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, date: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Payment Method:
+                      </label>
+                      <select
+                        value={sendMoneyForm.paymentMethod}
+                        onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="CASH">Cash in Hand</option>
+                        <option value="BANK">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                        <option value="UPI">UPI / QR Code</option>
+                        <option value="CHEQUE">Cheque</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Link to Project (Optional):
+                      </label>
+                      <select
+                        value={sendMoneyForm.projectId}
+                        onChange={(e) => {
+                          const projId = e.target.value;
+                          const proj = projects.find((p) => p.id === projId);
+                          setSendMoneyForm((prev) => ({
+                            ...prev,
+                            projectId: projId,
+                            siteId: proj?.sites[0]?.id || '',
+                          }));
+                        }}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      >
+                        <option value="">-- No Specific Project --</option>
+                        {projects.map((pr) => (
+                          <option key={pr.id} value={pr.id}>
+                            {pr.name} ({pr.projectCode})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                        Reference / Batch Notes (Optional):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Weekly Payout, Site 4 Labour"
+                        value={sendMoneyForm.notes}
+                        onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, notes: e.target.value }))}
+                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* 1. Payment Reason / Category FIRST */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
                     Payment Reason / Category:
@@ -2330,7 +2614,7 @@ export function PartnerHisaabSection({
                 {sendMoneyForm.workerReasonSelect === '__CUSTOM__' && (
                   <div>
                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      Custom Reason Name:
+                      Custom Category Name:
                     </label>
                     <input
                       type="text"
@@ -2341,6 +2625,271 @@ export function PartnerHisaabSection({
                     />
                   </div>
                 )}
+
+                {/* 2. Select Worker (with + Add new worker) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block">
+                      Select Worker / Labour:
+                    </label>
+                    {!showAddWorkerInline && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddWorkerInline(true);
+                          setInlineWorkerError('');
+                        }}
+                        className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add new worker
+                      </button>
+                    )}
+                  </div>
+                  <select
+                    value={sendMoneyForm.toWorkerId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__ADD_NEW__') {
+                        setShowAddWorkerInline(true);
+                        setInlineWorkerError('');
+                      } else {
+                        setSendMoneyForm((prev) => ({ ...prev, toWorkerId: val }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">-- Choose Worker --</option>
+                    {workers.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} {w.workerCode ? `(${w.workerCode})` : ''} {w.category ? `• ${w.category}` : ''}
+                      </option>
+                    ))}
+                    <option value="__ADD_NEW__" className="font-bold text-emerald-600 dark:text-emerald-400">
+                      + Add new worker
+                    </option>
+                  </select>
+                </div>
+
+                {/* Inline Mini Form for creating worker */}
+                {showAddWorkerInline && (
+                  <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        Add New Worker (Quick Register)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddWorkerInline(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {inlineWorkerError && (
+                      <div className="text-[11px] text-rose-500 font-semibold bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                        {inlineWorkerError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 block mb-0.5">
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Worker name"
+                          value={inlineWorkerName}
+                          onChange={(e) => setInlineWorkerName(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 block mb-0.5">
+                          Mobile (Optional)
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="10-digit mobile"
+                          value={inlineWorkerMobile}
+                          onChange={(e) => setInlineWorkerMobile(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 block mb-0.5">
+                          Daily Wage (₹)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="800"
+                          value={inlineWorkerWage}
+                          onChange={(e) => setInlineWorkerWage(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddWorkerInline(false)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingInlineWorker}
+                        onClick={handleSaveInlineWorker}
+                        className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm disabled:opacity-50"
+                      >
+                        {isSavingInlineWorker ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          'Save worker'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Amount with "Add to list" button */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Amount (₹):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        step="any"
+                        min="1"
+                        placeholder="0.00"
+                        value={workerAmountInput}
+                        onChange={(e) => setWorkerAmountInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddWorkerToQueue();
+                          }
+                        }}
+                        className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddWorkerToQueue}
+                      className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 shadow-sm transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add to list</span>
+                    </button>
+                  </div>
+                </div>
+
+                {queueError && (
+                  <div className="flex items-center gap-1.5 text-xs text-rose-500 font-semibold p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{queueError}</span>
+                  </div>
+                )}
+
+                {/* 4. The Queue Grouped by Category */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                      <span>Payment Queue ({workerPaymentQueue.length})</span>
+                    </span>
+                    {workerPaymentQueue.length > 0 && (
+                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        Queue Total: {formatINR(totalQueueAmount)}
+                      </span>
+                    )}
+                  </div>
+
+                  {workerPaymentQueue.length === 0 ? (
+                    <div className="py-6 px-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        No workers added to queue yet.
+                      </p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        Choose category, worker, enter amount and click &quot;Add to list&quot; to queue multiple payments.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto space-y-3 p-3 rounded-xl bg-slate-100/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                      {Object.entries(queueGroupedByCategory).map(([cat, group]) => (
+                        <div key={cat} className="space-y-1.5">
+                          {/* Category Header with Subtotal */}
+                          <div className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-slate-200/80 dark:bg-slate-800/80 text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span>{cat}</span>
+                              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                ({group.items.length} {group.items.length === 1 ? 'payment' : 'payments'})
+                              </span>
+                            </div>
+                            <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                              Subtotal: {formatINR(group.subtotal)}
+                            </span>
+                          </div>
+
+                          {/* Worker Rows */}
+                          <div className="space-y-1 pl-2">
+                            {group.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between py-1 px-2 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                    {item.workerName}
+                                  </span>
+                                  {item.workerCode && (
+                                    <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                      ({item.workerCode})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2.5 shrink-0">
+                                  <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                    {formatINR(item.amount)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveWorkerFromQueue(item.id)}
+                                    className="text-slate-400 hover:text-rose-500 transition-colors p-0.5 rounded"
+                                    title="Remove worker from queue"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Source Balance Exceeded Warning */}
+                  {isQueueBalanceExceeded && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>
+                        Total queue amount ({formatINR(totalQueueAmount)}) exceeds available source balance ({formatINR(sourceAvailableBalance)}). Please reduce amounts or remove workers.
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2410,129 +2959,171 @@ export function PartnerHisaabSection({
             )}
           </div>
 
-          {/* 3. COMMON FIELDS (AMOUNT, DATE, METHOD, PROJECT, NOTES) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                Amount (₹) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+          {/* 3. COMMON FIELDS FOR NON-WORKER DESTINATIONS */}
+          {sendMoneyForm.destinationType !== 'TO_WORKER' && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Amount (₹) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="1"
+                      required
+                      placeholder="0.00"
+                      value={sendMoneyForm.amount}
+                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, amount: e.target.value }))}
+                      className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Transaction Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={sendMoneyForm.date}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Payment Method:
+                  </label>
+                  <select
+                    value={sendMoneyForm.paymentMethod}
+                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="CASH">Cash in Hand</option>
+                    <option value="BANK">Bank Transfer (NEFT/RTGS/IMPS)</option>
+                    <option value="UPI">UPI / QR Code</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                    Link to Project (Optional):
+                  </label>
+                  <select
+                    value={sendMoneyForm.projectId}
+                    onChange={(e) => {
+                      const projId = e.target.value;
+                      const proj = projects.find((p) => p.id === projId);
+                      setSendMoneyForm((prev) => ({
+                        ...prev,
+                        projectId: projId,
+                        siteId: proj?.sites[0]?.id || '',
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">-- No Specific Project --</option>
+                    {projects.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        {pr.name} ({pr.projectCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
+                  Reference / UTR / Remarks (Optional):
+                </label>
                 <input
-                  type="number"
-                  step="any"
-                  min="1"
-                  required
-                  placeholder="0.00"
-                  value={sendMoneyForm.amount}
-                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, amount: e.target.value }))}
-                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  type="text"
+                  placeholder="e.g. UTR123456, Paid via GPay, Cash handed over"
+                  value={sendMoneyForm.notes}
+                  onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                Transaction Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={sendMoneyForm.date}
-                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, date: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                Payment Method:
-              </label>
-              <select
-                value={sendMoneyForm.paymentMethod}
-                onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="CASH">Cash in Hand</option>
-                <option value="BANK">Bank Transfer (NEFT/RTGS/IMPS)</option>
-                <option value="UPI">UPI / QR Code</option>
-                <option value="CHEQUE">Cheque</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                Link to Project (Optional):
-              </label>
-              <select
-                value={sendMoneyForm.projectId}
-                onChange={(e) => {
-                  const projId = e.target.value;
-                  const proj = projects.find((p) => p.id === projId);
-                  setSendMoneyForm((prev) => ({
-                    ...prev,
-                    projectId: projId,
-                    siteId: proj?.sites[0]?.id || '',
-                  }));
-                }}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">-- No Specific Project --</option>
-                {projects.map((pr) => (
-                  <option key={pr.id} value={pr.id}>
-                    {pr.name} ({pr.projectCode})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-              Reference / UTR / Remarks (Optional):
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. UTR123456, Paid via GPay, Cash handed over"
-              value={sendMoneyForm.notes}
-              onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, notes: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+            </>
+          )}
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsTransferModalOpen(false)}
-              disabled={isSubmittingTransfer}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isSubmittingTransfer}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
-            >
-              {isSubmittingTransfer ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                  Recording Transaction...
-                </>
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            {sendMoneyForm.destinationType === 'TO_WORKER' ? (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500 dark:text-slate-400">Total:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white">
+                  {formatINR(totalQueueAmount)}
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className="font-semibold text-slate-600 dark:text-slate-300">
+                  {workerPaymentQueue.length} {workerPaymentQueue.length === 1 ? 'payment' : 'payments'}
+                </span>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsTransferModalOpen(false)}
+                disabled={isSubmittingTransfer}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              {sendMoneyForm.destinationType === 'TO_WORKER' ? (
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmittingTransfer || workerPaymentQueue.length === 0 || isQueueBalanceExceeded}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                >
+                  {isSubmittingTransfer ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Processing Bulk Payments...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Confirm and send all ({workerPaymentQueue.length})
+                    </>
+                  )}
+                </Button>
               ) : (
-                <>
-                  <Send className="w-3.5 h-3.5 mr-1.5" />
-                  Confirm &amp; Send Money
-                </>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmittingTransfer}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                >
+                  {isSubmittingTransfer ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Recording Transaction...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 mr-1.5" />
+                      Confirm &amp; Send Money
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         </form>
       </Modal>

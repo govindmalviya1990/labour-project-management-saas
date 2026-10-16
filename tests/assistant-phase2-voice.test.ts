@@ -8,6 +8,7 @@ console.log('--- RUNNING AI ASSISTANT PHASE 2 (VOICE INPUT) TESTS ---');
 const mockOwnerContext: ToolExecutionContext = {
   userRole: 'OWNER',
   userId: 'mock-owner-id',
+  userName: 'Mock Owner',
   organizationId: 'mock-org-id',
 };
 

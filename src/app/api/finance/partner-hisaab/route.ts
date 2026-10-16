@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations';
+import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
+import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
 export const dynamic = 'force-dynamic';
 
@@ -391,6 +393,7 @@ export async function GET(req: Request) {
           walletOwnerId: true,
           spentById: true,
           paidBy: true,
+          notes: true,
         },
       }),
       prisma.payment.findMany({
@@ -435,6 +438,7 @@ export async function GET(req: Request) {
     ]);
 
     // Build unified expenses list including worker salaries, advances & payouts
+    // Filter out Expense rows created as bridges for Payment records to prevent double-counting
     const allPeriodCombinedExpenses: Array<{
       category: string;
       amount: number;
@@ -442,13 +446,15 @@ export async function GET(req: Request) {
       spentById?: string | null;
       paidBy?: string | null;
     }> = [
-      ...allPeriodExpenses.map((e) => ({
-        category: e.category,
-        amount: e.amount,
-        walletOwnerId: e.walletOwnerId,
-        spentById: e.spentById,
-        paidBy: e.paidBy,
-      })),
+      ...allPeriodExpenses
+        .filter((e) => !(e.notes && e.notes.includes('Payment ID:')))
+        .map((e) => ({
+          category: e.category,
+          amount: e.amount,
+          walletOwnerId: e.walletOwnerId,
+          spentById: e.spentById,
+          paidBy: e.paidBy,
+        })),
       ...allPeriodPayments.map((p) => {
         let cat = 'Worker Expenses & Payouts';
         const tType = (p.transactionType || '').toUpperCase();
@@ -956,7 +962,7 @@ export async function GET(req: Request) {
           entryType = 'BANK_WITHDRAWAL';
           title = bt.partner?.name ? `Withdrawn by ${bt.partner.name}` : 'Cash Withdrawal';
         } else if (bt.type === 'PAYMENT') {
-          typeLabel = 'Direct Vendor / Site Payment';
+          typeLabel = bt.notes?.includes('Worker Payment:') ? 'Worker Payment' : 'Direct Vendor / Site Payment';
           entryType = 'EXPENSE';
           title = bt.notes || bt.reference || 'Bank Payment';
         }
@@ -1478,72 +1484,58 @@ export async function POST(req: Request) {
       }
 
       const reasonText = workerReason?.trim() || purpose || 'Worker Payment';
-      const upperReason = reasonText.toUpperCase();
-      const txType = upperReason.includes('SALARY') ? 'SALARY' : upperReason.includes('ADVANCE') ? 'ADVANCE' : 'PAYMENT';
+      const effectiveSourceId = sourceType === 'PARTNER' ? effectivePartnerId : sourceBankAccount.id;
 
-      // 1. Create worker payment record
-      const payment = await prisma.payment.create({
-        data: {
+      const result = await prisma.$transaction(async (tx) => {
+        return executeWorkerPayment({
+          tx,
           organizationId: orgId,
-          workerId: worker.id,
+          worker,
+          sourceType,
+          sourceId: effectiveSourceId,
+          category: reasonText,
+          amount: parsedAmount,
+          date: txDate,
+          method: paymentMethod,
           projectId: projectId || null,
           siteId: siteId || null,
-          date: txDate,
-          transactionType: txType,
-          amount: parsedAmount,
-          paymentMethod: sourceType === 'BANK' ? 'BANK' : paymentMethod,
           reference: reference?.trim() || null,
-          notes: enrichedNotes ? `${reasonText} • ${enrichedNotes}` : reasonText,
-        },
+          remarks: enrichedNotes || null,
+          session: {
+            userId: session.userId,
+            name: session.name,
+            email: session.email,
+            role: session.role,
+          },
+        });
       });
 
-      if (sourceType === 'PARTNER') {
-        // 2. Create FundTransfer for partner wallet
-        const transfer = await prisma.fundTransfer.create({
-          data: {
-            organizationId: orgId,
-            transferType: 'PARTNER_TO_WORKER',
-            fromUserId: effectivePartnerId,
-            toWorkerId: worker.id,
-            linkedPaymentId: payment.id,
-            projectId: projectId || null,
-            siteId: siteId || null,
-            amount: parsedAmount,
-            date: txDate,
-            paymentMethod,
-            purpose: reasonText,
-            reference: reference?.trim() || null,
-            notes: enrichedNotes || `Payment to worker ${worker.name} (${reasonText})`,
-          },
-        });
+      // Record Audit Surveillance Entry with 48h Undo Window
+      await recordAudit({
+        organizationId: orgId,
+        userId: session.userId,
+        userName: session.name,
+        userEmail: session.email,
+        userRole: session.role,
+        entityType: 'Payment',
+        entityId: result.payment.id,
+        action: 'CREATE',
+        newValue: result.payment,
+        details: formatAuditDetails('CREATE', 'Payment', {
+          name: worker.name,
+          amount: result.payment.amount,
+          category: result.payment.transactionType,
+        }),
+        ipAddress: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
+      });
 
-        return NextResponse.json({
-          success: true,
-          transfer,
-          message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} to worker ${worker.name} for ${reasonText}!`,
-        });
-      } else {
-        // 2. Create BankTransaction for bank account
-        const bankTx = await prisma.bankTransaction.create({
-          data: {
-            organizationId: orgId,
-            bankAccountId: sourceBankAccount.id,
-            type: 'PAYMENT',
-            amount: parsedAmount,
-            date: txDate,
-            projectId: projectId || null,
-            reference: reference?.trim() || null,
-            notes: `Worker Payment: ${worker.name} (${reasonText})${enrichedNotes ? ` • ${enrichedNotes}` : ''}`,
-            createdById: session.userId,
-          },
-        });
-
-        return NextResponse.json({
-          success: true,
-          bankTx,
-          message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} from ${sourceBankAccount.bankName} to worker ${worker.name} (${reasonText})!`,
-        });
-      }
+      return NextResponse.json({
+        success: true,
+        payment: result.payment,
+        transfer: result.fundTransfer,
+        bankTx: result.bankTransaction,
+        message: `Successfully paid ₹${parsedAmount.toLocaleString('en-IN')} to worker ${worker.name} for ${reasonText}!`,
+      });
     }
 
     // ==========================================

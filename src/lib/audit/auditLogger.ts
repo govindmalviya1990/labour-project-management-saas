@@ -227,8 +227,8 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
       });
       break;
 
-    case 'Payment':
-      await prisma.payment.update({
+    case 'Payment': {
+      const pmt = await prisma.payment.update({
         where: { id: entityId },
         data: { deletedAt: null, deletedById: null },
       });
@@ -236,7 +236,22 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
         where: { notes: { contains: `Payment ID: ${entityId}` } },
         data: { deletedAt: null, deletedById: null },
       });
+      if (pmt.fundTransferId) {
+        await prisma.fundTransfer.updateMany({
+          where: { id: pmt.fundTransferId },
+          data: { deletedAt: null, deletedById: null },
+        });
+      }
+      await prisma.fundTransfer.updateMany({
+        where: { linkedPaymentId: entityId },
+        data: { deletedAt: null, deletedById: null },
+      });
+      await prisma.bankTransaction.updateMany({
+        where: { notes: { contains: `Payment ID: ${entityId}` } },
+        data: { deletedAt: null },
+      });
       break;
+    }
 
     case 'Worker':
       await prisma.worker.update({
@@ -346,13 +361,28 @@ async function undoCreatedEntity(entityType: string, entityId: string) {
     case 'Attendance':
       await prisma.attendance.update({ where: { id: entityId }, data: { deletedAt: now } });
       break;
-    case 'Payment':
-      await prisma.payment.update({ where: { id: entityId }, data: { deletedAt: now } });
+    case 'Payment': {
+      const pmt = await prisma.payment.update({ where: { id: entityId }, data: { deletedAt: now } });
       await prisma.expense.updateMany({
         where: { notes: { contains: `Payment ID: ${entityId}` } },
         data: { deletedAt: now },
       });
+      if (pmt.fundTransferId) {
+        await prisma.fundTransfer.updateMany({
+          where: { id: pmt.fundTransferId },
+          data: { deletedAt: now },
+        });
+      }
+      await prisma.fundTransfer.updateMany({
+        where: { linkedPaymentId: entityId },
+        data: { deletedAt: now },
+      });
+      await prisma.bankTransaction.updateMany({
+        where: { notes: { contains: `Payment ID: ${entityId}` } },
+        data: { deletedAt: now },
+      });
       break;
+    }
     case 'Worker':
       await prisma.worker.update({ where: { id: entityId }, data: { deletedAt: now, status: 'INACTIVE' } });
       break;
