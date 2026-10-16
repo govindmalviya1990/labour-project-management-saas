@@ -14,7 +14,11 @@ export async function POST(req: Request) {
     const orgId = session.organizationId;
 
     const body = await req.json();
-    const { partnerUserId, bankAccountId, amount, asOnDate, note } = body;
+    const targetType = body.targetType;
+    const targetId = body.targetId;
+    const partnerUserId = body.partnerUserId || (targetType === 'PARTNER' ? targetId : undefined);
+    const bankAccountId = body.bankAccountId || (targetType === 'BANK' ? targetId : undefined);
+    const { amount, asOnDate, note } = body;
 
     const parsedAmount = Number(amount);
     if (isNaN(parsedAmount) || !isFinite(parsedAmount)) {

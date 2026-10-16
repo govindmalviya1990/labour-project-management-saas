@@ -521,6 +521,7 @@ export async function GET(req: Request) {
           organizationId: orgId,
           fromUserId: uId,
           toWorkerId: null,
+          linkedPaymentId: null,
           transferType: { notIn: ['PARTNER_TO_WORKER', 'SUPERVISOR_TO_WORKER'] },
           deletedAt: null,
         };
@@ -530,6 +531,7 @@ export async function GET(req: Request) {
           deletedAt: null,
           OR: [
             { toWorkerId: { not: null } },
+            { linkedPaymentId: { not: null } },
             { transferType: 'PARTNER_TO_WORKER' },
             { transferType: 'SUPERVISOR_TO_WORKER' },
           ],
@@ -538,6 +540,12 @@ export async function GET(req: Request) {
           organizationId: orgId,
           walletOwnerId: uId,
           deletedAt: null,
+          NOT: {
+            AND: [
+              { category: 'LABOUR' },
+              { notes: { contains: 'Payment ID:' } },
+            ],
+          },
         };
 
         if (hasDateFilter) {
@@ -829,7 +837,7 @@ export async function GET(req: Request) {
           id: `trout-${t.id}`,
           rawId: t.id,
           date: t.date.toISOString(),
-          type: 'TRANSFER_OUT',
+          type: isWorker ? 'WORKER_PAYMENT' : 'TRANSFER_OUT',
           entityType: isWorker ? 'Payment' : 'FundTransfer',
           model: 'FundTransfer',
           isWorkerPayment: isWorker,
@@ -863,14 +871,18 @@ export async function GET(req: Request) {
 
       expenses.forEach((e) => {
         const isLabourExpense = e.category === 'LABOUR' && Boolean(e.notes && e.notes.includes('Payment ID:'));
+        if (isLabourExpense) {
+          // SKIP duplicate: worker payment is already debited via FundTransfer (trout)
+          return;
+        }
         ledgerEntries.push({
           id: `exp-${e.id}`,
           rawId: e.id,
           date: e.date.toISOString(),
           type: 'EXPENSE',
-          entityType: isLabourExpense ? 'Payment' : 'Expense',
+          entityType: 'Expense',
           model: 'Expense',
-          isWorkerPayment: isLabourExpense,
+          isWorkerPayment: false,
           categoryLabel: `Site Expense: ${formatCategoryLabel(e.category)}`,
           title: e.description || e.notes || e.category,
           subtitle: e.project?.name + (e.site?.name ? ` • ${e.site.name}` : ''),
@@ -1077,7 +1089,6 @@ export async function GET(req: Request) {
             project: { select: { id: true, name: true, projectCode: true } },
           },
           orderBy: { date: 'desc' },
-          take: 100,
         }),
         prisma.projectReceipt.findMany({
           where: bankReceiptsWhere,
@@ -1088,12 +1099,16 @@ export async function GET(req: Request) {
             receivedBy: { select: { id: true, name: true } },
           },
           orderBy: { date: 'desc' },
-          take: 50,
         }),
       ]);
 
+      const addedReceiptRefs = new Set<string>();
+
       // Direct client receipts received into bank
       bankReceipts.forEach((r) => {
+        addedReceiptRefs.add(r.id);
+        if (r.reference) addedReceiptRefs.add(r.reference);
+
         ledgerEntries.push({
           id: `rcpt-${r.id}`,
           rawId: r.id,
@@ -1126,11 +1141,19 @@ export async function GET(req: Request) {
         });
       });
 
-      // Bank transactions
+      // Bank transactions (skip duplicates for receipts already added via bankReceipts)
       bankTxs.forEach((bt) => {
+        if (
+          bt.type === 'RECEIPT' &&
+          ((bt.reference && addedReceiptRefs.has(bt.reference)) || bt.notes?.includes('Client Receipt:'))
+        ) {
+          return;
+        }
+
         const isCredit = ['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(bt.type);
+        const isWorkerPmt = bt.notes?.includes('Worker Payment:') || bt.notes?.includes('Payment ID:');
         let typeLabel = 'Bank Transaction';
-        let entryType: 'RECEIPT' | 'TRANSFER_IN' | 'BANK_WITHDRAWAL' | 'TRANSFER_OUT' | 'EXPENSE' | 'BANK_DEPOSIT' = 'BANK_DEPOSIT';
+        let entryType: 'RECEIPT' | 'TRANSFER_IN' | 'BANK_WITHDRAWAL' | 'TRANSFER_OUT' | 'EXPENSE' | 'BANK_DEPOSIT' | 'WORKER_PAYMENT' = 'BANK_DEPOSIT';
         let title = bt.bankAccount?.bankName || 'Bank';
 
         if (bt.type === 'DEPOSIT') {
@@ -1144,7 +1167,7 @@ export async function GET(req: Request) {
         } else if (bt.type === 'RECEIPT') {
           typeLabel = 'Bank Receipt';
           entryType = 'RECEIPT';
-          title = bt.partner?.name ? `Receipt via ${bt.partner.name}` : 'Bank Receipt';
+          title = bt.partner?.name ? `Receipt via ${bt.partner.name}` : (bt.notes || 'Bank Receipt');
         } else if (bt.type === 'TRANSFER_TO_PARTNER') {
           typeLabel = 'Bank Transfer to Partner';
           entryType = 'TRANSFER_OUT';
@@ -1154,12 +1177,16 @@ export async function GET(req: Request) {
           entryType = 'BANK_WITHDRAWAL';
           title = bt.partner?.name ? `Withdrawn by ${bt.partner.name}` : 'Cash Withdrawal';
         } else if (bt.type === 'PAYMENT') {
-          typeLabel = bt.notes?.includes('Worker Payment:') ? 'Worker Payment' : 'Direct Vendor / Site Payment';
-          entryType = 'EXPENSE';
-          title = bt.notes || bt.reference || 'Bank Payment';
+          if (isWorkerPmt) {
+            typeLabel = 'Worker Payment from Bank';
+            entryType = 'WORKER_PAYMENT';
+            title = bt.notes || bt.reference || 'Worker Payment from Bank';
+          } else {
+            typeLabel = 'Direct Bank Payment';
+            entryType = 'EXPENSE';
+            title = bt.notes || bt.reference || 'Bank Payment';
+          }
         }
-
-        const isWorkerPmt = bt.notes?.includes('Worker Payment:') || bt.notes?.includes('Payment ID:');
 
         ledgerEntries.push({
           id: `bt-${bt.id}`,
@@ -1231,9 +1258,9 @@ export async function GET(req: Request) {
           let priorBankCredits = priorBReceipts._sum.amount || 0;
           let priorBankDebits = 0;
           priorBTxs.forEach((tx) => {
-            if (['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(tx.type)) {
+            if (['DEPOSIT', 'TRANSFER_FROM_PARTNER'].includes(tx.type)) {
               priorBankCredits += tx.amount;
-            } else {
+            } else if (tx.type !== 'RECEIPT') {
               priorBankDebits += tx.amount;
             }
           });
@@ -1279,10 +1306,311 @@ export async function GET(req: Request) {
           });
         }
       }
+    } else {
+      // Build Unified Organization Ledger for "All Partners & Owners" (partnerId === 'ALL')
+      const allReceiptsWhere: any = {
+        organizationId: orgId,
+        ...deleteFilter,
+      };
+      const allTransfersWhere: any = {
+        organizationId: orgId,
+        ...deleteFilter,
+      };
+      const allExpensesWhere: any = {
+        organizationId: orgId,
+        ...deleteFilter,
+      };
+      const allBankTxsWhere: any = {
+        organizationId: orgId,
+        ...deleteFilter,
+      };
+
+      if (hasDateFilter) {
+        allReceiptsWhere.date = dateFilter;
+        allTransfersWhere.date = dateFilter;
+        allExpensesWhere.date = dateFilter;
+        allBankTxsWhere.date = dateFilter;
+      }
+
+      const [orgReceipts, orgTransfers, orgExpenses, orgBankTxs] = await Promise.all([
+        prisma.projectReceipt.findMany({
+          where: allReceiptsWhere,
+          include: {
+            project: { select: { id: true, name: true, projectCode: true } },
+            site: { select: { id: true, name: true } },
+            receivedBy: { select: { id: true, name: true } },
+            bankAccount: { select: { id: true, name: true, bankName: true } },
+          },
+          orderBy: { date: 'desc' },
+        }),
+        prisma.fundTransfer.findMany({
+          where: allTransfersWhere,
+          include: {
+            fromUser: { select: { id: true, name: true, email: true } },
+            toUser: { select: { id: true, name: true, email: true } },
+            toWorker: { select: { id: true, name: true, workerCode: true } },
+            project: { select: { id: true, name: true } },
+            site: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+        }),
+        prisma.expense.findMany({
+          where: allExpensesWhere,
+          include: {
+            project: { select: { id: true, name: true } },
+            site: { select: { id: true, name: true } },
+            walletOwner: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+        }),
+        prisma.bankTransaction.findMany({
+          where: allBankTxsWhere,
+          include: {
+            bankAccount: { select: { id: true, name: true, bankName: true } },
+            partner: { select: { id: true, name: true } },
+            project: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+        }),
+      ]);
+
+      // 1. Receipts (Wallet + Bank)
+      orgReceipts.forEach((r) => {
+        const isInBank = r.receivedIn === 'BANK';
+        ledgerEntries.push({
+          id: `rcpt-${r.id}`,
+          rawId: r.id,
+          date: r.date.toISOString(),
+          type: 'RECEIPT',
+          entityType: 'ProjectReceipt',
+          model: 'ProjectReceipt',
+          categoryLabel: isInBank ? 'Client Payment in Bank' : 'Client Payment in Wallet',
+          title: r.clientName,
+          subtitle: `${r.receivedBy?.name ? `Received by ${r.receivedBy.name}` : ''}${isInBank ? ` • Bank: ${r.bankAccount?.bankName || 'Bank'}` : ' • Cash'}${r.project?.name ? ` • ${r.project.name}` : ''}`,
+          credit: r.amount,
+          debit: 0,
+          amount: r.amount,
+          paymentMethod: r.paymentMethod,
+          receivedIn: r.receivedIn || 'WALLET',
+          reference: r.reference,
+          notes: r.notes,
+          remarks: r.notes,
+          description: r.clientName,
+          category: r.purpose || 'RUNNING_BILL',
+          projectId: r.projectId,
+          siteId: r.siteId,
+          createdAt: r.createdAt.toISOString(),
+          isEdited: Boolean(r.isEdited),
+          editReason: r.editReason,
+          isDeleted: Boolean(r.deletedAt),
+          deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+          deleteReason: r.deleteReason,
+          receivedById: r.receivedById,
+        });
+      });
+
+      // 2. Fund Transfers (Transfers between partners & Worker Payments)
+      orgTransfers.forEach((t) => {
+        const isWorker = Boolean(t.toWorker || t.toWorkerId || t.linkedPaymentId);
+        if (isWorker) {
+          ledgerEntries.push({
+            id: `trout-${t.id}`,
+            rawId: t.id,
+            date: t.date.toISOString(),
+            type: 'WORKER_PAYMENT',
+            entityType: 'Payment',
+            model: 'FundTransfer',
+            isWorkerPayment: true,
+            workerId: t.toWorkerId,
+            workerName: t.toWorker?.name,
+            categoryLabel: `Worker Payment (${t.purpose || 'Labour'})`,
+            title: `Worker: ${t.toWorker?.name || 'Worker'}`,
+            subtitle: `Paid by ${t.fromUser?.name || 'Partner'}${t.project?.name ? ` • ${t.project.name}` : ''}`,
+            credit: 0,
+            debit: t.amount,
+            amount: t.amount,
+            paymentMethod: t.paymentMethod,
+            reference: t.reference,
+            notes: t.notes,
+            remarks: t.notes,
+            category: t.purpose,
+            projectId: t.projectId,
+            siteId: t.siteId,
+            createdAt: t.createdAt.toISOString(),
+            isEdited: Boolean(t.isEdited),
+            editReason: t.editReason,
+            isDeleted: Boolean(t.deletedAt),
+            deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
+            deleteReason: t.deleteReason,
+            fromUserId: t.fromUserId,
+            toWorkerId: t.toWorkerId,
+            linkedPaymentId: t.linkedPaymentId,
+          });
+        } else {
+          ledgerEntries.push({
+            id: `tr-${t.id}`,
+            rawId: t.id,
+            date: t.date.toISOString(),
+            type: 'TRANSFER',
+            entityType: 'FundTransfer',
+            model: 'FundTransfer',
+            isWorkerPayment: false,
+            categoryLabel: 'Partner Transfer',
+            title: `${t.fromUser?.name || 'Partner'} ➔ ${t.toUser?.name || 'Partner'}`,
+            subtitle: (t.purpose ? `${t.purpose}` : '') + (t.project?.name ? ` • ${t.project.name}` : ''),
+            credit: 0,
+            debit: 0,
+            amount: t.amount,
+            paymentMethod: t.paymentMethod,
+            reference: t.reference,
+            notes: t.notes,
+            remarks: t.notes,
+            category: t.purpose,
+            projectId: t.projectId,
+            siteId: t.siteId,
+            createdAt: t.createdAt.toISOString(),
+            isEdited: Boolean(t.isEdited),
+            editReason: t.editReason,
+            isDeleted: Boolean(t.deletedAt),
+            deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
+            deleteReason: t.deleteReason,
+            fromUserId: t.fromUserId,
+            toUserId: t.toUserId,
+          });
+        }
+      });
+
+      // 3. Site Expenses (wallet expenses, excluding bridge labour expenses)
+      orgExpenses.forEach((e) => {
+        const isLabourBridge = e.category === 'LABOUR' && Boolean(e.notes && e.notes.includes('Payment ID:'));
+        if (isLabourBridge) return; // skip bridge row
+
+        ledgerEntries.push({
+          id: `exp-${e.id}`,
+          rawId: e.id,
+          date: e.date.toISOString(),
+          type: 'EXPENSE',
+          entityType: 'Expense',
+          model: 'Expense',
+          isWorkerPayment: false,
+          categoryLabel: `Site Expense: ${formatCategoryLabel(e.category)}`,
+          title: e.description || e.notes || e.category,
+          subtitle: `${e.walletOwner?.name ? `Paid by ${e.walletOwner.name}` : ''}${e.project?.name ? ` • ${e.project.name}` : ''}`,
+          credit: 0,
+          debit: e.amount,
+          amount: e.amount,
+          paymentMethod: e.paymentMethod,
+          reference: e.vendorName || null,
+          notes: e.notes,
+          remarks: e.notes,
+          description: e.description,
+          category: e.category,
+          projectId: e.projectId,
+          siteId: e.siteId,
+          createdAt: e.createdAt.toISOString(),
+          isEdited: Boolean(e.isEdited),
+          editReason: e.editReason,
+          isDeleted: Boolean(e.deletedAt),
+          deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,
+          deleteReason: e.deleteReason,
+          walletOwnerId: e.walletOwnerId,
+          spentById: e.spentById,
+        });
+      });
+
+      // 4. Bank Transactions (deposits, withdrawals, payments - skip duplicate receipts already in orgReceipts)
+      const existingReceiptRefs = new Set(orgReceipts.map((r) => r.id));
+      orgReceipts.forEach((r) => { if (r.reference) existingReceiptRefs.add(r.reference); });
+
+      orgBankTxs.forEach((bt) => {
+        if (bt.type === 'RECEIPT' && (existingReceiptRefs.has(bt.reference || '') || bt.notes?.includes('Client Receipt:'))) {
+          return; // Skip duplicate bank receipt
+        }
+
+        const isWorkerPmt = bt.notes?.includes('Worker Payment:') || bt.notes?.includes('Payment ID:');
+        let entryType: 'RECEIPT' | 'TRANSFER' | 'BANK_WITHDRAWAL' | 'BANK_DEPOSIT' | 'EXPENSE' | 'WORKER_PAYMENT' = 'BANK_DEPOSIT';
+        let label = 'Bank Transaction';
+        let title = bt.bankAccount?.bankName || 'Bank';
+        let credit = 0;
+        let debit = 0;
+
+        if (bt.type === 'DEPOSIT') {
+          entryType = 'BANK_DEPOSIT';
+          label = 'Bank Cash Deposit';
+          title = `Cash Deposited to ${bt.bankAccount?.bankName || 'Bank'}`;
+          credit = bt.amount;
+        } else if (bt.type === 'TRANSFER_FROM_PARTNER') {
+          entryType = 'BANK_DEPOSIT';
+          label = 'Partner Deposited Cash';
+          title = `${bt.partner?.name || 'Partner'} ➔ Bank Deposit (${bt.bankAccount?.bankName || 'Bank'})`;
+          credit = bt.amount;
+        } else if (bt.type === 'TRANSFER_TO_PARTNER') {
+          entryType = 'BANK_WITHDRAWAL';
+          label = 'Bank Transfer to Partner';
+          title = `Bank ➔ Transfer to ${bt.partner?.name || 'Partner'}`;
+          debit = bt.amount;
+        } else if (bt.type === 'WITHDRAWAL') {
+          entryType = 'BANK_WITHDRAWAL';
+          label = 'Bank Cash Withdrawal';
+          title = `Withdrawn from ${bt.bankAccount?.bankName || 'Bank'}${bt.partner?.name ? ` by ${bt.partner.name}` : ''}`;
+          debit = bt.amount;
+        } else if (bt.type === 'PAYMENT') {
+          if (isWorkerPmt) {
+            entryType = 'WORKER_PAYMENT';
+            label = 'Worker Payment from Bank';
+            title = bt.notes || 'Worker Payment from Bank';
+            debit = bt.amount;
+          } else {
+            entryType = 'EXPENSE';
+            label = 'Direct Bank Site Payment';
+            title = bt.notes || bt.reference || 'Bank Site Expense';
+            debit = bt.amount;
+          }
+        } else if (bt.type === 'RECEIPT') {
+          entryType = 'RECEIPT';
+          label = 'Direct Bank Receipt';
+          title = bt.notes || 'Bank Receipt';
+          credit = bt.amount;
+        }
+
+        ledgerEntries.push({
+          id: `bt-${bt.id}`,
+          rawId: bt.id,
+          date: bt.date.toISOString(),
+          type: entryType,
+          entityType: isWorkerPmt ? 'Payment' : 'BankTransaction',
+          model: 'BankTransaction',
+          isWorkerPayment: isWorkerPmt,
+          categoryLabel: label,
+          title,
+          subtitle: `${bt.bankAccount?.bankName} (${bt.bankAccount?.name})${bt.project?.name ? ` • ${bt.project.name}` : ''}`,
+          credit,
+          debit,
+          amount: bt.amount,
+          paymentMethod: 'BANK',
+          reference: bt.reference,
+          notes: bt.notes,
+          remarks: bt.notes,
+          createdAt: bt.createdAt.toISOString(),
+          isEdited: Boolean(bt.isEdited),
+          editReason: bt.editReason,
+          isDeleted: Boolean(bt.deletedAt),
+          deletedAt: bt.deletedAt ? bt.deletedAt.toISOString() : null,
+          deleteReason: bt.deleteReason,
+          createdById: bt.createdById,
+          partnerId: bt.partnerId,
+        });
+      });
     }
 
-    // Sort chronologically ascending to compute running balances from starting balance
-    ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Sort chronologically: Opening Balance / Balance Brought Forward strictly first, then by date ascending
+    ledgerEntries.sort((a, b) => {
+      const isOpA = a.type === 'OPENING_BALANCE' || a.type === 'BALANCE_BROUGHT_FORWARD';
+      const isOpB = b.type === 'OPENING_BALANCE' || b.type === 'BALANCE_BROUGHT_FORWARD';
+      if (isOpA && !isOpB) return -1;
+      if (!isOpA && isOpB) return 1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
 
     let runningAccumulator = 0;
     for (const entry of ledgerEntries) {
@@ -1320,7 +1648,8 @@ export async function GET(req: Request) {
         entry.receivedById === session.userId ||
         entry.fromUserId === session.userId ||
         entry.walletOwnerId === session.userId ||
-        entry.spentById === session.userId;
+        entry.spentById === session.userId ||
+        entry.partnerId === session.userId;
       const ageMs = currentTimeMs - new Date(entry.createdAt || entry.date).getTime();
       const isWithin48h = ageMs <= 48 * 60 * 60 * 1000;
 
@@ -1416,6 +1745,9 @@ export async function GET(req: Request) {
           bankName: acc.bankName,
           accountLast4: acc.accountLast4 || '',
           balance: calc.balance,
+          openingBalance: acc.openingBalance || 0,
+          openingBalanceDate: acc.openingBalanceDate ? acc.openingBalanceDate.toISOString() : null,
+          openingBalanceNote: acc.openingBalanceNote || null,
         };
       })
     );
@@ -1449,7 +1781,7 @@ export async function GET(req: Request) {
     const [periodBankTxs, periodBankReceipts] = await Promise.all([
       prisma.bankTransaction.findMany({
         where: bankTxSummaryWhere,
-        select: { type: true, amount: true },
+        select: { type: true, amount: true, notes: true },
       }),
       prisma.projectReceipt.aggregate({
         where: bankReceiptSummaryWhere,
@@ -1463,8 +1795,12 @@ export async function GET(req: Request) {
     let bankPeriodPayments = 0;
 
     periodBankTxs.forEach((tx) => {
-      if (['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(tx.type)) {
+      if (['DEPOSIT', 'TRANSFER_FROM_PARTNER'].includes(tx.type)) {
         bankPeriodInflow += tx.amount;
+      } else if (tx.type === 'RECEIPT') {
+        if (!tx.notes?.includes('Client Receipt:')) {
+          bankPeriodInflow += tx.amount;
+        }
       } else if (tx.type === 'TRANSFER_TO_PARTNER') {
         bankPeriodToPartner += tx.amount;
       } else if (tx.type === 'WITHDRAWAL') {
