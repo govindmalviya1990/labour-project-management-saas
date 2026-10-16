@@ -30,8 +30,8 @@ export async function GET(req: Request) {
     const dateFilter =
       startDate && endDate
         ? {
-            gte: new Date(`${startDate}T00:00:00.000Z`),
-            lte: new Date(`${endDate}T23:59:59.999Z`),
+            gte: new Date(`${startDate}T00:00:00.000+05:30`),
+            lte: new Date(`${endDate}T23:59:59.999+05:30`),
           }
         : undefined;
 
@@ -45,6 +45,14 @@ export async function GET(req: Request) {
         attendance: {
           where: {
             organizationId: orgId,
+            deletedAt: null,
+            ...(dateFilter ? { date: dateFilter } : {}),
+            ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+          },
+        },
+        workRecords: {
+          where: {
+            organizationId: orgId,
             ...(dateFilter ? { date: dateFilter } : {}),
             ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
           },
@@ -52,12 +60,14 @@ export async function GET(req: Request) {
         allowances: {
           where: {
             organizationId: orgId,
+            deletedAt: null,
             ...(dateFilter ? { date: dateFilter } : {}),
           },
         },
         payments: {
           where: {
             organizationId: orgId,
+            deletedAt: null,
             ...(dateFilter ? { date: dateFilter } : {}),
           },
         },
@@ -65,14 +75,83 @@ export async function GET(req: Request) {
       orderBy: { name: 'asc' },
     });
 
+    const pAtt = new Map<string, number>();
+    const pAllow = new Map<string, number>();
+    const pPay = new Map<string, number>();
+    const pWork = new Map<string, number>();
+
+    if (dateFilter) {
+      const workerIds = workers.map((w) => w.id);
+      const [priorAtt, priorAllow, priorPay, priorWork] = await Promise.all([
+        prisma.attendance.groupBy({
+          by: ['workerId'],
+          where: {
+            workerId: { in: workerIds },
+            organizationId: orgId,
+            deletedAt: null,
+            date: { lt: dateFilter.gte },
+          },
+          _sum: { wageForDay: true },
+        }),
+        prisma.allowance.groupBy({
+          by: ['workerId'],
+          where: {
+            workerId: { in: workerIds },
+            organizationId: orgId,
+            deletedAt: null,
+            date: { lt: dateFilter.gte },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.payment.groupBy({
+          by: ['workerId'],
+          where: {
+            workerId: { in: workerIds },
+            organizationId: orgId,
+            deletedAt: null,
+            date: { lt: dateFilter.gte },
+            transactionType: { in: ['SALARY', 'PAYMENT', 'FINAL_SETTLEMENT', 'ADVANCE'] },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.workRecord.groupBy({
+          by: ['workerId'],
+          where: {
+            workerId: { in: workerIds },
+            organizationId: orgId,
+            date: { lt: dateFilter.gte },
+          },
+          _sum: { totalWorkValue: true },
+        }),
+      ]);
+
+      priorAtt.forEach((r) => pAtt.set(r.workerId, r._sum.wageForDay || 0));
+      priorAllow.forEach((r) => pAllow.set(r.workerId, r._sum.amount || 0));
+      priorPay.forEach((r) => pPay.set(r.workerId, r._sum.amount || 0));
+      priorWork.forEach((r) => pWork.set(r.workerId, r._sum.totalWorkValue || 0));
+    }
+
     const calculatedWorkers = workers.map((w) => {
       const regularDays = w.attendance.filter((a) => a.status === 'PRESENT').length;
       const halfDays = w.attendance.filter((a) => a.status === 'HALF_DAY').length;
       const otDays = w.attendance.filter((a) => a.status === 'OVERTIME').length;
       const totalOTHours = w.attendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
-      const earnedWages = w.attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+
+      const attendanceWages = w.attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+      const pieceRateWages = w.workRecords.reduce((sum, r) => sum + (r.totalWorkValue || 0), 0);
+      const earnedWages = attendanceWages + pieceRateWages;
       const allowances = w.allowances.reduce((sum, al) => sum + al.amount, 0);
       const grossSalary = earnedWages + allowances;
+
+      const previousBalance = Math.round(
+        (((w as any).openingBalance || 0) +
+          (pAtt.get(w.id) || 0) +
+          (pWork.get(w.id) || 0) +
+          (pAllow.get(w.id) || 0) -
+          (pPay.get(w.id) || 0)) *
+          100
+      ) / 100;
+
       const advances = w.payments
         .filter((p) => p.transactionType === 'ADVANCE')
         .reduce((sum, p) => sum + p.amount, 0);
@@ -85,18 +164,21 @@ export async function GET(req: Request) {
         )
         .reduce((sum, p) => sum + p.amount, 0);
 
-      const netPayable = Math.max(0, grossSalary - advances - payments);
-      const advanceDue = Math.max(0, advances + payments - grossSalary);
+      const balance = Math.round((previousBalance + grossSalary - advances - payments) * 100) / 100;
+      const netPayable = Math.max(0, balance);
+      const advanceDue = Math.max(0, -balance);
 
       let status = 'PENDING';
-      if (grossSalary === 0 && advances === 0 && payments === 0) {
+      if (grossSalary === 0 && advances === 0 && payments === 0 && previousBalance === 0) {
         status = 'NO_ACTIVITY';
-      } else if (netPayable === 0 && advanceDue === 0) {
+      } else if (balance === 0) {
         status = 'PAID';
       } else if (advanceDue > 0) {
         status = 'ADVANCE_DUE';
-      } else if (payments > 0) {
+      } else if (payments + advances > 0) {
         status = 'PARTIAL';
+      } else {
+        status = 'PENDING';
       }
 
       return {
@@ -112,11 +194,15 @@ export async function GET(req: Request) {
         otDays,
         daysWorked: regularDays + otDays + halfDays * 0.5,
         totalOTHours,
+        attendanceWages,
+        pieceRateWages,
         earnedWages,
         allowances,
+        previousBalance,
         grossSalary,
         advances,
         payments,
+        balance,
         netPayable,
         advanceDue,
         status,
@@ -125,12 +211,14 @@ export async function GET(req: Request) {
 
     const summary = {
       totalWorkers: calculatedWorkers.length,
+      totalPreviousBalance: calculatedWorkers.reduce((acc, curr) => acc + curr.previousBalance, 0),
       totalEarnedWages: calculatedWorkers.reduce((acc, curr) => acc + curr.earnedWages, 0),
       totalAllowances: calculatedWorkers.reduce((acc, curr) => acc + curr.allowances, 0),
       totalGrossSalary: calculatedWorkers.reduce((acc, curr) => acc + curr.grossSalary, 0),
       totalAdvances: calculatedWorkers.reduce((acc, curr) => acc + curr.advances, 0),
       totalPaid: calculatedWorkers.reduce((acc, curr) => acc + curr.payments, 0),
       totalOutstandingPayable: calculatedWorkers.reduce((acc, curr) => acc + curr.netPayable, 0),
+      totalAdvanceDue: calculatedWorkers.reduce((acc, curr) => acc + curr.advanceDue, 0),
     };
 
     return NextResponse.json({

@@ -143,6 +143,7 @@ export default function SalaryPayrollPage() {
       'Daily Wage',
       'Days Worked',
       'OT Hours',
+      'Previous Dues',
       'Wages Earned',
       'Allowances',
       'Gross Wages',
@@ -159,6 +160,7 @@ export default function SalaryPayrollPage() {
       w.dailyWage,
       w.daysWorked,
       w.totalOTHours,
+      w.previousBalance,
       w.earnedWages,
       w.allowances,
       w.grossSalary,
@@ -340,10 +342,25 @@ export default function SalaryPayrollPage() {
 
       {/* Summary KPI Cards */}
       {data?.summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
           <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
             <p className="text-[11px] text-slate-400 font-medium">Total Workers</p>
             <p className="text-lg font-bold text-white mt-1">{data.summary.totalWorkers}</p>
+          </div>
+          <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+            <p className="text-[11px] text-slate-400 font-medium">Previous Dues</p>
+            <p
+              className={`text-lg font-bold mt-1 font-mono ${
+                (data.summary.totalPreviousBalance || 0) > 0
+                  ? 'text-amber-400'
+                  : (data.summary.totalPreviousBalance || 0) < 0
+                  ? 'text-rose-400'
+                  : 'text-slate-300'
+              }`}
+            >
+              {(data.summary.totalPreviousBalance || 0) < 0 ? '-' : ''}
+              {formatINR(Math.abs(data.summary.totalPreviousBalance || 0))}
+            </p>
           </div>
           <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
             <p className="text-[11px] text-slate-400 font-medium">Wages Earned</p>
@@ -388,6 +405,7 @@ export default function SalaryPayrollPage() {
               <tr>
                 <th className="py-3 px-4">Worker</th>
                 <th className="py-3 px-3 text-center">Turnout (Days)</th>
+                <th className="py-3 px-3 text-right">Previous Dues</th>
                 <th className="py-3 px-3 text-right">Earned Wages</th>
                 <th className="py-3 px-3 text-right text-emerald-400">+ Allowances</th>
                 <th className="py-3 px-3 text-right text-rose-400">- Advances</th>
@@ -418,6 +436,16 @@ export default function SalaryPayrollPage() {
                         <span className="block text-[10px] text-amber-400 font-mono">
                           +{w.totalOTHours}h OT
                         </span>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-3 text-right font-mono font-medium">
+                      {w.previousBalance > 0 ? (
+                        <span className="text-amber-400">{formatINR(w.previousBalance)} due</span>
+                      ) : w.previousBalance < 0 ? (
+                        <span className="text-rose-400">{formatINR(Math.abs(w.previousBalance))} advance</span>
+                      ) : (
+                        <span className="text-slate-500">—</span>
                       )}
                     </td>
 
@@ -497,7 +525,7 @@ export default function SalaryPayrollPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                     <p className="text-sm font-medium">No workers found for the selected month/filters.</p>
                     <p className="text-xs text-slate-500 mt-1">

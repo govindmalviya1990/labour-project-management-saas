@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { signJWT } from '@/lib/auth/jwt';
 import { AUTH_COOKIE_NAME } from '@/lib/auth/session';
 import { recordLogin } from '@/lib/audit/auditLogger';
+import { computeWorkerBalance } from '@/lib/workerBalance';
 
 export const dynamic = 'force-dynamic';
 
@@ -238,14 +239,22 @@ export async function POST(req: Request) {
       totalAllowances += al.amount || 0;
     });
 
-    const totalReceived = totalPaid + totalAdvances;
     const baseDailyWageTotal =
       attendanceWages > 0
         ? attendanceWages
         : totalDaysWorked * (worker.dailyWage || 0);
 
-    const totalEarned = baseDailyWageTotal + workRecordWages + totalAllowances;
-    const remainingPayable = totalEarned - totalReceived;
+    const balanceTotals = computeWorkerBalance({
+      openingBalance: (worker as any).openingBalance || 0,
+      attendanceWages: baseDailyWageTotal,
+      pieceRateWages: workRecordWages,
+      allowances: totalAllowances,
+      advances: totalAdvances,
+      payments: totalPaid,
+    });
+    const totalEarned = balanceTotals.grossCredits;
+    const totalReceived = balanceTotals.totalDebits;
+    const remainingPayable = balanceTotals.remainingPayable;
 
     // Distinct sites and locations
     const sitesMap = new Map();
@@ -305,11 +314,13 @@ export async function POST(req: Request) {
         attendanceWages,
         workRecordWages,
         totalAllowances,
+        openingBalance: balanceTotals.openingBalance,
         totalEarned,
         totalPaid,
         totalAdvances,
         totalReceived,
         remainingPayable,
+        paymentStatus: balanceTotals.paymentStatus,
       },
       attendance: worker.attendance.map((att) => ({
         id: att.id,

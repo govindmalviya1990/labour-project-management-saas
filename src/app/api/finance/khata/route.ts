@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
-import { calculateWorkerBalance } from '@/lib/calculations';
+import { computeWorkerBalance } from '@/lib/workerBalance';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +84,21 @@ export async function GET(req: Request) {
       },
     });
 
+    // 2b. Fetch Piece-Rate Work Records (Credits)
+    const workRecords = await prisma.workRecord.findMany({
+      where: {
+        workerId,
+        organizationId: orgId,
+        totalWorkValue: { gt: 0 },
+        ...(projectId && projectId !== 'ALL' ? { projectId } : {}),
+        ...(startDateStr || endDateStr ? { date: dateFilter } : {}),
+      },
+      include: {
+        project: { select: { name: true } },
+        site: { select: { name: true } },
+      },
+    });
+
     // 3. Fetch Payments & Advances (Debits)
     const payments = await prisma.payment.findMany({
       where: {
@@ -133,6 +148,21 @@ export async function GET(req: Request) {
       });
     });
 
+    // Map Piece-Rate Work Records to Credit
+    workRecords.forEach((wr) => {
+      lineItems.push({
+        id: `wr-${wr.id}`,
+        date: new Date(wr.date),
+        type: 'SALARY',
+        description: `Piece-Rate Work: ${wr.task || 'Work Record'}${wr.description ? ` (${wr.description})` : ''} (${wr.quantity} ${wr.unit || 'units'} @ ₹${wr.rate})`,
+        project: wr.project?.name,
+        site: wr.site?.name,
+        debit: 0,
+        credit: wr.totalWorkValue,
+        balance: 0,
+      });
+    });
+
     // Map Allowances to Credit
     allowances.forEach((alw) => {
       lineItems.push({
@@ -168,6 +198,20 @@ export async function GET(req: Request) {
       });
     });
 
+    // Opening balance entry if non-zero
+    const openingBal = Math.round(Number((worker as any).openingBalance || 0) * 100) / 100;
+    if (openingBal !== 0) {
+      lineItems.push({
+        id: `opening-${worker.id}`,
+        date: new Date(worker.createdAt),
+        type: openingBal >= 0 ? 'SALARY' : 'ADVANCE',
+        description: 'Opening Balance Carried Forward',
+        debit: openingBal < 0 ? Math.abs(openingBal) : 0,
+        credit: openingBal > 0 ? openingBal : 0,
+        balance: 0,
+      });
+    }
+
     // Sort chronologically ascending to compute running balance
     lineItems.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -178,7 +222,9 @@ export async function GET(req: Request) {
     });
 
     // Totals for Worker Summary
-    const totalEarnedSalary = attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+    const totalAttendanceWages = attendance.reduce((sum, a) => sum + (a.wageForDay || 0), 0);
+    const totalPieceRateWages = workRecords.reduce((sum, r) => sum + (r.totalWorkValue || 0), 0);
+    const totalEarnedSalary = totalAttendanceWages + totalPieceRateWages;
     const totalAllowances = allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
     const totalAdvances = payments
       .filter((p) => p.transactionType === 'ADVANCE')
@@ -187,11 +233,13 @@ export async function GET(req: Request) {
       .filter((p) => p.transactionType !== 'ADVANCE')
       .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-    const summary = calculateWorkerBalance({
-      totalEarnedSalary,
-      totalAllowances,
-      totalAdvances,
-      totalPayments,
+    const summary = computeWorkerBalance({
+      openingBalance: openingBal,
+      attendanceWages: totalAttendanceWages,
+      pieceRateWages: totalPieceRateWages,
+      allowances: totalAllowances,
+      advances: totalAdvances,
+      payments: totalPayments,
     });
 
     return NextResponse.json({
@@ -204,13 +252,14 @@ export async function GET(req: Request) {
         mobile: worker.mobile,
       },
       summary: {
+        openingBalance: summary.openingBalance,
         totalEarned: totalEarnedSalary,
         totalAllowances,
         totalAdvances,
         totalPaid: totalPayments,
         remainingPayable: summary.remainingPayable,
         paymentStatus: summary.paymentStatus,
-        totalCredits: summary.totalCredits,
+        totalCredits: summary.grossCredits,
         totalDebits: summary.totalDebits,
       },
       ledger: lineItems.reverse(),

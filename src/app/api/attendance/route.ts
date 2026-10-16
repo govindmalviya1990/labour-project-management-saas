@@ -167,6 +167,24 @@ export async function POST(req: Request) {
 
     const { date: dateStr, projectId, siteId, records } = validated.data;
 
+    // Defense-in-depth: Reject future dates (IST) and excessive overtime (>16h)
+    const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const todayIST = nowIST.toISOString().split('T')[0];
+    if (dateStr > todayIST) {
+      return NextResponse.json(
+        { error: `Attendance date (${dateStr}) cannot be in the future (today is ${todayIST} IST)` },
+        { status: 400 }
+      );
+    }
+
+    const invalidOT = records.find((r) => (r.overtimeHours || 0) > 16);
+    if (invalidOT) {
+      return NextResponse.json(
+        { error: `Overtime hours cannot exceed 16 hours per day (received ${invalidOT.overtimeHours}h)` },
+        { status: 400 }
+      );
+    }
+
     // Verify project exists in tenant
     const project = await prisma.project.findFirst({
       where: { id: projectId, organizationId: orgId, deletedAt: null },

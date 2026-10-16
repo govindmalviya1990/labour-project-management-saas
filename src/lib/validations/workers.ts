@@ -36,12 +36,29 @@ export const attendanceItemSchema = z.object({
   workerId: z.string().min(1),
   status: attendanceStatusEnum.default('PRESENT'),
   shift: z.string().default('DAY'),
-  overtimeHours: z.number().min(0).default(0),
+  overtimeHours: z
+    .number()
+    .min(0, 'Overtime hours cannot be negative')
+    .max(16, 'Overtime hours cannot exceed 16 hours per day')
+    .default(0),
   notes: z.string().optional(),
 });
 
 export const saveAttendanceSheetSchema = z.object({
-  date: z.string().min(10, 'Valid date is required (YYYY-MM-DD)'),
+  date: z
+    .string()
+    .min(10, 'Valid date is required (YYYY-MM-DD)')
+    .refine(
+      (val) => {
+        // Enforce date <= today in IST (UTC+5:30)
+        const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+        const todayIST = nowIST.toISOString().split('T')[0];
+        return val <= todayIST;
+      },
+      {
+        message: 'Attendance date cannot be in the future (IST)',
+      }
+    ),
   projectId: z.string().min(1, 'Project is required'),
   siteId: z.string().optional().nullable(),
   records: z.array(attendanceItemSchema),
