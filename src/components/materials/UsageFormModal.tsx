@@ -4,7 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Send, AlertCircle, AlertTriangle, CheckCircle2, Truck } from 'lucide-react';
+import {
+  Send,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Truck,
+  Building2,
+  MapPin,
+  User,
+  Phone,
+  Calendar,
+  FileText,
+} from 'lucide-react';
 
 interface UsageFormModalProps {
   isOpen: boolean;
@@ -29,11 +41,15 @@ export function UsageFormModal({
 
   const [formData, setFormData] = useState({
     projectId: initialData?.projectId || defaultProjectId || '',
+    siteId: initialData?.siteId || '',
+    locationDetail: '',
+    receiverSupervisor: '',
+    receiverMobile: '',
     materialId: initialData?.materialId || defaultMaterialId || '',
     date: initialData?.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
     quantity: initialData?.quantity !== undefined ? initialData.quantity : 0,
-    taskPurpose: initialData?.taskPurpose || '',
-    notes: initialData?.notes || '',
+    vehicleDetails: '',
+    notes: '',
   });
 
   const [error, setError] = useState('');
@@ -47,31 +63,65 @@ export function UsageFormModal({
           fetch('/api/materials'),
         ]);
 
+        let loadedProjects: any[] = [];
         if (projRes.ok) {
           const p = await projRes.json();
-          setProjects(p.projects || []);
-          if (!formData.projectId && p.projects?.length > 0) {
-            setFormData((prev) => ({ ...prev, projectId: p.projects[0].id }));
-          }
+          loadedProjects = p.projects || [];
+          setProjects(loadedProjects);
         }
+
         if (matRes.ok) {
           const m = await matRes.json();
           const mats = m.materials || [];
           setMaterials(mats);
           if (!formData.materialId && mats.length > 0) {
-            setFormData((prev) => ({ ...prev, materialId: mats[0].id }));
+            setFormData((prev) => ({ ...prev, materialId: defaultMaterialId || mats[0].id }));
           }
         }
 
         if (initialData) {
+          const rawNotes = initialData.notes || '';
+          const supMatch =
+            rawNotes.match(/Receiver Supervisor:\s*([^|]+)/i) ||
+            rawNotes.match(/RECEIVER_SUPERVISOR:\s*([^|]+)/i) ||
+            rawNotes.match(/DISPATCH_TO_SUPERVISOR:\s*([^|]+)/i) ||
+            rawNotes.match(/VERIFIED_BY:\s*([^|]+)/i);
+          const locMatch =
+            rawNotes.match(/Location\/Site:\s*([^|]+)/i) ||
+            rawNotes.match(/LOCATION:\s*([^|]+)/i);
+          const mobMatch =
+            rawNotes.match(/Mobile:\s*([^|]+)/i) ||
+            rawNotes.match(/MOBILE:\s*([^|]+)/i);
+          const vehMatch =
+            rawNotes.match(/Vehicle\/Challan:\s*([^|]+)/i) ||
+            rawNotes.match(/VEHICLE:\s*([^|]+)/i);
+
           setFormData({
             projectId: initialData.projectId || '',
+            siteId: initialData.siteId || '',
+            locationDetail: locMatch ? locMatch[1].trim() : (initialData.site?.name || ''),
+            receiverSupervisor: supMatch ? supMatch[1].trim() : '',
+            receiverMobile: mobMatch ? mobMatch[1].trim() : '',
             materialId: initialData.materialId || '',
             date: initialData.date ? new Date(initialData.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             quantity: initialData.quantity !== undefined ? initialData.quantity : 0,
-            taskPurpose: initialData.taskPurpose || '',
-            notes: initialData.notes || '',
+            vehicleDetails: vehMatch
+              ? vehMatch[1].trim()
+              : initialData.taskPurpose !== 'PENDING' && initialData.taskPurpose !== 'APPROVED'
+              ? initialData.taskPurpose
+              : '',
+            notes: rawNotes.replace(/\[[^\]]+\]/g, '').replace(/Receiver Supervisor:[^|]+/i, '').replace(/Location\/Site:[^|]+/i, '').replace(/Mobile:[^|]+/i, '').replace(/Vehicle\/Challan:[^|]+/i, '').replace(/Remarks:/i, '').replace(/\|/g, '').trim(),
           });
+        } else if (loadedProjects.length > 0 && !formData.projectId) {
+          const targetProj = loadedProjects.find((x) => x.id === defaultProjectId) || loadedProjects[0];
+          const firstSite = targetProj?.sites && targetProj.sites.length > 0 ? targetProj.sites[0] : null;
+          setFormData((prev) => ({
+            ...prev,
+            projectId: targetProj.id,
+            siteId: firstSite ? firstSite.id : '',
+            locationDetail: targetProj.location || '',
+            receiverSupervisor: firstSite?.supervisorName || '',
+          }));
         }
       } catch (e) {
         console.error('Failed to load usage form dependencies:', e);
@@ -97,6 +147,28 @@ export function UsageFormModal({
   const selectedMaterial = materials.find((m) => m.id === formData.materialId);
   const selectedProject = projects.find((p) => p.id === formData.projectId);
 
+  const handleProjectChange = (projId: string) => {
+    const p = projects.find((x) => x.id === projId);
+    const firstSite = p?.sites && p.sites.length > 0 ? p.sites[0] : null;
+    setFormData((prev) => ({
+      ...prev,
+      projectId: projId,
+      siteId: firstSite ? firstSite.id : '',
+      locationDetail: p?.location || '',
+      receiverSupervisor: firstSite?.supervisorName || prev.receiverSupervisor || '',
+    }));
+  };
+
+  const handleSiteChange = (sId: string) => {
+    const site = selectedProject?.sites?.find((s: any) => s.id === sId);
+    setFormData((prev) => ({
+      ...prev,
+      siteId: sId,
+      receiverSupervisor: site?.supervisorName || prev.receiverSupervisor,
+      locationDetail: site?.name || prev.locationDetail,
+    }));
+  };
+
   const isStockInsufficient =
     availableStock !== null && Number(formData.quantity) > availableStock;
 
@@ -105,11 +177,15 @@ export function UsageFormModal({
     setError('');
 
     if (!formData.projectId) {
-      setError('Please select destination construction site/project');
+      setError('Please select destination construction site / project');
+      return;
+    }
+    if (!formData.receiverSupervisor.trim()) {
+      setError('Receiver Supervisor Name is required (माल किस सुपरवाइजर को सौंपा जा रहा है उनका नाम दर्ज करें)');
       return;
     }
     if (!formData.materialId) {
-      setError('Please select a material');
+      setError('Please select a material to dispatch');
       return;
     }
     if (!formData.quantity || formData.quantity <= 0) {
@@ -133,16 +209,27 @@ export function UsageFormModal({
       const url = initialData ? `/api/materials/usage/${initialData.id}` : '/api/materials/usage';
       const method = initialData ? 'PUT' : 'POST';
 
+      const structuredNotes = [
+        `Receiver Supervisor: ${formData.receiverSupervisor.trim()}`,
+        formData.receiverMobile ? `Mobile: ${formData.receiverMobile.trim()}` : null,
+        formData.locationDetail ? `Location/Site: ${formData.locationDetail.trim()}` : null,
+        formData.vehicleDetails ? `Vehicle/Challan: ${formData.vehicleDetails.trim()}` : null,
+        formData.notes ? `Remarks: ${formData.notes.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId: formData.projectId,
+          siteId: formData.siteId || null,
           materialId: formData.materialId,
           date: formData.date,
           quantity: Number(formData.quantity),
-          taskPurpose: formData.taskPurpose || 'PENDING',
-          notes: formData.notes || null,
+          taskPurpose: formData.vehicleDetails ? formData.vehicleDetails.trim() : 'PENDING',
+          notes: structuredNotes,
         }),
       });
 
@@ -167,8 +254,8 @@ export function UsageFormModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? 'Edit Send Material Record' : 'Send Material to Site'}
-      description="Dispatch material from company godown stock to construction project site. Dispatched stock is deducted from total company inventory."
+      title={initialData ? 'Edit Material Dispatch Record' : 'Send Material to Site (कंपनी से साइट पर माल भेजें)'}
+      description="Dispatch material from company godown to construction project site. Dispatched stock is deducted from total company inventory."
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -179,26 +266,132 @@ export function UsageFormModal({
           </div>
         )}
 
+        {/* 1. DESTINATION SITE & SUPERVISOR LOCATION */}
+        <div className="p-3.5 bg-slate-900/90 border border-sky-500/30 rounded-xl space-y-3 shadow-inner">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-sky-400" />
+              <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+                1. Destination Construction Site &amp; Receiver Details
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500">माल किस साइट और किस सुपरवाइजर को जा रहा है</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                Destination Site / Project *
+              </label>
+              <select
+                value={formData.projectId}
+                onChange={(e) => handleProjectChange(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                required
+              >
+                <option value="">-- Select Destination Site --</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.projectCode}) {p.location ? `— ${p.location}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                Sub-Site / Wing / Floor Location *
+              </label>
+              {selectedProject?.sites && selectedProject.sites.length > 0 ? (
+                <div className="space-y-1.5">
+                  <select
+                    value={formData.siteId}
+                    onChange={(e) => handleSiteChange(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-slate-100 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="">-- Main Site / Default Yard --</option>
+                    {selectedProject.sites.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.supervisorName ? `(Supervisor: ${s.supervisorName})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    value={formData.locationDetail}
+                    onChange={(e) => setFormData({ ...formData, locationDetail: e.target.value })}
+                    placeholder="Exact location (e.g. Tower A, 3rd Floor, Stock Yard)"
+                    className="h-8 text-xs bg-slate-950"
+                  />
+                </div>
+              ) : (
+                <Input
+                  value={formData.locationDetail}
+                  onChange={(e) => setFormData({ ...formData, locationDetail: e.target.value })}
+                  placeholder="e.g. Tower B, Plot 42, Main Gate Godown"
+                  className="h-9 text-sm bg-slate-950"
+                  required
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                Receiver Site Supervisor Name *
+              </label>
+              <Input
+                value={formData.receiverSupervisor}
+                onChange={(e) => setFormData({ ...formData, receiverSupervisor: e.target.value })}
+                placeholder="e.g. Ramesh Patel (Site In-charge)"
+                className="h-9 text-sm bg-slate-950"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5 text-teal-400" />
+                Receiver Supervisor Mobile (Optional)
+              </label>
+              <Input
+                value={formData.receiverMobile}
+                onChange={(e) => setFormData({ ...formData, receiverMobile: e.target.value })}
+                placeholder="e.g. 9876543210"
+                className="h-9 text-sm bg-slate-950"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. MATERIAL TO SEND & QUANTITY */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Destination Site / Project *
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5 text-amber-400" />
+              Material to Send *
             </label>
             <select
-              value={formData.projectId}
-              onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+              value={formData.materialId}
+              onChange={(e) => setFormData({ ...formData, materialId: e.target.value })}
               className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               required
             >
-              <option value="">-- Select Destination Site --</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.projectCode})</option>
+              <option value="">-- Select Material --</option>
+              {materials.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.materialCode}) — [Godown: {m.remainingStock} {m.unit}]
+                </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-sky-400" />
               Dispatch Date *
             </label>
             <Input
@@ -210,36 +403,19 @@ export function UsageFormModal({
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Material to Send *
-          </label>
-          <select
-            value={formData.materialId}
-            onChange={(e) => setFormData({ ...formData, materialId: e.target.value })}
-            className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-            required
-          >
-            <option value="">-- Select Material --</option>
-            {materials.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.materialCode}) — [Available in Godown: {m.remainingStock} {m.unit}]
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Live Company Stock Status Badge */}
+        {/* Live Company Godown Stock Status Badge */}
         {selectedMaterial && (
-          <div className={`p-3 rounded-lg border flex items-center justify-between text-sm ${
-            availableStock === null
-              ? 'bg-slate-900/50 border-slate-800 text-slate-400'
-              : availableStock <= 0
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-              : availableStock < 20
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-          }`}>
+          <div
+            className={`p-3 rounded-lg border flex items-center justify-between text-sm ${
+              availableStock === null
+                ? 'bg-slate-900/50 border-slate-800 text-slate-400'
+                : availableStock <= 0
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                : availableStock < 20
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+            }`}
+          >
             <div className="flex items-center gap-2">
               {availableStock && availableStock > 0 ? (
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -283,21 +459,22 @@ export function UsageFormModal({
               Vehicle / Challan / Delivery Ref
             </label>
             <Input
-              value={formData.taskPurpose === 'PENDING' ? '' : formData.taskPurpose}
-              onChange={(e) => setFormData({ ...formData, taskPurpose: e.target.value })}
+              value={formData.vehicleDetails}
+              onChange={(e) => setFormData({ ...formData, vehicleDetails: e.target.value })}
               placeholder="e.g. Truck RJ14-1234, Challan #402, Driver Ramesh"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-slate-400" />
             Dispatch Instructions / Notes for Site Supervisor
           </label>
           <textarea
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Any specific instructions for supervisor verifying at site..."
+            placeholder="Special storage instructions, gate entry details, remarks..."
             rows={2}
             className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           />

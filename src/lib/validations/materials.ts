@@ -77,7 +77,9 @@ export const createMaterialUsageSchema = z.object({
 export const createMaterialTransferSchema = z.object({
   materialId: z.string().min(1, 'Material is required'),
   sourceProjectId: z.string().min(1, 'Source project is required'),
+  sourceSiteId: z.string().optional().nullable(),
   destinationProjectId: z.string().min(1, 'Destination project is required'),
+  destinationSiteId: z.string().optional().nullable(),
   date: z.string().min(10, 'Valid date is required'),
   quantity: z.number().min(0.01, 'Quantity must be greater than 0'),
   notes: z.string().optional().nullable(),

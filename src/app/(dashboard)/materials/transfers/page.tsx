@@ -2,9 +2,36 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft, Plus, ArrowLeft, Search, Info, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Plus, ArrowLeft, Search, Info, Trash2, MapPin, User } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { TransferFormModal } from '@/components/materials/TransferFormModal';
+
+function parseDispatchNotes(notes?: string | null) {
+  if (!notes) return { supervisor: null, location: null, vehicle: null, remarks: null };
+  const supMatch = notes.match(/Receiver Supervisor:\s*([^|]+)/i) || notes.match(/TO_SUPERVISOR:\s*([^|]+)/i) || notes.match(/RECEIVER_SUPERVISOR:\s*([^|]+)/i);
+  const locMatch = notes.match(/Location\/Site:\s*([^|]+)/i) || notes.match(/DESTLOC:\s*([^|]+)/i) || notes.match(/LOCATION:\s*([^|]+)/i);
+  const vehMatch = notes.match(/Vehicle\/Challan:\s*([^|]+)/i) || notes.match(/Vehicle:\s*([^|]+)/i) || notes.match(/VEHICLE:\s*([^|]+)/i);
+  const remMatch = notes.match(/Remarks:\s*([^|]+)/i);
+  const cleanRem = remMatch
+    ? remMatch[1].trim()
+    : notes
+        .replace(/\[[^\]]+\]/g, '')
+        .replace(/Receiver Supervisor:[^|]+/i, '')
+        .replace(/Location\/Site:[^|]+/i, '')
+        .replace(/Mobile:[^|]+/i, '')
+        .replace(/Vehicle\/Challan:[^|]+/i, '')
+        .replace(/Vehicle:[^|]+/i, '')
+        .replace(/Remarks:/i, '')
+        .replace(/\|/g, '')
+        .trim();
+
+  return {
+    supervisor: supMatch ? supMatch[1].trim() : null,
+    location: locMatch ? locMatch[1].trim() : null,
+    vehicle: vehMatch ? vehMatch[1].trim() : null,
+    remarks: cleanRem || null,
+  };
+}
 
 export default function MaterialTransfersPage() {
   const [transfers, setTransfers] = useState<any[]>([]);
@@ -146,10 +173,10 @@ export default function MaterialTransfersPage() {
               <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-3">Material</th>
-                <th className="py-3 px-3">Source Project (From)</th>
-                <th className="py-3 px-3">Destination Project (To)</th>
+                <th className="py-3 px-3">Source Site (From)</th>
+                <th className="py-3 px-3">Destination Site &amp; Receiver (To)</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-200">Quantity Transferred</th>
-                <th className="py-3 px-4">Transfer Notes</th>
+                <th className="py-3 px-4">Vehicle &amp; Notes</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -167,31 +194,58 @@ export default function MaterialTransfersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredTransfers.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-4 text-slate-300 font-medium">
-                      {new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-100">{t.material?.name}</div>
-                      <span className="text-[11px] text-slate-500 font-mono">{t.material?.materialCode}</span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-medium">
-                        {t.sourceProject?.name}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">
-                        {t.destinationProject?.name}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-indigo-400 text-sm">
-                      {t.quantity} {t.material?.unit}
-                    </td>
-                    <td className="py-3 px-4 text-slate-400 text-[11px]">
-                      {t.notes || 'Inter-site stock movement'}
-                    </td>
+                filteredTransfers.map((t) => {
+                  const parsed = parseDispatchNotes(t.notes);
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-4 text-slate-300 font-medium">
+                        {new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-100">{t.material?.name}</div>
+                        <span className="text-[11px] text-slate-500 font-mono">{t.material?.materialCode}</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-medium block w-fit">
+                          {t.sourceProject?.name}
+                        </span>
+                        {t.sourceSite?.name && (
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                            {t.sourceSite.name}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium block w-fit">
+                          {t.destinationProject?.name}
+                        </span>
+                        {(t.destSite?.name || parsed.location) && (
+                          <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 font-medium">
+                            <MapPin className="w-2.5 h-2.5 shrink-0" />
+                            {t.destSite?.name || parsed.location}
+                          </div>
+                        )}
+                        {parsed.supervisor && (
+                          <div className="text-[10px] text-slate-300 flex items-center gap-1 mt-0.5">
+                            <User className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                            {parsed.supervisor}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-bold text-indigo-400 text-sm">
+                        {t.quantity} {t.material?.unit}
+                      </td>
+                      <td className="py-3 px-4 text-slate-300">
+                        <div className="text-xs">
+                          {parsed.vehicle && (
+                            <span className="inline-block bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1 mb-1">
+                              🚚 {parsed.vehicle}
+                            </span>
+                          )}
+                          <div className="text-[11px] text-slate-400">{parsed.remarks || 'Inter-site stock movement'}</div>
+                        </div>
+                      </td>
                     <td className="py-3 px-4 text-right">
                       <Button
                         size="sm"
@@ -204,7 +258,8 @@ export default function MaterialTransfersPage() {
                       </Button>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

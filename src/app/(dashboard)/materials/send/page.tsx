@@ -16,11 +16,40 @@ import {
   CheckCircle2,
   Truck,
   FileText,
+  MapPin,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { UsageFormModal } from '@/components/materials/UsageFormModal';
 import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
 import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
+
+function parseDispatchNotes(notes?: string | null) {
+  if (!notes) return { supervisor: null, location: null, vehicle: null, remarks: null };
+  const supMatch = notes.match(/Receiver Supervisor:\s*([^|]+)/i) || notes.match(/TO_SUPERVISOR:\s*([^|]+)/i) || notes.match(/RECEIVER_SUPERVISOR:\s*([^|]+)/i);
+  const locMatch = notes.match(/Location\/Site:\s*([^|]+)/i) || notes.match(/DESTLOC:\s*([^|]+)/i) || notes.match(/LOCATION:\s*([^|]+)/i);
+  const vehMatch = notes.match(/Vehicle\/Challan:\s*([^|]+)/i) || notes.match(/Vehicle:\s*([^|]+)/i) || notes.match(/VEHICLE:\s*([^|]+)/i);
+  const remMatch = notes.match(/Remarks:\s*([^|]+)/i);
+  const cleanRem = remMatch
+    ? remMatch[1].trim()
+    : notes
+        .replace(/\[[^\]]+\]/g, '')
+        .replace(/Receiver Supervisor:[^|]+/i, '')
+        .replace(/Location\/Site:[^|]+/i, '')
+        .replace(/Mobile:[^|]+/i, '')
+        .replace(/Vehicle\/Challan:[^|]+/i, '')
+        .replace(/Vehicle:[^|]+/i, '')
+        .replace(/Remarks:/i, '')
+        .replace(/\|/g, '')
+        .trim();
+
+  return {
+    supervisor: supMatch ? supMatch[1].trim() : null,
+    location: locMatch ? locMatch[1].trim() : null,
+    vehicle: vehMatch ? vehMatch[1].trim() : null,
+    remarks: cleanRem || null,
+  };
+}
 
 export default function SendMaterialPage() {
   const [usages, setUsages] = useState<any[]>([]);
@@ -210,8 +239,9 @@ export default function SendMaterialPage() {
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-3">Sent to Site</th>
+                <th className="py-3 px-4">Date Sent</th>
+                <th className="py-3 px-3">Destination Site &amp; Location</th>
+                <th className="py-3 px-3">Receiver Supervisor</th>
                 <th className="py-3 px-3">Material</th>
                 <th className="py-3 px-3">Category</th>
                 <th className="py-3 px-3 text-right">Quantity Sent</th>
@@ -223,19 +253,20 @@ export default function SendMaterialPage() {
             <tbody className="divide-y divide-slate-800/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-500">
+                  <td colSpan={9} className="text-center py-10 text-slate-500">
                     Loading site dispatches...
                   </td>
                 </tr>
               ) : filteredUsages.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-12 text-slate-400">
+                  <td colSpan={9} className="text-center py-12 text-slate-400">
                     No materials sent to sites yet. Click "Send Material to Site" to dispatch stock.
                   </td>
                 </tr>
               ) : (
                 filteredUsages.map((u) => {
                   const isApproved = u.taskPurpose === 'APPROVED';
+                  const parsed = parseDispatchNotes(u.notes);
                   return (
                     <tr key={u.id} className="hover:bg-slate-800/40 transition">
                       <td className="py-3 px-4 text-slate-300 font-medium">
@@ -246,7 +277,23 @@ export default function SendMaterialPage() {
                           <Building2 className="w-3.5 h-3.5 text-sky-400" />
                           {u.project?.name}
                         </div>
-                        <span className="text-[11px] text-slate-500 font-mono">{u.project?.projectCode}</span>
+                        {(u.site?.name || parsed.location) && (
+                          <div className="text-[11px] text-amber-400 flex items-center gap-1 mt-0.5 font-medium">
+                            <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                            {u.site?.name || parsed.location}
+                          </div>
+                        )}
+                        <span className="text-[10px] text-slate-500 font-mono">{u.project?.projectCode}</span>
+                      </td>
+                      <td className="py-3 px-3">
+                        {parsed.supervisor ? (
+                          <div className="flex items-center gap-1 text-slate-200 font-semibold">
+                            <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span>{parsed.supervisor}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 italic">Site Supervisor</span>
+                        )}
                       </td>
                       <td className="py-3 px-3">
                         <div className="font-bold text-slate-200">{u.material?.name}</div>
@@ -261,14 +308,14 @@ export default function SendMaterialPage() {
                         {u.quantity} {u.material?.unit}
                       </td>
                       <td className="py-3 px-4 text-slate-300">
-                        {u.taskPurpose && u.taskPurpose !== 'APPROVED' && u.taskPurpose !== 'PENDING' && (
-                          <div className="font-medium text-slate-200">{u.taskPurpose}</div>
+                        {parsed.vehicle && (
+                          <span className="inline-block bg-slate-800 text-sky-300 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1 mb-1">
+                            🚚 {parsed.vehicle}
+                          </span>
                         )}
-                        {u.notes ? (
-                          <div className="text-[11px] text-slate-400 mt-0.5">{u.notes}</div>
-                        ) : (
-                          <span className="text-slate-600 italic">Dispatched from godown</span>
-                        )}
+                        <div className="text-[11px] text-slate-400">
+                          {parsed.remarks || (u.taskPurpose && u.taskPurpose !== 'APPROVED' && u.taskPurpose !== 'PENDING' ? u.taskPurpose : 'Dispatched from godown')}
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-center">
                         <SupervisorVerificationBadge

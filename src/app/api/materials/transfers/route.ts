@@ -34,7 +34,9 @@ export async function GET(req: Request) {
       include: {
         material: { select: { id: true, name: true, unit: true, materialCode: true, category: true } },
         sourceProject: { select: { id: true, name: true, projectCode: true } },
+        sourceSite: { select: { id: true, name: true, supervisorName: true } },
         destinationProject: { select: { id: true, name: true, projectCode: true } },
+        destSite: { select: { id: true, name: true, supervisorName: true } },
       },
       orderBy: { date: 'desc' },
     });
@@ -161,7 +163,9 @@ export async function POST(req: Request) {
         organizationId: orgId,
         materialId: data.materialId,
         sourceProjectId: data.sourceProjectId,
+        sourceSiteId: data.sourceSiteId || null,
         destinationProjectId: data.destinationProjectId,
+        destinationSiteId: data.destinationSiteId || null,
         date: new Date(data.date),
         quantity: data.quantity,
         notes: data.notes || null,

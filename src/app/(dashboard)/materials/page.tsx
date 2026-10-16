@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   User,
   BarChart3,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -36,6 +37,33 @@ import { TransferFormModal } from '@/components/materials/TransferFormModal';
 import { SupervisorVerificationBadge } from '@/components/materials/SupervisorVerificationBadge';
 import { VerificationDetailsModal } from '@/components/materials/VerificationDetailsModal';
 import { StockReportModal } from '@/components/materials/StockReportModal';
+
+function parseDispatchNotes(notes?: string | null) {
+  if (!notes) return { supervisor: null, location: null, vehicle: null, remarks: null };
+  const supMatch = notes.match(/Receiver Supervisor:\s*([^|]+)/i) || notes.match(/TO_SUPERVISOR:\s*([^|]+)/i) || notes.match(/RECEIVER_SUPERVISOR:\s*([^|]+)/i);
+  const locMatch = notes.match(/Location\/Site:\s*([^|]+)/i) || notes.match(/DESTLOC:\s*([^|]+)/i) || notes.match(/LOCATION:\s*([^|]+)/i);
+  const vehMatch = notes.match(/Vehicle\/Challan:\s*([^|]+)/i) || notes.match(/Vehicle:\s*([^|]+)/i) || notes.match(/VEHICLE:\s*([^|]+)/i);
+  const remMatch = notes.match(/Remarks:\s*([^|]+)/i);
+  const cleanRem = remMatch
+    ? remMatch[1].trim()
+    : notes
+        .replace(/\[[^\]]+\]/g, '')
+        .replace(/Receiver Supervisor:[^|]+/i, '')
+        .replace(/Location\/Site:[^|]+/i, '')
+        .replace(/Mobile:[^|]+/i, '')
+        .replace(/Vehicle\/Challan:[^|]+/i, '')
+        .replace(/Vehicle:[^|]+/i, '')
+        .replace(/Remarks:/i, '')
+        .replace(/\|/g, '')
+        .trim();
+
+  return {
+    supervisor: supMatch ? supMatch[1].trim() : null,
+    location: locMatch ? locMatch[1].trim() : null,
+    vehicle: vehMatch ? vehMatch[1].trim() : null,
+    remarks: cleanRem || null,
+  };
+}
 
 export default function MaterialsPage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'send' | 'receipts' | 'transfers'>('catalog');
@@ -1005,17 +1033,18 @@ export default function MaterialsPage() {
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-4">Date Sent</th>
-                  <th className="py-3 px-3">Destination Site</th>
+                  <th className="py-3 px-3">Destination Site &amp; Location</th>
+                  <th className="py-3 px-3">Receiver Supervisor</th>
                   <th className="py-3 px-3">Material</th>
                   <th className="py-3 px-3 text-right">Quantity Sent</th>
-                  <th className="py-3 px-4">Challan / Vehicle Notes</th>
+                  <th className="py-3 px-4">Challan &amp; Vehicle Notes</th>
                   <th className="py-3 px-3 text-center">Delivery Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {usages.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                    <td colSpan={7} className="text-center py-12 text-slate-400">
                       <Send className="w-10 h-10 text-sky-500/50 mx-auto mb-3" />
                       <p className="text-sm font-semibold text-slate-200 mb-1">
                         No materials sent to sites yet
@@ -1033,35 +1062,62 @@ export default function MaterialsPage() {
                     </td>
                   </tr>
                 ) : (
-                  usages.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-slate-300 font-medium">
-                        {new Date(u.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-100 flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-sky-400" />
-                          {u.project?.name}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-200">{u.material?.name}</div>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-sky-400">
-                        {u.quantity} {u.material?.unit}
-                      </td>
-                      <td className="py-3 px-4 text-slate-300">
-                        {u.notes || u.taskPurpose || 'Dispatched from godown'}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <SupervisorVerificationBadge
-                          notes={u.notes}
-                          taskPurpose={u.taskPurpose}
-                          onViewDetails={u.taskPurpose === 'APPROVED' ? () => setSelectedDetailRecord(u) : undefined}
-                        />
-                      </td>
-                    </tr>
-                  ))
+                  usages.map((u) => {
+                    const parsed = parseDispatchNotes(u.notes);
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 text-slate-300 font-medium">
+                          {new Date(u.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-slate-100 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                            {u.project?.name}
+                          </div>
+                          {(u.site?.name || parsed.location) && (
+                            <div className="text-[11px] text-amber-400 flex items-center gap-1 mt-0.5 font-medium">
+                              <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                              {u.site?.name || parsed.location}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          {parsed.supervisor ? (
+                            <div className="flex items-center gap-1 text-slate-200 font-semibold">
+                              <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span>{parsed.supervisor}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 italic">Site Supervisor</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-slate-200">{u.material?.name}</div>
+                          <span className="text-[11px] text-slate-500 font-mono">{u.material?.materialCode}</span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-sky-400">
+                          {u.quantity} {u.material?.unit}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">
+                          <div className="text-xs">
+                            {parsed.vehicle && (
+                              <span className="inline-block bg-slate-800 text-sky-300 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1 mb-1">
+                                🚚 {parsed.vehicle}
+                              </span>
+                            )}
+                            <div>{parsed.remarks || (u.taskPurpose !== 'PENDING' && u.taskPurpose !== 'APPROVED' ? u.taskPurpose : 'Dispatched from godown')}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <SupervisorVerificationBadge
+                            notes={u.notes}
+                            taskPurpose={u.taskPurpose}
+                            onViewDetails={u.taskPurpose === 'APPROVED' ? () => setSelectedDetailRecord(u) : undefined}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1078,10 +1134,10 @@ export default function MaterialsPage() {
                 <tr className="border-b border-slate-800 bg-slate-950/50 text-slate-400 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-3">Material</th>
-                  <th className="py-3 px-3">Source Project (From)</th>
-                  <th className="py-3 px-3">Destination Project (To)</th>
+                  <th className="py-3 px-3">Source Site (From)</th>
+                  <th className="py-3 px-3">Destination Site &amp; Receiver (To)</th>
                   <th className="py-3 px-3 text-right font-bold text-slate-200">Quantity Transferred</th>
-                  <th className="py-3 px-4">Transfer Notes</th>
+                  <th className="py-3 px-4">Vehicle &amp; Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -1105,33 +1161,61 @@ export default function MaterialsPage() {
                     </td>
                   </tr>
                 ) : (
-                  transfers.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-slate-300 font-medium">
-                        {new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-slate-100">{t.material?.name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">{t.material?.materialCode}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-medium">
-                          {t.sourceProject?.name}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">
-                          {t.destinationProject?.name}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-indigo-400 text-sm">
-                        {t.quantity} {t.material?.unit}
-                      </td>
-                      <td className="py-3 px-4 text-slate-400 text-[11px]">
-                        {t.notes || 'Inter-site stock movement (No purchase expense created)'}
-                      </td>
-                    </tr>
-                  ))
+                  transfers.map((t) => {
+                    const parsed = parseDispatchNotes(t.notes);
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 text-slate-300 font-medium">
+                          {new Date(t.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-slate-100">{t.material?.name}</div>
+                          <div className="text-[11px] text-slate-500 font-mono">{t.material?.materialCode}</div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-medium block w-fit">
+                            {t.sourceProject?.name}
+                          </span>
+                          {t.sourceSite?.name && (
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                              {t.sourceSite.name}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium block w-fit">
+                            {t.destinationProject?.name}
+                          </span>
+                          {(t.destSite?.name || parsed.location) && (
+                            <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 font-medium">
+                              <MapPin className="w-2.5 h-2.5 shrink-0" />
+                              {t.destSite?.name || parsed.location}
+                            </div>
+                          )}
+                          {parsed.supervisor && (
+                            <div className="text-[10px] text-slate-300 flex items-center gap-1 mt-0.5">
+                              <User className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                              {parsed.supervisor}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-indigo-400 text-sm">
+                          {t.quantity} {t.material?.unit}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">
+                          <div className="text-xs">
+                            {parsed.vehicle && (
+                              <span className="inline-block bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded text-[10px] font-mono mr-1 mb-1">
+                                🚚 {parsed.vehicle}
+                              </span>
+                            )}
+                            <div>{parsed.remarks || 'Inter-site stock movement'}</div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
