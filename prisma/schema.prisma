@@ -107,9 +107,12 @@ model OrganizationUser {
   userId         String
   role           String   @default("OWNER") // OWNER, PARTNER, MANAGER, SITE_SUPERVISOR, ACCOUNTANT, LABOUR
   partnerId      String?  // If supervisor, links to their supervising partner
-  status         String   @default("ACTIVE") // ACTIVE, INACTIVE
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status         String    @default("ACTIVE") // ACTIVE, INACTIVE
+  openingBalance     Float     @default(0)
+  openingBalanceDate DateTime?
+  openingBalanceNote String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -392,6 +395,9 @@ model Payment {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   deletedById     String?
+  isEdited        Boolean   @default(false)
+  editReason      String?
+  deleteReason    String?
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   worker       Worker        @relation(fields: [workerId], references: [id], onDelete: Cascade)
@@ -451,6 +457,9 @@ model Expense {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
   deletedById    String?
+  isEdited       Boolean   @default(false)
+  editReason     String?
+  deleteReason   String?
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project         Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -840,6 +849,9 @@ model ProjectReceipt {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
   deletedById    String?
+  isEdited       Boolean   @default(false)
+  editReason     String?
+  deleteReason   String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -878,6 +890,9 @@ model FundTransfer {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
   deletedById     String?
+  isEdited        Boolean   @default(false)
+  editReason      String?
+  deleteReason    String?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   fromUser     User         @relation("SentTransfers", fields: [fromUserId], references: [id], onDelete: Cascade)
@@ -955,6 +970,8 @@ model BankAccount {
   bankName       String    // e.g. "HDFC Bank", "ICICI Bank", "SBI"
   accountLast4   String?   // Last 4 digits of account number
   openingBalance Float     @default(0)
+  openingBalanceDate DateTime?
+  openingBalanceNote String?
   isActive       Boolean   @default(true)
   createdById    String?
   createdAt      DateTime  @default(now())
@@ -985,6 +1002,10 @@ model BankTransaction {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  deletedById    String?
+  isEdited       Boolean   @default(false)
+  editReason     String?
+  deleteReason   String?
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bankAccount    BankAccount  @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)

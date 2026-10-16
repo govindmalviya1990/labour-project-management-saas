@@ -6,6 +6,7 @@ import {
   calculateBankBalance,
   calculateOverallMoneyPosition,
 } from '@/lib/calculations';
+import { getMultiplePartnersWalletBalances } from '@/lib/finance/partnerWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,58 +48,21 @@ export async function GET(req: Request) {
 
     const targetSupervisors = isOwnerOrManager ? supervisorMembers : [];
 
-    // 2. Derive Partner Wallets
-    const partnerWallets = await Promise.all(
-      targetPartners.map(async (m) => {
-        const uId = m.userId;
-        const [mIn, tIn, tOut, exp, bWith, bDep] = await Promise.all([
-          prisma.projectReceipt.aggregate({
-            where: {
-              organizationId: orgId,
-              receivedById: uId,
-              deletedAt: null,
-              OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-            },
-            _sum: { amount: true },
-          }),
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, toUserId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, fromUserId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.expense.aggregate({
-            where: { organizationId: orgId, walletOwnerId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.bankTransaction.aggregate({
-            where: { organizationId: orgId, partnerId: uId, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.bankTransaction.aggregate({
-            where: { organizationId: orgId, partnerId: uId, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
-            _sum: { amount: true },
-          }),
-        ]);
-
-        const w = calculateWalletBalance({
-          totalMoneyIn: mIn._sum.amount || 0,
-          totalTransfersIn: tIn._sum.amount || 0,
-          totalTransfersOut: tOut._sum.amount || 0,
-          totalExpenses: exp._sum.amount || 0,
-          totalBankWithdrawals: bWith._sum.amount || 0,
-          totalBankDeposits: bDep._sum.amount || 0,
-        });
-
-        return {
-          id: uId,
-          name: m.user.name,
-          balance: w.balance,
-        };
-      })
+    // 2. Derive Partner Wallets (using shared partnerWallet helper with opening balance)
+    const partnerBalancesMap = await getMultiplePartnersWalletBalances(
+      prisma,
+      orgId,
+      targetPartners.map((m) => m.userId)
     );
+
+    const partnerWallets = targetPartners.map((m) => {
+      const w = partnerBalancesMap.get(m.userId);
+      return {
+        id: m.userId,
+        name: m.user.name,
+        balance: w?.balance || 0,
+      };
+    });
 
     // 3. Derive Supervisor Wallets
     const supervisorWallets = await Promise.all(

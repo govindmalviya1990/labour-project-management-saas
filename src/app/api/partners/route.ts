@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWalletBalance } from '@/lib/calculations';
+import { getPartnerWalletBalance } from '@/lib/finance/partnerWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,32 +99,8 @@ export async function GET(req: Request) {
             mobile: sm.user.mobile,
           }));
 
-        // Wallet Balance calculation
-        const [moneyInAgg, transfersInAgg, transfersOutAgg, expensesAgg] = await Promise.all([
-          prisma.projectReceipt.aggregate({
-            where: { organizationId: orgId, receivedById: user.id, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, toUserId: user.id, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, fromUserId: user.id, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          prisma.expense.aggregate({
-            where: { organizationId: orgId, walletOwnerId: user.id, deletedAt: null },
-            _sum: { amount: true },
-          }),
-        ]);
-
-        const wallet = calculateWalletBalance({
-          totalMoneyIn: moneyInAgg._sum.amount || 0,
-          totalTransfersIn: transfersInAgg._sum.amount || 0,
-          totalTransfersOut: transfersOutAgg._sum.amount || 0,
-          totalExpenses: expensesAgg._sum.amount || 0,
-        });
+        // Wallet Balance calculation (using shared partnerWallet helper)
+        const wallet = await getPartnerWalletBalance(prisma, orgId, user.id);
 
         return {
           id: user.id,

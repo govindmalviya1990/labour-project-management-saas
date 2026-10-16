@@ -219,14 +219,22 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
     case 'Expense': {
       await prisma.expense.update({
         where: { id: entityId },
-        data: { deletedAt: null, deletedById: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       const bankTxId = newData?.bankTransactionId || oldData?.bankTransactionId;
       if (bankTxId) {
         await prisma.bankTransaction.updateMany({
           where: { id: bankTxId },
-          data: { deletedAt: null },
+          data: { deletedAt: null, deletedById: null, deleteReason: null },
         });
+      }
+      // If linked to payment, restore payment and fund transfer too
+      if (oldData?.notes?.includes('Payment ID:') || newData?.notes?.includes('Payment ID:')) {
+        const notesStr = oldData?.notes || newData?.notes || '';
+        const match = notesStr.match(/Payment ID:\s*([^\s-]+)/);
+        if (match && match[1]) {
+          await restoreDeletedEntity('Payment', match[1], null, organizationId);
+        }
       }
       break;
     }
@@ -241,25 +249,29 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
     case 'Payment': {
       const pmt = await prisma.payment.update({
         where: { id: entityId },
-        data: { deletedAt: null, deletedById: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       await prisma.expense.updateMany({
         where: { notes: { contains: `Payment ID: ${entityId}` } },
-        data: { deletedAt: null, deletedById: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       if (pmt.fundTransferId) {
         await prisma.fundTransfer.updateMany({
           where: { id: pmt.fundTransferId },
-          data: { deletedAt: null, deletedById: null },
+          data: { deletedAt: null, deletedById: null, deleteReason: null },
         });
       }
       await prisma.fundTransfer.updateMany({
         where: { linkedPaymentId: entityId },
-        data: { deletedAt: null, deletedById: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      await prisma.fundTransfer.updateMany({
+        where: { notes: { contains: entityId } },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       await prisma.bankTransaction.updateMany({
         where: { notes: { contains: `Payment ID: ${entityId}` } },
-        data: { deletedAt: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       break;
     }
@@ -292,10 +304,39 @@ async function restoreDeletedEntity(entityType: string, entityId: string, oldDat
       });
       break;
 
-    case 'FundTransfer':
-      await prisma.fundTransfer.update({
+    case 'FundTransfer': {
+      const ft = await prisma.fundTransfer.update({
         where: { id: entityId },
-        data: { deletedAt: null, deletedById: null },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      if (ft.linkedPaymentId) {
+        await restoreDeletedEntity('Payment', ft.linkedPaymentId, null, organizationId);
+      }
+      break;
+    }
+
+    case 'ProjectReceipt': {
+      const rcpt = await prisma.projectReceipt.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
+      });
+      if (rcpt.receivedIn === 'BANK' && rcpt.bankAccountId) {
+        await prisma.bankTransaction.updateMany({
+          where: {
+            organizationId,
+            bankAccountId: rcpt.bankAccountId,
+            reference: rcpt.reference || rcpt.id,
+          },
+          data: { deletedAt: null, deletedById: null, deleteReason: null },
+        });
+      }
+      break;
+    }
+
+    case 'BankTransaction':
+      await prisma.bankTransaction.update({
+        where: { id: entityId },
+        data: { deletedAt: null, deletedById: null, deleteReason: null },
       });
       break;
 
@@ -354,6 +395,15 @@ async function revertUpdatedEntity(entityType: string, entityId: string, oldData
       break;
     case 'FundTransfer':
       await prisma.fundTransfer.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'ProjectReceipt':
+      await prisma.projectReceipt.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'BankTransaction':
+      await prisma.bankTransaction.update({ where: { id: entityId }, data: updatable });
+      break;
+    case 'BankAccount':
+      await prisma.bankAccount.update({ where: { id: entityId }, data: updatable });
       break;
     default:
       throw new Error(`Revert is not supported for entity ${entityType}`);

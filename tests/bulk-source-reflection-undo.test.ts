@@ -78,9 +78,9 @@ async function runTestSuite() {
     const balB = getPartnerBBalance();
     const bankBal = getBankBalance();
     return calculateOverallMoneyPosition({
-      partnerWallets: [{ balance: balA }, { balance: balB }],
+      partnerWallets: [{ id: 'user-a', name: 'Partner A', balance: balA }, { id: 'user-b', name: 'Partner B', balance: balB }],
       supervisorWallets: [],
-      bankBalances: [{ balance: bankBal }],
+      bankBalances: [{ id: 'bank-1', name: 'Main Bank', bankName: 'HDFC', balance: bankBal }],
     });
   };
 

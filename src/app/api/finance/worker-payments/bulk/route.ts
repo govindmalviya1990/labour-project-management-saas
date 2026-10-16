@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission } from '@/lib/auth/session';
 import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
+import { getPartnerWalletBalance } from '@/lib/finance/partnerWallet';
 import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations';
 import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
@@ -133,48 +134,7 @@ export async function POST(req: Request) {
           throw err;
         }
 
-        const [
-          receiptsAgg,
-          transfersInAgg,
-          bankWithdrawalsAgg,
-          transfersOutAgg,
-          expensesAgg,
-          bankDepositsAgg,
-        ] = await Promise.all([
-          tx.projectReceipt.aggregate({
-            where: { organizationId: orgId, receivedById: sourceId, deletedAt: null, OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }] },
-            _sum: { amount: true },
-          }),
-          tx.fundTransfer.aggregate({
-            where: { organizationId: orgId, toUserId: sourceId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          tx.bankTransaction.aggregate({
-            where: { organizationId: orgId, partnerId: sourceId, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
-            _sum: { amount: true },
-          }),
-          tx.fundTransfer.aggregate({
-            where: { organizationId: orgId, fromUserId: sourceId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          tx.expense.aggregate({
-            where: { organizationId: orgId, walletOwnerId: sourceId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          tx.bankTransaction.aggregate({
-            where: { organizationId: orgId, partnerId: sourceId, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
-            _sum: { amount: true },
-          }),
-        ]);
-
-        const walletCalc = calculateWalletBalance({
-          totalMoneyIn: receiptsAgg._sum.amount || 0,
-          totalTransfersIn: transfersInAgg._sum.amount || 0,
-          totalBankWithdrawals: bankWithdrawalsAgg._sum.amount || 0,
-          totalTransfersOut: transfersOutAgg._sum.amount || 0,
-          totalExpenses: expensesAgg._sum.amount || 0,
-          totalBankDeposits: bankDepositsAgg._sum.amount || 0,
-        });
+        const walletCalc = await getPartnerWalletBalance(tx, orgId, sourceId);
 
         if (totalAmount > walletCalc.balance) {
           const err = new Error(

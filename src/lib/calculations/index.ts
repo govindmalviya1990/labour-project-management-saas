@@ -373,6 +373,7 @@ export function calculateProductivity(input: ProductivityInput): ProductivityRes
 // =============================================================
 
 export interface WalletTransactionInput {
+  openingBalance?: number;       // Initial partner opening balance (can be positive or negative)
   totalMoneyIn: number;          // Project receipts / client payments received by user
   totalTransfersIn: number;      // Funds received from other partners/users
   totalTransfersOut: number;     // Funds sent to supervisors, workers, or other partners
@@ -382,17 +383,19 @@ export interface WalletTransactionInput {
 }
 
 export interface WalletBalanceResult {
-  totalCredits: number;       // totalMoneyIn + totalTransfersIn + totalBankWithdrawals
-  totalDebits: number;        // totalTransfersOut + totalExpenses + totalBankDeposits
+  openingBalance: number;
+  totalCredits: number;       // totalMoneyIn + totalTransfersIn + totalBankWithdrawals + (openingBalance > 0 ? openingBalance : 0)
+  totalDebits: number;        // totalTransfersOut + totalExpenses + totalBankDeposits + (openingBalance < 0 ? Math.abs(openingBalance) : 0)
   balance: number;            // totalCredits - totalDebits
 }
 
 /**
  * Formula:
- * Balance = (Money In + Transfers In + Bank Withdrawals) - (Transfers Out + Wallet Expenses + Bank Deposits)
+ * Balance = Opening Balance + (Money In + Transfers In + Bank Withdrawals) - (Transfers Out + Wallet Expenses + Bank Deposits)
  * All entries strictly exclude deletedAt != null records.
  */
 export function calculateWalletBalance(input: WalletTransactionInput): WalletBalanceResult {
+  const opBal = typeof input.openingBalance === 'number' && !isNaN(input.openingBalance) ? input.openingBalance : 0;
   const moneyIn = Math.max(0, input.totalMoneyIn || 0);
   const transfersIn = Math.max(0, input.totalTransfersIn || 0);
   const bankWithdrawals = Math.max(0, input.totalBankWithdrawals || 0);
@@ -401,11 +404,15 @@ export function calculateWalletBalance(input: WalletTransactionInput): WalletBal
   const expenses = Math.max(0, input.totalExpenses || 0);
   const bankDeposits = Math.max(0, input.totalBankDeposits || 0);
 
-  const totalCredits = Math.round((moneyIn + transfersIn + bankWithdrawals) * 100) / 100;
-  const totalDebits = Math.round((transfersOut + expenses + bankDeposits) * 100) / 100;
-  const balance = Math.round((totalCredits - totalDebits) * 100) / 100;
+  const openingCredit = opBal > 0 ? opBal : 0;
+  const openingDebit = opBal < 0 ? Math.abs(opBal) : 0;
+
+  const totalCredits = Math.round((openingCredit + moneyIn + transfersIn + bankWithdrawals) * 100) / 100;
+  const totalDebits = Math.round((openingDebit + transfersOut + expenses + bankDeposits) * 100) / 100;
+  const balance = Math.round((opBal + moneyIn + transfersIn + bankWithdrawals - transfersOut - expenses - bankDeposits) * 100) / 100;
 
   return {
+    openingBalance: opBal,
     totalCredits,
     totalDebits,
     balance,

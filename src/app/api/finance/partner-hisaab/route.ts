@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWalletBalance, calculateBankBalance } from '@/lib/calculations';
+import { getPartnerWalletBalance, getMultiplePartnersWalletBalances } from '@/lib/finance/partnerWallet';
 import { executeWorkerPayment } from '@/lib/finance/executeWorkerPayment';
 import { recordAudit, formatAuditDetails } from '@/lib/audit/auditLogger';
 
@@ -338,6 +339,9 @@ export async function GET(req: Request) {
     const period = searchParams.get('period') || 'all';
     const customStartDate = searchParams.get('startDate');
     const customEndDate = searchParams.get('endDate');
+    const showDeletedParam = searchParams.get('showDeleted');
+    const isOwner = userRole === 'OWNER';
+    const showDeleted = isOwner && showDeletedParam === 'true';
 
     // 1. Calculate Date Range Filters with IST Timezone boundary safety
     const { startDate, endDate, hasDateFilter, isSingleDay } = resolvePeriodDateRange(
@@ -498,70 +502,8 @@ export async function GET(req: Request) {
       partnerMembers.map(async (m) => {
         const uId = m.userId;
 
-        // All-Time Aggregates (Single source of truth for current live wallet balance)
-        const [
-          allReceiptsAgg,
-          allTransfersInAgg,
-          allBankWithdrawalsAgg,
-          allTransfersOutAgg,
-          allExpensesAgg,
-          allBankDepositsAgg,
-        ] = await Promise.all([
-          // Inflow: Direct receipts in hand/cash
-          prisma.projectReceipt.aggregate({
-            where: {
-              organizationId: orgId,
-              receivedById: uId,
-              deletedAt: null,
-              OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-            },
-            _sum: { amount: true },
-          }),
-          // Inflow: Transfers from other users
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, toUserId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          // Inflow: Bank transfers to partner
-          prisma.bankTransaction.aggregate({
-            where: {
-              organizationId: orgId,
-              partnerId: uId,
-              type: 'TRANSFER_TO_PARTNER',
-              deletedAt: null,
-            },
-            _sum: { amount: true },
-          }),
-          // Outflow: Transfers to supervisors/workers/partners
-          prisma.fundTransfer.aggregate({
-            where: { organizationId: orgId, fromUserId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          // Outflow: Expenses paid from wallet
-          prisma.expense.aggregate({
-            where: { organizationId: orgId, walletOwnerId: uId, deletedAt: null },
-            _sum: { amount: true },
-          }),
-          // Outflow: Bank deposits by partner
-          prisma.bankTransaction.aggregate({
-            where: {
-              organizationId: orgId,
-              partnerId: uId,
-              type: 'TRANSFER_FROM_PARTNER',
-              deletedAt: null,
-            },
-            _sum: { amount: true },
-          }),
-        ]);
-
-        const allTimeBalance = calculateWalletBalance({
-          totalMoneyIn: allReceiptsAgg._sum.amount || 0,
-          totalTransfersIn: allTransfersInAgg._sum.amount || 0,
-          totalBankWithdrawals: allBankWithdrawalsAgg._sum.amount || 0,
-          totalTransfersOut: allTransfersOutAgg._sum.amount || 0,
-          totalExpenses: allExpensesAgg._sum.amount || 0,
-          totalBankDeposits: allBankDepositsAgg._sum.amount || 0,
-        });
+        // All-Time Aggregates (using shared helper with opening balance)
+        const allTimeBalance = await getPartnerWalletBalance(prisma, orgId, uId);
 
         // Period-specific Aggregates
         const periodReceiptsWhere: any = {
@@ -653,6 +595,9 @@ export async function GET(req: Request) {
           currentBalance: allTimeBalance.balance,
           totalCredits: allTimeBalance.totalCredits,
           totalDebits: allTimeBalance.totalDebits,
+          openingBalance: allTimeBalance.openingBalance,
+          openingBalanceDate: m.openingBalanceDate ? m.openingBalanceDate.toISOString() : null,
+          openingBalanceNote: m.openingBalanceNote || null,
           // Period Stats
           period: {
             receiptsTotal: pReceipts._sum.amount || 0,
@@ -681,41 +626,42 @@ export async function GET(req: Request) {
       ? partnerId.replace('BANK_', '')
       : null;
     const targetPartnerId = !isBankQuery && partnerId !== 'ALL' ? partnerId : null;
+    const deleteFilter = showDeleted ? {} : { deletedAt: null };
 
     if (targetPartnerId) {
       // Build Ledger for this specific partner
       const receiptsWhere: any = {
         organizationId: orgId,
         receivedById: targetPartnerId,
-        deletedAt: null,
+        ...deleteFilter,
         OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
       };
       const transfersInWhere: any = {
         organizationId: orgId,
         toUserId: targetPartnerId,
-        deletedAt: null,
+        ...deleteFilter,
       };
       const bankTransfersInWhere: any = {
         organizationId: orgId,
         partnerId: targetPartnerId,
         type: 'TRANSFER_TO_PARTNER',
-        deletedAt: null,
+        ...deleteFilter,
       };
       const transfersOutWhere: any = {
         organizationId: orgId,
         fromUserId: targetPartnerId,
-        deletedAt: null,
+        ...deleteFilter,
       };
       const expensesWhere: any = {
         organizationId: orgId,
         walletOwnerId: targetPartnerId,
-        deletedAt: null,
+        ...deleteFilter,
       };
       const bankDepositsWhere: any = {
         organizationId: orgId,
         partnerId: targetPartnerId,
         type: 'TRANSFER_FROM_PARTNER',
-        deletedAt: null,
+        ...deleteFilter,
       };
 
       if (hasDateFilter) {
@@ -734,6 +680,7 @@ export async function GET(req: Request) {
             include: {
               project: { select: { id: true, name: true, projectCode: true } },
               site: { select: { id: true, name: true } },
+              receivedBy: { select: { id: true, name: true } },
             },
             orderBy: { date: 'desc' },
           }),
@@ -787,15 +734,30 @@ export async function GET(req: Request) {
           rawId: r.id,
           date: r.date.toISOString(),
           type: 'RECEIPT',
+          entityType: 'ProjectReceipt',
+          model: 'ProjectReceipt',
           categoryLabel: 'Payment Received from Client',
           title: r.clientName,
           subtitle: r.project?.name + (r.site?.name ? ` • ${r.site.name}` : ''),
           credit: r.amount,
           debit: 0,
+          amount: r.amount,
           paymentMethod: r.paymentMethod,
           receivedIn: r.receivedIn || 'WALLET',
           reference: r.reference,
           notes: r.notes,
+          remarks: r.notes,
+          description: r.clientName,
+          category: r.purpose || 'RUNNING_BILL',
+          projectId: r.projectId,
+          siteId: r.siteId,
+          createdAt: r.createdAt.toISOString(),
+          isEdited: Boolean(r.isEdited),
+          editReason: r.editReason,
+          isDeleted: Boolean(r.deletedAt),
+          deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+          deleteReason: r.deleteReason,
+          receivedById: r.receivedById,
         });
       });
 
@@ -805,14 +767,29 @@ export async function GET(req: Request) {
           rawId: t.id,
           date: t.date.toISOString(),
           type: 'TRANSFER_IN',
+          entityType: 'FundTransfer',
+          model: 'FundTransfer',
           categoryLabel: 'Transfer Received',
           title: `From: ${t.fromUser?.name || 'Owner/Partner'}`,
           subtitle: t.purpose + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: t.amount,
           debit: 0,
+          amount: t.amount,
           paymentMethod: t.paymentMethod,
           reference: t.reference,
           notes: t.notes,
+          remarks: t.notes,
+          category: t.purpose,
+          projectId: t.projectId,
+          siteId: t.siteId,
+          createdAt: t.createdAt.toISOString(),
+          isEdited: Boolean(t.isEdited),
+          editReason: t.editReason,
+          isDeleted: Boolean(t.deletedAt),
+          deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
+          deleteReason: t.deleteReason,
+          fromUserId: t.fromUserId,
+          toUserId: t.toUserId,
         });
       });
 
@@ -822,50 +799,100 @@ export async function GET(req: Request) {
           rawId: bt.id,
           date: bt.date.toISOString(),
           type: 'BANK_WITHDRAWAL',
+          entityType: 'BankTransaction',
+          model: 'BankTransaction',
           categoryLabel: 'Bank Withdrawal',
           title: `Bank: ${bt.bankAccount?.bankName} (${bt.bankAccount?.name})`,
           subtitle: 'Cash withdrawn from company bank into wallet',
           credit: bt.amount,
           debit: 0,
+          amount: bt.amount,
           paymentMethod: 'BANK',
           reference: bt.reference,
           notes: bt.notes,
+          remarks: bt.notes,
+          createdAt: bt.createdAt.toISOString(),
+          isEdited: Boolean(bt.isEdited),
+          editReason: bt.editReason,
+          isDeleted: Boolean(bt.deletedAt),
+          deletedAt: bt.deletedAt ? bt.deletedAt.toISOString() : null,
+          deleteReason: bt.deleteReason,
+          createdById: bt.createdById,
+          partnerId: bt.partnerId,
         });
       });
 
       transfersOut.forEach((t) => {
-        const isWorker = Boolean(t.toWorker);
+        const isWorker = Boolean(t.toWorker || t.toWorkerId || t.linkedPaymentId);
         const recipientName = t.toWorker?.name || t.toUser?.name || 'Partner/Supervisor';
         ledgerEntries.push({
           id: `trout-${t.id}`,
           rawId: t.id,
           date: t.date.toISOString(),
           type: 'TRANSFER_OUT',
+          entityType: isWorker ? 'Payment' : 'FundTransfer',
+          model: 'FundTransfer',
+          isWorkerPayment: isWorker,
+          workerId: t.toWorkerId,
+          workerName: t.toWorker?.name,
           categoryLabel: isWorker ? `Worker Payment (${t.purpose || 'Labour'})` : 'Transfer Out',
           title: `${isWorker ? 'Worker: ' : 'To: '}${recipientName}`,
           subtitle: (t.purpose ? `${t.purpose}` : '') + (t.project?.name ? ` • ${t.project.name}` : ''),
           credit: 0,
           debit: t.amount,
+          amount: t.amount,
           paymentMethod: t.paymentMethod,
           reference: t.reference,
           notes: t.notes,
+          remarks: t.notes,
+          category: t.purpose,
+          projectId: t.projectId,
+          siteId: t.siteId,
+          createdAt: t.createdAt.toISOString(),
+          isEdited: Boolean(t.isEdited),
+          editReason: t.editReason,
+          isDeleted: Boolean(t.deletedAt),
+          deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
+          deleteReason: t.deleteReason,
+          fromUserId: t.fromUserId,
+          toUserId: t.toUserId,
+          toWorkerId: t.toWorkerId,
+          linkedPaymentId: t.linkedPaymentId,
         });
       });
 
       expenses.forEach((e) => {
+        const isLabourExpense = e.category === 'LABOUR' && Boolean(e.notes && e.notes.includes('Payment ID:'));
         ledgerEntries.push({
           id: `exp-${e.id}`,
           rawId: e.id,
           date: e.date.toISOString(),
           type: 'EXPENSE',
-          categoryLabel: `Site Expense: ${e.category}`,
+          entityType: isLabourExpense ? 'Payment' : 'Expense',
+          model: 'Expense',
+          isWorkerPayment: isLabourExpense,
+          categoryLabel: `Site Expense: ${formatCategoryLabel(e.category)}`,
           title: e.description || e.notes || e.category,
           subtitle: e.project?.name + (e.site?.name ? ` • ${e.site.name}` : ''),
           credit: 0,
           debit: e.amount,
+          amount: e.amount,
           paymentMethod: e.paymentMethod,
           reference: e.vendorName || null,
           notes: e.notes,
+          remarks: e.notes,
+          description: e.description,
+          category: e.category,
+          projectId: e.projectId,
+          siteId: e.siteId,
+          createdAt: e.createdAt.toISOString(),
+          isEdited: Boolean(e.isEdited),
+          editReason: e.editReason,
+          isDeleted: Boolean(e.deletedAt),
+          deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,
+          deleteReason: e.deleteReason,
+          walletOwnerId: e.walletOwnerId,
+          spentById: e.spentById,
         });
       });
 
@@ -875,24 +902,152 @@ export async function GET(req: Request) {
           rawId: bt.id,
           date: bt.date.toISOString(),
           type: 'BANK_DEPOSIT',
+          entityType: 'BankTransaction',
+          model: 'BankTransaction',
           categoryLabel: 'Bank Deposit',
           title: `Bank: ${bt.bankAccount?.bankName} (${bt.bankAccount?.name})`,
           subtitle: 'Partner deposited cash into bank account',
           credit: 0,
           debit: bt.amount,
+          amount: bt.amount,
           paymentMethod: 'BANK',
           reference: bt.reference,
           notes: bt.notes,
+          remarks: bt.notes,
+          createdAt: bt.createdAt.toISOString(),
+          isEdited: Boolean(bt.isEdited),
+          editReason: bt.editReason,
+          isDeleted: Boolean(bt.deletedAt),
+          deletedAt: bt.deletedAt ? bt.deletedAt.toISOString() : null,
+          deleteReason: bt.deleteReason,
+          createdById: bt.createdById,
+          partnerId: bt.partnerId,
         });
       });
 
-      // Sort chronological descending
-      ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Opening Balance & Balance Brought Forward calculations for Partner
+      const targetOrgUser = memberships.find((m) => m.userId === targetPartnerId);
+      const opBal = targetOrgUser?.openingBalance || 0;
+      const opDate = targetOrgUser?.openingBalanceDate || null;
+      const opNote = targetOrgUser?.openingBalanceNote || null;
+
+      if (hasDateFilter && startDate) {
+        const priorCutoff = dateFilter.gte;
+        const [priorRcpt, priorTrIn, priorBWith, priorTrOut, priorExp, priorBDep] = await Promise.all([
+          prisma.projectReceipt.aggregate({
+            where: {
+              organizationId: orgId,
+              receivedById: targetPartnerId,
+              date: { lt: priorCutoff },
+              deletedAt: null,
+              OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
+            },
+            _sum: { amount: true },
+          }),
+          prisma.fundTransfer.aggregate({
+            where: {
+              organizationId: orgId,
+              toUserId: targetPartnerId,
+              date: { lt: priorCutoff },
+              deletedAt: null,
+            },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: {
+              organizationId: orgId,
+              partnerId: targetPartnerId,
+              type: 'TRANSFER_TO_PARTNER',
+              date: { lt: priorCutoff },
+              deletedAt: null,
+            },
+            _sum: { amount: true },
+          }),
+          prisma.fundTransfer.aggregate({
+            where: {
+              organizationId: orgId,
+              fromUserId: targetPartnerId,
+              date: { lt: priorCutoff },
+              deletedAt: null,
+            },
+            _sum: { amount: true },
+          }),
+          prisma.expense.aggregate({
+            where: {
+              organizationId: orgId,
+              walletOwnerId: targetPartnerId,
+              date: { lt: priorCutoff },
+              deletedAt: null,
+            },
+            _sum: { amount: true },
+          }),
+          prisma.bankTransaction.aggregate({
+            where: {
+              organizationId: orgId,
+              partnerId: targetPartnerId,
+              type: 'TRANSFER_FROM_PARTNER',
+              date: { lt: priorCutoff },
+              deletedAt: null,
+            },
+            _sum: { amount: true },
+          }),
+        ]);
+
+        const priorCredits =
+          (priorRcpt._sum.amount || 0) +
+          (priorTrIn._sum.amount || 0) +
+          (priorBWith._sum.amount || 0);
+        const priorDebits =
+          (priorTrOut._sum.amount || 0) +
+          (priorExp._sum.amount || 0) +
+          (priorBDep._sum.amount || 0);
+        const priorBalance = Math.round((opBal + priorCredits - priorDebits) * 100) / 100;
+
+        ledgerEntries.push({
+          id: `bbf-${targetPartnerId}`,
+          rawId: `bbf-${targetPartnerId}`,
+          date: priorCutoff.toISOString(),
+          type: 'BALANCE_BROUGHT_FORWARD',
+          entityType: 'BALANCE_BROUGHT_FORWARD',
+          categoryLabel: 'Balance Brought Forward',
+          title: 'Balance brought forward (Pichhla Bacha Balance)',
+          subtitle: `Prior opening balance & transactions before ${priorCutoff.toLocaleDateString('en-IN')}`,
+          credit: priorBalance > 0 ? priorBalance : 0,
+          debit: priorBalance < 0 ? Math.abs(priorBalance) : 0,
+          paymentMethod: 'ADJUSTMENT',
+          reference: null,
+          notes: null,
+          isNonEditable: true,
+          canEdit: false,
+          canDelete: false,
+        });
+      } else {
+        if (opBal !== 0) {
+          ledgerEntries.push({
+            id: `opbal-${targetPartnerId}`,
+            rawId: `opbal-${targetPartnerId}`,
+            date: (opDate || new Date(2020, 0, 1)).toISOString(),
+            type: 'OPENING_BALANCE',
+            entityType: 'OPENING_BALANCE',
+            categoryLabel: 'Opening Balance',
+            title: 'Opening Balance (Shuruaati Balance)',
+            subtitle: opNote || 'Partner initial opening cash balance',
+            credit: opBal > 0 ? opBal : 0,
+            debit: opBal < 0 ? Math.abs(opBal) : 0,
+            paymentMethod: 'OPENING',
+            reference: null,
+            notes: opNote,
+            isNonEditable: true,
+            canEdit: false,
+            canDelete: false,
+          });
+        }
+      }
     } else if (isBankQuery) {
       // Build Ledger for Company Bank Accounts
       const bankTxWhere: any = {
         organizationId: orgId,
-        deletedAt: null,
+        ...deleteFilter,
       };
       if (specificBankId) {
         bankTxWhere.bankAccountId = specificBankId;
@@ -904,7 +1059,7 @@ export async function GET(req: Request) {
       const bankReceiptsWhere: any = {
         organizationId: orgId,
         receivedIn: 'BANK',
-        deletedAt: null,
+        ...deleteFilter,
       };
       if (specificBankId) {
         bankReceiptsWhere.bankAccountId = specificBankId;
@@ -944,15 +1099,30 @@ export async function GET(req: Request) {
           rawId: r.id,
           date: r.date.toISOString(),
           type: 'RECEIPT',
+          entityType: 'ProjectReceipt',
+          model: 'ProjectReceipt',
           categoryLabel: 'Client Payment in Bank',
           title: r.clientName,
           subtitle: `${r.bankAccount ? `${r.bankAccount.bankName} (${r.bankAccount.name})` : 'Bank'}${r.project?.name ? ` • ${r.project.name}` : ''}${r.receivedBy?.name ? ` • Received by ${r.receivedBy.name}` : ''}`,
           credit: r.amount,
           debit: 0,
+          amount: r.amount,
           paymentMethod: r.paymentMethod,
           receivedIn: 'BANK',
           reference: r.reference,
           notes: r.notes,
+          remarks: r.notes,
+          description: r.clientName,
+          category: r.purpose || 'RUNNING_BILL',
+          projectId: r.projectId,
+          siteId: r.siteId,
+          createdAt: r.createdAt.toISOString(),
+          isEdited: Boolean(r.isEdited),
+          editReason: r.editReason,
+          isDeleted: Boolean(r.deletedAt),
+          deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+          deleteReason: r.deleteReason,
+          receivedById: r.receivedById,
         });
       });
 
@@ -989,24 +1159,173 @@ export async function GET(req: Request) {
           title = bt.notes || bt.reference || 'Bank Payment';
         }
 
+        const isWorkerPmt = bt.notes?.includes('Worker Payment:') || bt.notes?.includes('Payment ID:');
+
         ledgerEntries.push({
           id: `bt-${bt.id}`,
           rawId: bt.id,
           date: bt.date.toISOString(),
           type: entryType,
+          entityType: isWorkerPmt ? 'Payment' : 'BankTransaction',
+          model: 'BankTransaction',
+          isWorkerPayment: isWorkerPmt,
           categoryLabel: typeLabel,
           title,
           subtitle: `${bt.bankAccount?.bankName} (${bt.bankAccount?.name})${bt.project?.name ? ` • ${bt.project.name}` : ''}`,
           credit: isCredit ? bt.amount : 0,
           debit: !isCredit ? bt.amount : 0,
+          amount: bt.amount,
           paymentMethod: 'BANK',
           reference: bt.reference,
           notes: bt.notes,
+          remarks: bt.notes,
+          createdAt: bt.createdAt.toISOString(),
+          isEdited: Boolean(bt.isEdited),
+          editReason: bt.editReason,
+          isDeleted: Boolean(bt.deletedAt),
+          deletedAt: bt.deletedAt ? bt.deletedAt.toISOString() : null,
+          deleteReason: bt.deleteReason,
+          createdById: bt.createdById,
+          partnerId: bt.partnerId,
         });
       });
 
-      // Sort chronological descending
-      ledgerEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Opening Balance & Balance Brought Forward calculations for Bank Account
+      let targetBankAcc: any = null;
+      if (specificBankId) {
+        targetBankAcc = await prisma.bankAccount.findUnique({
+          where: { id: specificBankId },
+          select: { id: true, name: true, bankName: true, openingBalance: true, openingBalanceDate: true, openingBalanceNote: true },
+        });
+      }
+
+      if (targetBankAcc) {
+        const bankOpBal = targetBankAcc.openingBalance || 0;
+        const bankOpDate = targetBankAcc.openingBalanceDate || null;
+        const bankOpNote = targetBankAcc.openingBalanceNote || null;
+
+        if (hasDateFilter && startDate) {
+          const priorCutoff = dateFilter.gte;
+          const [priorBTxs, priorBReceipts] = await Promise.all([
+            prisma.bankTransaction.findMany({
+              where: {
+                organizationId: orgId,
+                bankAccountId: specificBankId!,
+                date: { lt: priorCutoff },
+                deletedAt: null,
+              },
+              select: { type: true, amount: true },
+            }),
+            prisma.projectReceipt.aggregate({
+              where: {
+                organizationId: orgId,
+                bankAccountId: specificBankId!,
+                receivedIn: 'BANK',
+                date: { lt: priorCutoff },
+                deletedAt: null,
+              },
+              _sum: { amount: true },
+            }),
+          ]);
+
+          let priorBankCredits = priorBReceipts._sum.amount || 0;
+          let priorBankDebits = 0;
+          priorBTxs.forEach((tx) => {
+            if (['DEPOSIT', 'TRANSFER_FROM_PARTNER', 'RECEIPT'].includes(tx.type)) {
+              priorBankCredits += tx.amount;
+            } else {
+              priorBankDebits += tx.amount;
+            }
+          });
+
+          const priorBankBalance = Math.round((bankOpBal + priorBankCredits - priorBankDebits) * 100) / 100;
+
+          ledgerEntries.push({
+            id: `bbf-bank-${specificBankId}`,
+            rawId: `bbf-bank-${specificBankId}`,
+            date: priorCutoff.toISOString(),
+            type: 'BALANCE_BROUGHT_FORWARD',
+            entityType: 'BALANCE_BROUGHT_FORWARD',
+            categoryLabel: 'Balance Brought Forward',
+            title: 'Balance brought forward (Pichhla Bacha Balance)',
+            subtitle: `Prior bank opening balance & transactions before ${priorCutoff.toLocaleDateString('en-IN')}`,
+            credit: priorBankBalance > 0 ? priorBankBalance : 0,
+            debit: priorBankBalance < 0 ? Math.abs(priorBankBalance) : 0,
+            paymentMethod: 'ADJUSTMENT',
+            reference: null,
+            notes: null,
+            isNonEditable: true,
+            canEdit: false,
+            canDelete: false,
+          });
+        } else if (bankOpBal !== 0) {
+          ledgerEntries.push({
+            id: `opbal-bank-${specificBankId}`,
+            rawId: `opbal-bank-${specificBankId}`,
+            date: (bankOpDate || new Date(2020, 0, 1)).toISOString(),
+            type: 'OPENING_BALANCE',
+            entityType: 'OPENING_BALANCE',
+            categoryLabel: 'Opening Balance',
+            title: 'Opening Balance (Shuruaati Balance)',
+            subtitle: bankOpNote || 'Bank initial opening balance',
+            credit: bankOpBal > 0 ? bankOpBal : 0,
+            debit: bankOpBal < 0 ? Math.abs(bankOpBal) : 0,
+            paymentMethod: 'OPENING',
+            reference: null,
+            notes: bankOpNote,
+            isNonEditable: true,
+            canEdit: false,
+            canDelete: false,
+          });
+        }
+      }
+    }
+
+    // Sort chronologically ascending to compute running balances from starting balance
+    ledgerEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let runningAccumulator = 0;
+    for (const entry of ledgerEntries) {
+      if (entry.isDeleted) {
+        entry.runningBalance = runningAccumulator;
+        continue;
+      }
+      runningAccumulator = Math.round((runningAccumulator + (entry.credit || 0) - (entry.debit || 0)) * 100) / 100;
+      entry.runningBalance = runningAccumulator;
+    }
+
+    // Place Opening Balance / Balance Brought Forward at the top (row 0), followed by transactions (newest first)
+    const opEntries = ledgerEntries.filter(
+      (e) => e.type === 'OPENING_BALANCE' || e.type === 'BALANCE_BROUGHT_FORWARD'
+    );
+    const nonOpEntries = ledgerEntries.filter(
+      (e) => e.type !== 'OPENING_BALANCE' && e.type !== 'BALANCE_BROUGHT_FORWARD'
+    );
+    nonOpEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    ledgerEntries = [...opEntries, ...nonOpEntries];
+
+    // Populate permission flags (canEdit, canDelete) on all entries
+    const isOwnerUser = userRole === 'OWNER';
+    const isManagerOrAccountant = ['MANAGER', 'ACCOUNTANT'].includes(userRole);
+    const currentTimeMs = Date.now();
+
+    for (const entry of ledgerEntries) {
+      if (entry.isNonEditable) {
+        entry.canEdit = false;
+        entry.canDelete = false;
+        continue;
+      }
+      const isMine =
+        entry.createdById === session.userId ||
+        entry.receivedById === session.userId ||
+        entry.fromUserId === session.userId ||
+        entry.walletOwnerId === session.userId ||
+        entry.spentById === session.userId;
+      const ageMs = currentTimeMs - new Date(entry.createdAt || entry.date).getTime();
+      const isWithin48h = ageMs <= 48 * 60 * 60 * 1000;
+
+      entry.canEdit = !entry.isDeleted && (isOwnerUser || (isManagerOrAccountant && isMine && isWithin48h));
+      entry.canDelete = !entry.isDeleted && (isOwnerUser || (isManagerOrAccountant && isMine && isWithin48h));
     }
 
     // 5. Fetch Recent Client Payment Receipts (for "Transfer from Received Payment" feature)

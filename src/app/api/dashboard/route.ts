@@ -8,6 +8,7 @@ import {
   calculateWalletBalance,
   calculateDailyCashFlow,
 } from '@/lib/calculations';
+import { getPartnerWalletBalance, getMultiplePartnersWalletBalances } from '@/lib/finance/partnerWallet';
 import { backfillWorkerPaymentsToExpenses } from '@/lib/finance/workerExpenseSync';
 
 export const dynamic = 'force-dynamic';
@@ -396,53 +397,7 @@ export async function GET(req: Request) {
     }
 
     // 4. Aaj Ka Hisaab (Today's Cash Flow & Partner Wallet)
-    const [
-      myMoneyInAgg,
-      myTransfersInAgg,
-      myTransfersOutAgg,
-      myExpensesAgg,
-      myBankWithdrawalsAgg,
-      myBankDepositsAgg,
-    ] = await Promise.all([
-      prisma.projectReceipt.aggregate({
-        where: {
-          organizationId: orgId,
-          receivedById: session.userId,
-          deletedAt: null,
-          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-        },
-        _sum: { amount: true },
-      }),
-      prisma.fundTransfer.aggregate({
-        where: { organizationId: orgId, toUserId: session.userId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.fundTransfer.aggregate({
-        where: { organizationId: orgId, fromUserId: session.userId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.expense.aggregate({
-        where: { organizationId: orgId, walletOwnerId: session.userId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.bankTransaction.aggregate({
-        where: { organizationId: orgId, partnerId: session.userId, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.bankTransaction.aggregate({
-        where: { organizationId: orgId, partnerId: session.userId, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
-        _sum: { amount: true },
-      }),
-    ]);
-
-    const myWallet = calculateWalletBalance({
-      totalMoneyIn: myMoneyInAgg._sum.amount || 0,
-      totalTransfersIn: myTransfersInAgg._sum.amount || 0,
-      totalTransfersOut: myTransfersOutAgg._sum.amount || 0,
-      totalExpenses: myExpensesAgg._sum.amount || 0,
-      totalBankWithdrawals: myBankWithdrawalsAgg._sum.amount || 0,
-      totalBankDeposits: myBankDepositsAgg._sum.amount || 0,
-    });
+    const myWallet = await getPartnerWalletBalance(prisma, orgId, session.userId);
 
     const [todayMoneyIn, todayTransfersIn, todayTransfersOut, todayExp, todayBWith, todayBDep] = await Promise.all([
       prisma.projectReceipt.aggregate({
@@ -493,58 +448,22 @@ export async function GET(req: Request) {
         .filter((m: any) => ['PARTNER', 'OWNER'].includes(normalizeRole(m.role)))
         .map((m: any) => m.user);
 
-      partnersComparison = await Promise.all(
-        partnerUsers.map(async (u: any) => {
-          const [mIn, tIn, tOut, exp, bWith, bDep] = await Promise.all([
-            prisma.projectReceipt.aggregate({
-              where: {
-                organizationId: orgId,
-                receivedById: u.id,
-                deletedAt: null,
-                OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-              },
-              _sum: { amount: true },
-            }),
-            prisma.fundTransfer.aggregate({
-              where: { organizationId: orgId, toUserId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.fundTransfer.aggregate({
-              where: { organizationId: orgId, fromUserId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.expense.aggregate({
-              where: { organizationId: orgId, walletOwnerId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.bankTransaction.aggregate({
-              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.bankTransaction.aggregate({
-              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
-              _sum: { amount: true },
-            }),
-          ]);
-
-          const w = calculateWalletBalance({
-            totalMoneyIn: mIn._sum.amount || 0,
-            totalTransfersIn: tIn._sum.amount || 0,
-            totalTransfersOut: tOut._sum.amount || 0,
-            totalExpenses: exp._sum.amount || 0,
-            totalBankWithdrawals: bWith._sum.amount || 0,
-            totalBankDeposits: bDep._sum.amount || 0,
-          });
-
-          return {
-            userId: u.id,
-            name: u.name,
-            balance: w.balance,
-            totalCredits: w.totalCredits,
-            totalDebits: w.totalDebits,
-          };
-        })
+      const balancesMap = await getMultiplePartnersWalletBalances(
+        prisma,
+        orgId,
+        partnerUsers.map((u: any) => u.id)
       );
+
+      partnersComparison = partnerUsers.map((u: any) => {
+        const w = balancesMap.get(u.id);
+        return {
+          userId: u.id,
+          name: u.name,
+          balance: w?.balance || 0,
+          totalCredits: w?.totalCredits || 0,
+          totalDebits: w?.totalDebits || 0,
+        };
+      });
     }
 
     return NextResponse.json({

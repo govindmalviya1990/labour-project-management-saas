@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { checkRolePermission, normalizeRole } from '@/lib/auth/session';
 import { calculateWalletBalance, calculateDailyCashFlow } from '@/lib/calculations';
+import { getPartnerWalletBalance, getMultiplePartnersWalletBalances } from '@/lib/finance/partnerWallet';
 import { getStartOfDayUTC } from '@/lib/auth/day-lock';
 
 export const dynamic = 'force-dynamic';
@@ -32,73 +33,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // 1. Overall Lifetime Derived Balance
-    const [
-      moneyInAgg,
-      transfersInAgg,
-      transfersOutAgg,
-      expensesAgg,
-      bankWithdrawalsAgg,
-      bankDepositsAgg,
-    ] = await Promise.all([
-      prisma.projectReceipt.aggregate({
-        where: {
-          organizationId: orgId,
-          receivedById: targetUserId,
-          deletedAt: null,
-          OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-        },
-        _sum: { amount: true },
-      }),
-      prisma.fundTransfer.aggregate({
-        where: { organizationId: orgId, toUserId: targetUserId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.fundTransfer.aggregate({
-        where: { organizationId: orgId, fromUserId: targetUserId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      prisma.expense.aggregate({
-        where: { organizationId: orgId, walletOwnerId: targetUserId, deletedAt: null },
-        _sum: { amount: true },
-      }),
-      // Bank se Cash Nikala -> Partner Wallet Credit
-      prisma.bankTransaction.aggregate({
-        where: {
-          organizationId: orgId,
-          partnerId: targetUserId,
-          type: 'TRANSFER_TO_PARTNER',
-          deletedAt: null,
-        },
-        _sum: { amount: true },
-      }),
-      // Cash Bank mein Jama -> Partner Wallet Debit
-      prisma.bankTransaction.aggregate({
-        where: {
-          organizationId: orgId,
-          partnerId: targetUserId,
-          type: 'TRANSFER_FROM_PARTNER',
-          deletedAt: null,
-        },
-        _sum: { amount: true },
-      }),
-    ]);
-
-    const totalMoneyIn = moneyInAgg._sum.amount || 0;
-    const totalTransfersIn = transfersInAgg._sum.amount || 0;
-    const totalTransfersOut = transfersOutAgg._sum.amount || 0;
-    const totalExpenses = expensesAgg._sum.amount || 0;
-    const totalBankWithdrawals = bankWithdrawalsAgg._sum.amount || 0;
-    const totalBankDeposits = bankDepositsAgg._sum.amount || 0;
-
-    const lifetimeWallet = calculateWalletBalance({
-      totalMoneyIn,
-      totalTransfersIn,
-      totalTransfersOut,
-      totalExpenses,
-      totalBankWithdrawals,
-      totalBankDeposits,
-    });
+    // 1. Overall Lifetime Derived Balance (using shared partnerWallet helper with opening balance)
+    const lifetimeWallet = await getPartnerWalletBalance(prisma, orgId, targetUserId);
 
     // 2. Day-specific Cash Flow (Din Ka Hisaab)
     const queryDate = dateParam ? new Date(dateParam) : new Date();
@@ -159,6 +95,7 @@ export async function GET(req: Request) {
     ]);
 
     const priorWallet = calculateWalletBalance({
+      openingBalance: lifetimeWallet.openingBalance,
       totalMoneyIn: priorMoneyIn._sum.amount || 0,
       totalTransfersIn: priorTransfersIn._sum.amount || 0,
       totalTransfersOut: priorTransfersOut._sum.amount || 0,
@@ -436,59 +373,23 @@ export async function GET(req: Request) {
         .filter((m: any) => ['PARTNER', 'OWNER'].includes(normalizeRole(m.role)))
         .map((m: any) => m.user);
 
-      allPartnersSummary = await Promise.all(
-        partnerUsers.map(async (u: any) => {
-          const [mIn, tIn, tOut, exp, bWith, bDep] = await Promise.all([
-            prisma.projectReceipt.aggregate({
-              where: {
-                organizationId: orgId,
-                receivedById: u.id,
-                deletedAt: null,
-                OR: [{ receivedIn: null }, { receivedIn: 'WALLET' }],
-              },
-              _sum: { amount: true },
-            }),
-            prisma.fundTransfer.aggregate({
-              where: { organizationId: orgId, toUserId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.fundTransfer.aggregate({
-              where: { organizationId: orgId, fromUserId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.expense.aggregate({
-              where: { organizationId: orgId, walletOwnerId: u.id, deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.bankTransaction.aggregate({
-              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_TO_PARTNER', deletedAt: null },
-              _sum: { amount: true },
-            }),
-            prisma.bankTransaction.aggregate({
-              where: { organizationId: orgId, partnerId: u.id, type: 'TRANSFER_FROM_PARTNER', deletedAt: null },
-              _sum: { amount: true },
-            }),
-          ]);
-
-          const pWallet = calculateWalletBalance({
-            totalMoneyIn: mIn._sum.amount || 0,
-            totalTransfersIn: tIn._sum.amount || 0,
-            totalTransfersOut: tOut._sum.amount || 0,
-            totalExpenses: exp._sum.amount || 0,
-            totalBankWithdrawals: bWith._sum.amount || 0,
-            totalBankDeposits: bDep._sum.amount || 0,
-          });
-
-          return {
-            userId: u.id,
-            name: u.name,
-            email: u.email,
-            balance: pWallet.balance,
-            totalCredits: pWallet.totalCredits,
-            totalDebits: pWallet.totalDebits,
-          };
-        })
+      const balancesMap = await getMultiplePartnersWalletBalances(
+        prisma,
+        orgId,
+        partnerUsers.map((u: any) => u.id)
       );
+
+      allPartnersSummary = partnerUsers.map((u: any) => {
+        const pWallet = balancesMap.get(u.id);
+        return {
+          userId: u.id,
+          name: u.name,
+          email: u.email,
+          balance: pWallet?.balance || 0,
+          totalCredits: pWallet?.totalCredits || 0,
+          totalDebits: pWallet?.totalDebits || 0,
+        };
+      });
     }
 
     return NextResponse.json({
