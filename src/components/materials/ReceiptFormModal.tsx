@@ -102,11 +102,12 @@ export function ReceiptFormModal({
 
   const handleMaterialChange = (matId: string) => {
     const mat = materials.find((m) => m.id === matId);
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       materialId: matId,
-      purchaseRate: mat?.purchaseRate || formData.purchaseRate,
-    });
+      purchaseRate: mat?.purchaseRate !== undefined ? mat.purchaseRate : prev.purchaseRate,
+      supplierId: mat?.supplierId || prev.supplierId,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

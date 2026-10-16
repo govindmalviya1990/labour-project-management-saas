@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Package, AlertCircle } from 'lucide-react';
+import { Package, AlertCircle, Plus, Building2 } from 'lucide-react';
 
 interface MaterialFormModalProps {
   isOpen: boolean;
@@ -50,6 +50,18 @@ export function MaterialFormModal({
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [customCategory, setCustomCategory] = useState('');
 
+  // Inline Quick Supplier Creation state
+  const [isAddingSupplier, setIsAddingSupplier] = useState(false);
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+  const [supplierAddError, setSupplierAddError] = useState('');
+  const [newSupplier, setNewSupplier] = useState({
+    name: '',
+    contactPerson: '',
+    mobile: '',
+    address: '',
+    gstNumber: '',
+  });
+
   const [formData, setFormData] = useState({
     materialCode: '',
     name: '',
@@ -91,6 +103,16 @@ export function MaterialFormModal({
 
     if (isOpen) {
       loadSuppliersAndCategories();
+      setIsAddingSupplier(false);
+      setSupplierAddError('');
+      setNewSupplier({
+        name: '',
+        contactPerson: '',
+        mobile: '',
+        address: '',
+        gstNumber: '',
+      });
+
       if (initialData) {
         const cat = initialData.category || 'Cement';
         const isKnown = CATEGORIES.includes(cat);
@@ -127,6 +149,52 @@ export function MaterialFormModal({
     }
   }, [isOpen, initialData]);
 
+  const handleCreateSupplier = async () => {
+    if (!newSupplier.name.trim()) {
+      setSupplierAddError('Supplier / Vendor business name is required');
+      return;
+    }
+
+    setIsSavingSupplier(true);
+    setSupplierAddError('');
+
+    try {
+      const res = await fetch('/api/materials/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newSupplier.name.trim(),
+          contactPerson: newSupplier.contactPerson.trim() || undefined,
+          mobile: newSupplier.mobile.trim() || undefined,
+          address: newSupplier.address.trim() || undefined,
+          gstNumber: newSupplier.gstNumber.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create supplier');
+      }
+
+      const created = data.supplier;
+      setSuppliers((prev) => [created, ...prev]);
+      setFormData((prev) => ({ ...prev, supplierId: created.id }));
+      setIsAddingSupplier(false);
+      setNewSupplier({
+        name: '',
+        contactPerson: '',
+        mobile: '',
+        address: '',
+        gstNumber: '',
+      });
+    } catch (err: any) {
+      setSupplierAddError(err.message || 'Failed to register supplier');
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -137,6 +205,14 @@ export function MaterialFormModal({
     }
     if (!formData.materialCode.trim()) {
       setError('Material code is required');
+      return;
+    }
+    if (isAddingSupplier && !formData.supplierId) {
+      setError('Please click "Save & Select Supplier" first or cancel adding supplier');
+      return;
+    }
+    if (!formData.supplierId) {
+      setError('Supplier is required. Please select an existing supplier or click "+ Add New Supplier"');
       return;
     }
 
@@ -351,18 +427,177 @@ export function MaterialFormModal({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Default Supplier (Optional)
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Supplier / Vendor *
+            </label>
+            {!isAddingSupplier ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingSupplier(true);
+                  setSupplierAddError('');
+                }}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                + Add New Supplier
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingSupplier(false);
+                  setSupplierAddError('');
+                }}
+                className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Cancel Quick Add
+              </button>
+            )}
+          </div>
+
+          {/* Quick Inline Supplier Registration Form */}
+          {isAddingSupplier && (
+            <div className="mb-3 p-3.5 bg-slate-900/90 border border-amber-500/40 rounded-xl space-y-3 shadow-lg shadow-black/20 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    Register New Supplier / Vendor
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingSupplier(false);
+                    setSupplierAddError('');
+                  }}
+                  className="text-xs text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {supplierAddError && (
+                <div className="flex items-center gap-2 p-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-xs">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{supplierAddError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                  Supplier / Vendor Business Name *
+                </label>
+                <Input
+                  value={newSupplier.name}
+                  onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                  placeholder="e.g. Balaji Steel & Cement Traders"
+                  autoFocus
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                    Contact Person (Optional)
+                  </label>
+                  <Input
+                    value={newSupplier.contactPerson}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, contactPerson: e.target.value })}
+                    placeholder="e.g. Ramesh Kumar"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                    Mobile Number (Optional)
+                  </label>
+                  <Input
+                    value={newSupplier.mobile}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, mobile: e.target.value })}
+                    placeholder="e.g. 9876543210"
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                    GSTIN (Optional)
+                  </label>
+                  <Input
+                    value={newSupplier.gstNumber}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, gstNumber: e.target.value })}
+                    placeholder="e.g. 27ABCDE1234F1Z5"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 uppercase mb-1">
+                    City / Address (Optional)
+                  </label>
+                  <Input
+                    value={newSupplier.address}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, address: e.target.value })}
+                    placeholder="e.g. Industrial Area, Pune"
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsAddingSupplier(false);
+                    setSupplierAddError('');
+                  }}
+                  disabled={isSavingSupplier}
+                  className="text-xs h-8"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateSupplier}
+                  disabled={isSavingSupplier}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-8"
+                >
+                  {isSavingSupplier ? 'Saving Supplier...' : '✓ Save & Select Supplier'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <select
             value={formData.supplierId}
-            onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
+            onChange={(e) => {
+              if (e.target.value === '__add_new__') {
+                setIsAddingSupplier(true);
+                setSupplierAddError('');
+                return;
+              }
+              setFormData({ ...formData, supplierId: e.target.value });
+            }}
             className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            required
           >
-            <option value="">-- No Default Supplier --</option>
+            <option value="">-- Select Supplier / Vendor * --</option>
             {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} ({s.contactPerson || s.mobile || 'Vendor'})</option>
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.contactPerson || s.mobile || 'Vendor'})
+              </option>
             ))}
+            <option value="__add_new__" className="text-amber-400 font-bold bg-slate-800">
+              ➕ + Register New Supplier Directly...
+            </option>
           </select>
         </div>
 
