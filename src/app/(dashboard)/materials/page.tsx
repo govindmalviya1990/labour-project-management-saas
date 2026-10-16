@@ -126,6 +126,29 @@ export default function MaterialsPage() {
         }
       })
       .catch(() => {});
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const action = params.get('action');
+
+      if (tab === 'send' || action === 'send') {
+        setActiveTab('send');
+        if (action === 'send' || action === 'new') setUsageModalOpen(true);
+      } else if (tab === 'transfers' || action === 'transfer') {
+        setActiveTab('transfers');
+        if (action === 'transfer' || action === 'new') setTransferModalOpen(true);
+      } else if (tab === 'receipts' || action === 'receive') {
+        setActiveTab('receipts');
+        if (action === 'receive' || action === 'new') {
+          setEditingReceipt(null);
+          setReceiptModalOpen(true);
+        }
+      } else if (action === 'new_material') {
+        setEditingMaterial(null);
+        setMaterialModalOpen(true);
+      }
+    }
   }, []);
 
   const handleOpenVerifyModal = (dispatch: any) => {
@@ -299,7 +322,34 @@ export default function MaterialsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => setUsageModalOpen(true)}
+            className="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold text-xs px-3.5 py-2.5 h-auto flex items-center gap-1.5 shadow-md shadow-sky-950/30"
+          >
+            <Send className="w-4 h-4" />
+            Send to Site
+          </Button>
+
+          <Button
+            onClick={() => setTransferModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 h-auto flex items-center gap-1.5 shadow-md shadow-indigo-950/30"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            Internal Transfer
+          </Button>
+
+          <Button
+            onClick={() => {
+              setEditingReceipt(null);
+              setReceiptModalOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 h-auto flex items-center gap-1.5 shadow-md shadow-emerald-950/30"
+          >
+            <Truck className="w-4 h-4" />
+            Receive Material
+          </Button>
+
           <Link href="/materials/suppliers">
             <Button
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3.5 py-2.5 h-auto flex items-center gap-1.5 shadow-md shadow-purple-950/30"
@@ -308,12 +358,13 @@ export default function MaterialsPage() {
               Suppliers &amp; Vendors
             </Button>
           </Link>
+
           <Button
             onClick={() => setStockReportModalOpen(true)}
-            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-950/40 px-4 py-2.5 h-auto flex items-center gap-2 border border-emerald-400/30"
+            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-950/40 px-3.5 py-2.5 h-auto flex items-center gap-1.5 border border-emerald-400/30"
           >
             <BarChart3 className="w-4 h-4 text-emerald-100" />
-            View Stock Report
+            Stock Report
           </Button>
         </div>
       </div>
@@ -511,28 +562,93 @@ export default function MaterialsPage() {
           </div>
         </div>
 
-        {activeTab === 'catalog' && (
-          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
-            <Button
-              onClick={exportMaterialsCSV}
-              variant="outline"
-              className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800"
-            >
-              <Download className="w-3.5 h-3.5 mr-1.5" />
-              Export CSV
-            </Button>
-            <Button
-              onClick={() => {
-                setEditingMaterial(null);
-                setMaterialModalOpen(true);
-              }}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md"
-            >
-              <Plus className="w-4 h-4 mr-1.5" />
-              Add Material
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+          {activeTab === 'catalog' && (
+            <>
+              <Button
+                onClick={exportMaterialsCSV}
+                variant="outline"
+                className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Export CSV
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditingMaterial(null);
+                  setMaterialModalOpen(true);
+                }}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Material
+              </Button>
+            </>
+          )}
+
+          {activeTab === 'send' && (
+            <>
+              <Link href="/materials/send">
+                <Button
+                  variant="outline"
+                  className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800 hidden sm:flex items-center"
+                >
+                  Full Dispatch Page ➡️
+                </Button>
+              </Link>
+              <Button
+                onClick={() => setUsageModalOpen(true)}
+                className="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold text-xs shadow-md flex items-center gap-1.5"
+              >
+                <Send className="w-4 h-4" />
+                Send Material to Site
+              </Button>
+            </>
+          )}
+
+          {activeTab === 'receipts' && (
+            <>
+              <Link href="/materials/received">
+                <Button
+                  variant="outline"
+                  className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800 hidden sm:flex items-center"
+                >
+                  Receiving Portal ➡️
+                </Button>
+              </Link>
+              <Button
+                onClick={() => {
+                  setEditingReceipt(null);
+                  setReceiptModalOpen(true);
+                }}
+                className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-md flex items-center gap-1.5"
+              >
+                <Truck className="w-4 h-4" />
+                Receive Material (GRN)
+              </Button>
+            </>
+          )}
+
+          {activeTab === 'transfers' && (
+            <>
+              <Link href="/materials/transfers">
+                <Button
+                  variant="outline"
+                  className="text-xs border-slate-700 text-slate-300 hover:bg-slate-800 hidden sm:flex items-center"
+                >
+                  Transfer Hub ➡️
+                </Button>
+              </Link>
+              <Button
+                onClick={() => setTransferModalOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                New Internal Transfer
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* TAB 1: CATALOG & INVENTORY STOCK LEVELS */}
@@ -780,8 +896,24 @@ export default function MaterialsPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {receipts.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="text-center py-10 text-slate-400">
-                        No material receipts recorded yet. Click "Receive Material (GRN)" to log deliveries.
+                      <td colSpan={10} className="text-center py-12 text-slate-400">
+                        <Truck className="w-10 h-10 text-emerald-500/50 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-slate-200 mb-1">
+                          No material receipts recorded yet
+                        </p>
+                        <p className="text-xs text-slate-500 mb-4">
+                          Record inward material shipments, supplier deliveries and site GRNs
+                        </p>
+                        <Button
+                          onClick={() => {
+                            setEditingReceipt(null);
+                            setReceiptModalOpen(true);
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md inline-flex items-center gap-2"
+                        >
+                          <Truck className="w-4 h-4" />
+                          Receive Material (GRN)
+                        </Button>
                       </td>
                     </tr>
                   ) : (
@@ -883,8 +1015,21 @@ export default function MaterialsPage() {
               <tbody className="divide-y divide-slate-800/60">
                 {usages.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-400">
-                      No materials sent to sites yet. Click "Send to Site" to dispatch inventory.
+                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                      <Send className="w-10 h-10 text-sky-500/50 mx-auto mb-3" />
+                      <p className="text-sm font-semibold text-slate-200 mb-1">
+                        No materials sent to sites yet
+                      </p>
+                      <p className="text-xs text-slate-500 mb-4">
+                        Dispatch inventory items from company warehouse directly to any construction site
+                      </p>
+                      <Button
+                        onClick={() => setUsageModalOpen(true)}
+                        className="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold text-xs shadow-md inline-flex items-center gap-2"
+                      >
+                        <Send className="w-4 h-4" />
+                        Send Material to Site Now
+                      </Button>
                     </td>
                   </tr>
                 ) : (
@@ -942,8 +1087,21 @@ export default function MaterialsPage() {
               <tbody className="divide-y divide-slate-800/60">
                 {transfers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-400">
-                      No inter-site material transfers logged yet. Click "Inter-Site Transfer" to shift materials between projects.
+                    <td colSpan={6} className="text-center py-12 text-slate-400">
+                      <ArrowRightLeft className="w-10 h-10 text-indigo-500/50 mx-auto mb-3" />
+                      <p className="text-sm font-semibold text-slate-200 mb-1">
+                        No inter-site material transfers logged yet
+                      </p>
+                      <p className="text-xs text-slate-500 mb-4">
+                        Shift material stocks between project sites cleanly without creating duplicate purchase expenses
+                      </p>
+                      <Button
+                        onClick={() => setTransferModalOpen(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md inline-flex items-center gap-2"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" />
+                        New Internal Transfer
+                      </Button>
                     </td>
                   </tr>
                 ) : (

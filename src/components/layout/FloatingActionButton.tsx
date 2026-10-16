@@ -18,6 +18,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ShoppingBag,
+  Send,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { normalizeRole } from '@/lib/auth/roles';
@@ -36,8 +38,10 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
       return [
         { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
         { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
-        { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
+        { label: 'Send to Site', href: '/materials/send?action=new', icon: <Send className="w-4 h-4 text-sky-400" /> },
+        { label: 'Internal Transfer', href: '/materials/transfers?action=new', icon: <ArrowRightLeft className="w-4 h-4 text-indigo-400" /> },
         { label: 'Material Received', href: '/materials/received?action=new', icon: <PackagePlus className="w-4 h-4 text-emerald-400" /> },
+        { label: 'Material Used', href: '/materials/used?action=new', icon: <PackageMinus className="w-4 h-4 text-orange-400" /> },
       ];
     }
 
@@ -45,6 +49,8 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
       return [
         { label: 'Site Daily Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
         { label: 'Worker Payments', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
+        { label: 'Send to Site', href: '/materials?tab=send&action=send', icon: <Send className="w-4 h-4 text-sky-400" /> },
+        { label: 'Internal Transfer', href: '/materials?tab=transfers&action=transfer', icon: <ArrowRightLeft className="w-4 h-4 text-indigo-400" /> },
         { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
       ];
     }
@@ -53,6 +59,7 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
       return [
         { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-amber-400" /> },
         { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
+        { label: 'Send to Site', href: '/materials?tab=send&action=send', icon: <Send className="w-4 h-4 text-sky-400" /> },
         { label: 'New Quotation', href: '/quotations', icon: <FileSpreadsheet className="w-4 h-4 text-amber-400" /> },
       ];
     }
@@ -61,6 +68,8 @@ export function FloatingActionButton({ userRole = 'OWNER' }: { userRole?: string
     return [
       { label: 'Add Expense', href: '/finance/expenses?action=new', icon: <Receipt className="w-4 h-4 text-rose-400" /> },
       { label: 'Record Payment', href: '/finance/payments?action=new', icon: <IndianRupee className="w-4 h-4 text-emerald-400" /> },
+      { label: 'Send to Site', href: '/materials?tab=send&action=send', icon: <Send className="w-4 h-4 text-sky-400" /> },
+      { label: 'Internal Transfer', href: '/materials?tab=transfers&action=transfer', icon: <ArrowRightLeft className="w-4 h-4 text-indigo-400" /> },
       { label: 'Mark Attendance', href: '/attendance?action=new', icon: <CalendarCheck className="w-4 h-4 text-teal-400" /> },
       { label: 'Record Work', href: '/work?action=new', icon: <Hammer className="w-4 h-4 text-blue-400" /> },
       { label: 'Add Worker', href: '/workers?action=new', icon: <UserPlus className="w-4 h-4 text-indigo-400" /> },

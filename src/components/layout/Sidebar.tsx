@@ -135,6 +135,9 @@ export function Sidebar({
           icon: <Package className="w-4 h-4 text-orange-400" />,
           children: [
             { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Send to Site', href: '/materials/send' },
+            { title: 'Internal Transfer', href: '/materials/transfers' },
+            { title: 'Receive Material (GRN)', href: '/materials/received' },
             { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
           ],
         },
@@ -184,6 +187,9 @@ export function Sidebar({
           icon: <Package className="w-4 h-4 text-orange-400" />,
           children: [
             { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Send to Site', href: '/materials/send' },
+            { title: 'Internal Transfer', href: '/materials/transfers' },
+            { title: 'Receive Material (GRN)', href: '/materials/received' },
             { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
           ],
         },
@@ -250,6 +256,9 @@ export function Sidebar({
           icon: <Package className="w-4 h-4 text-orange-400" />,
           children: [
             { title: 'Materials & Stock', href: '/materials' },
+            { title: 'Send to Site', href: '/materials/send' },
+            { title: 'Internal Transfer', href: '/materials/transfers' },
+            { title: 'Receive Material (GRN)', href: '/materials/received' },
             { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
           ],
         },
@@ -322,6 +331,9 @@ export function Sidebar({
         icon: <Package className="w-4 h-4 text-orange-400" />,
         children: [
           { title: 'Materials & Stock', href: '/materials' },
+          { title: 'Send to Site', href: '/materials/send' },
+          { title: 'Internal Transfer', href: '/materials/transfers' },
+          { title: 'Receive Material (GRN)', href: '/materials/received' },
           { title: 'Suppliers & Vendors', href: '/materials/suppliers' },
         ],
       },
