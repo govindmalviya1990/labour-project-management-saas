@@ -19,11 +19,24 @@ import {
   Trash2,
   Hammer,
   Plus,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { formatINR } from '@/lib/calculations';
 import { clsx } from 'clsx';
+
+const DEFAULT_ACTIVITIES = [
+  'Waterproofing',
+  'PU Coating',
+  'Epoxy Flooring',
+  'Brickwork',
+  'Plaster',
+  'Tile Fixing',
+  'Painting',
+  'Site Labour',
+];
+const STORAGE_KEY_CUSTOM_ACTIVITIES = 'mwcs_custom_work_activities';
 
 function formatWorkOutput(workLogs: any[]): string {
   if (!workLogs || workLogs.length === 0) return '';
@@ -65,6 +78,9 @@ export default function AttendancePage() {
   // Work Record Modal states
   const [selectedWorkerForWork, setSelectedWorkerForWork] = useState<any | null>(null);
   const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+  const [customActivities, setCustomActivities] = useState<string[]>([]);
+  const [isAddingActivity, setIsAddingActivity] = useState(false);
+  const [newActivityInput, setNewActivityInput] = useState('');
   const [workForm, setWorkForm] = useState({
     task: 'Waterproofing',
     quantity: '',
@@ -75,6 +91,25 @@ export default function AttendancePage() {
   const [isSavingWork, setIsSavingWork] = useState(false);
   const [workActionError, setWorkActionError] = useState('');
   const [workActionSuccess, setWorkActionSuccess] = useState('');
+
+  // Load saved custom activities from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY_CUSTOM_ACTIVITIES);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setCustomActivities(
+              parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+            );
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load custom activities from localStorage', e);
+      }
+    }
+  }, []);
 
   // Fetch projects for dropdown
   useEffect(() => {
@@ -185,11 +220,47 @@ export default function AttendancePage() {
     }
   };
 
-  // Work Record Handlers
+  // Work Record Handlers & Custom Activities
+  const saveCustomActivities = (newList: string[]) => {
+    setCustomActivities(newList);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY_CUSTOM_ACTIVITIES, JSON.stringify(newList));
+      } catch (e) {
+        console.error('Failed to save custom activities to localStorage', e);
+      }
+    }
+  };
+
+  const handleAddCustomActivity = (customName?: string) => {
+    const name = (customName ?? newActivityInput).trim();
+    if (!name) return;
+    const isDefault = DEFAULT_ACTIVITIES.some((a) => a.toLowerCase() === name.toLowerCase());
+    const isExisting = customActivities.some((a) => a.toLowerCase() === name.toLowerCase());
+    if (!isDefault && !isExisting) {
+      const updated = [...customActivities, name];
+      saveCustomActivities(updated);
+    }
+    setWorkForm((prev) => ({ ...prev, task: name }));
+    setNewActivityInput('');
+    setIsAddingActivity(false);
+  };
+
+  const handleRemoveCustomActivity = (tagToRemove: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = customActivities.filter((a) => a !== tagToRemove);
+    saveCustomActivities(updated);
+    if (workForm.task.toLowerCase() === tagToRemove.toLowerCase()) {
+      setWorkForm((prev) => ({ ...prev, task: DEFAULT_ACTIVITIES[0] }));
+    }
+  };
+
   const openWorkModal = (item: any) => {
     setSelectedWorkerForWork(item);
     setWorkActionError('');
     setWorkActionSuccess('');
+    setIsAddingActivity(false);
+    setNewActivityInput('');
     setWorkForm({
       task: 'Waterproofing',
       quantity: '',
@@ -205,7 +276,8 @@ export default function AttendancePage() {
     if (!selectedWorkerForWork || !selectedProjectId) return;
     const qty = Number(workForm.quantity);
     const rate = Number(workForm.rate);
-    if (!workForm.task.trim()) {
+    const taskName = workForm.task.trim();
+    if (!taskName) {
       setWorkActionError('Please enter a task name.');
       return;
     }
@@ -230,7 +302,7 @@ export default function AttendancePage() {
           date,
           projectId: selectedProjectId,
           workerId: selectedWorkerForWork.workerId,
-          task: workForm.task.trim(),
+          task: taskName,
           quantity: qty,
           unit: workForm.unit.trim() || 'sq.ft',
           rate: rate,
@@ -242,6 +314,13 @@ export default function AttendancePage() {
       if (!res.ok) throw new Error(data.error || 'Failed to save work record');
 
       const createdRecord = data.record;
+
+      // Auto-remember newly entered task in customActivities if not already present
+      const isDefault = DEFAULT_ACTIVITIES.some((a) => a.toLowerCase() === taskName.toLowerCase());
+      const isExisting = customActivities.some((a) => a.toLowerCase() === taskName.toLowerCase());
+      if (!isDefault && !isExisting) {
+        saveCustomActivities([...customActivities, taskName]);
+      }
 
       // Update worker's workLogs in the sheet state
       setSheet((prev) =>
@@ -267,7 +346,7 @@ export default function AttendancePage() {
 
       setWorkActionSuccess('Work record added successfully!');
       setWorkForm({
-        task: 'Waterproofing',
+        task: taskName,
         quantity: '',
         unit: 'sq.ft',
         rate: '',
@@ -782,35 +861,105 @@ export default function AttendancePage() {
                 Add Work Entry for this Date
               </h4>
 
-              {/* Quick Task Chips */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-semibold text-slate-400">Activity / Task</label>
+              {/* Quick Task Chips & Custom Activity Add */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-semibold text-slate-400">Activity / Task</label>
+                  {!isAddingActivity ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingActivity(true)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 hover:text-amber-300 transition-colors px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add Activity / Task
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Inline custom activity adder */}
+                {isAddingActivity && (
+                  <div className="flex items-center gap-1.5 p-2 rounded-lg bg-amber-950/30 border border-amber-500/40">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Enter custom activity / task name..."
+                      value={newActivityInput}
+                      onChange={(e) => setNewActivityInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomActivity();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsAddingActivity(false);
+                          setNewActivityInput('');
+                        }
+                      }}
+                      className="flex-1 bg-slate-900 border border-amber-500/50 text-slate-100 rounded px-2.5 py-1 text-xs focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomActivity()}
+                      disabled={!newActivityInput.trim()}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-xs font-semibold rounded shadow-sm transition-colors"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingActivity(false);
+                        setNewActivityInput('');
+                      }}
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs rounded transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Activity Chips (Default + Custom) */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {[
-                    'Waterproofing',
-                    'PU Coating',
-                    'Epoxy Flooring',
-                    'Brickwork',
-                    'Plaster',
-                    'Tile Fixing',
-                    'Painting',
-                    'Site Labour',
-                  ].map((tag) => (
+                  {DEFAULT_ACTIVITIES.map((tag) => (
                     <button
                       key={tag}
                       type="button"
                       onClick={() => setWorkForm((prev) => ({ ...prev, task: tag }))}
                       className={clsx(
                         'px-2 py-0.5 rounded text-[11px] font-medium transition-colors border',
-                        workForm.task === tag
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        workForm.task.trim().toLowerCase() === tag.toLowerCase()
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
                           : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-white'
                       )}
                     >
                       {tag}
                     </button>
                   ))}
+                  {customActivities.map((tag) => (
+                    <div
+                      key={tag}
+                      onClick={() => setWorkForm((prev) => ({ ...prev, task: tag }))}
+                      className={clsx(
+                        'group inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium transition-colors border cursor-pointer',
+                        workForm.task.trim().toLowerCase() === tag.toLowerCase()
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-white'
+                      )}
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        title={`Remove "${tag}"`}
+                        onClick={(e) => handleRemoveCustomActivity(tag, e)}
+                        className="text-slate-500 hover:text-rose-400 opacity-60 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-rose-500/10"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
+
                 <input
                   type="text"
                   required
