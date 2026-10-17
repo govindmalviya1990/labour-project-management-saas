@@ -5,7 +5,8 @@
 
 # Testing
 /coverage
-/scripts/
+/scripts/*
+!/scripts/live-assistant-smoke.ts
 
 
 # Next.js build output
@@ -21,6 +22,8 @@
 
 # Environment variables
 .env
+.env*
+.env.local
 .env*.local
 .env.production
 

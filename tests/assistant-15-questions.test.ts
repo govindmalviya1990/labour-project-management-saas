@@ -84,7 +84,7 @@ async function testAll15Questions() {
   const res10 = await matchRuleBased('Project vastral ka total kharcha aur payment received kitna hai?', mockOwnerCtx);
   assert(res10.matched === true, 'Q10 matched project summary');
   assert(res10.card?.type === 'SUMMARY', 'Q10 returns SUMMARY card');
-  assert(res10.card?.linkUrl?.includes('/project'), 'Q10 links to /projects');
+  assert(Boolean(res10.card?.linkUrl?.includes('/project')), 'Q10 links to /projects');
 
   // Q11: Is hafte ke petrol ke kharche dikhao
   console.log('\n11. Testing "Is hafte ke petrol ke kharche dikhao"');

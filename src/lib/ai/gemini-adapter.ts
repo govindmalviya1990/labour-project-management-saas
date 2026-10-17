@@ -1,6 +1,7 @@
 import { ILlmProvider, LlmRequest, LlmResponse } from './types';
 
 let activeModelCache: string | null = null;
+let hasLoggedModelStartup = false;
 
 function normalizeSchema(schema: any): any {
   if (!schema || typeof schema !== 'object') return schema;
@@ -23,19 +24,21 @@ function normalizeSchema(schema: any): any {
 
 export let lastDiscoveredModels: string[] = [];
 
-async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
-  if (activeModelCache && !activeModelCache.includes('2.5-flash') && !activeModelCache.includes('3.8-flash')) {
+export async function resolveWorkingModel(apiKey: string, preferredModel?: string): Promise<string> {
+  if (activeModelCache) {
     return activeModelCache;
   }
-  activeModelCache = null;
 
   let initial = (preferredModel || process.env.GEMINI_MODEL || '').trim();
-  if (initial.includes('2.5-flash') || initial.includes('3.8-flash') || initial.includes('3.5-flash')) {
-    initial = 'gemini-2.0-flash';
-  }
 
   try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    const listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+      headers: {
+        'x-goog-api-key': apiKey,
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
     if (listRes.ok) {
       const data = await listRes.json();
       const rawModels: string[] = (data.models || [])
@@ -43,41 +46,56 @@ async function resolveWorkingModel(apiKey: string, preferredModel?: string): Pro
         .map((m: any) => m.name.replace(/^models\//, ''));
 
       lastDiscoveredModels = rawModels;
-      const validModels = rawModels.filter((name: string) => !name.includes('2.5-flash') && !name.includes('3.8-flash'));
-
-      if (initial && validModels.includes(initial)) {
-        activeModelCache = initial;
-        return initial;
-      }
 
       const priorityOrder = [
+        'gemini-3-flash-preview',
+        'gemini-3.5-flash',
+        'gemini-flash-latest',
+        'gemini-2.5-flash',
+        'gemini-3.1-flash-lite',
         'gemini-2.0-flash',
         'gemini-1.5-flash',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash-8b',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro-latest',
-        'gemini-1.5-pro',
         'gemini-pro',
       ];
 
-      for (const p of priorityOrder) {
-        if (validModels.includes(p)) {
-          activeModelCache = p;
-          return p;
+      if (initial && rawModels.includes(initial)) {
+        activeModelCache = initial;
+      } else {
+        for (const p of priorityOrder) {
+          if (rawModels.includes(p)) {
+            activeModelCache = p;
+            break;
+          }
+        }
+        if (!activeModelCache && rawModels.length > 0) {
+          activeModelCache = rawModels[0];
         }
       }
 
-      if (validModels.length > 0) {
-        activeModelCache = validModels[0];
-        return validModels[0];
+      if (activeModelCache && !hasLoggedModelStartup) {
+        console.log(`[AI_MODEL] Selected active model: ${activeModelCache}`);
+        hasLoggedModelStartup = true;
       }
+
+      if (activeModelCache) {
+        return activeModelCache;
+      }
+    } else {
+      const errText = await listRes.text();
+      console.error(`[AI_MODEL] Failed to query Gemini models list. HTTP status: ${listRes.status}, reason: ${errText.slice(0, 200)}`);
     }
-  } catch (err) {
-    console.warn('Failed to query Gemini models list:', err);
+  } catch (err: any) {
+    console.error(`[AI_MODEL] Error during Gemini model discovery: ${err?.message || String(err)}`);
   }
 
-  return initial || 'gemini-2.0-flash';
+  activeModelCache = initial || 'gemini-3-flash-preview';
+  if (!hasLoggedModelStartup) {
+    console.log(`[AI_MODEL] Fallback default model: ${activeModelCache}`);
+    hasLoggedModelStartup = true;
+  }
+  return activeModelCache;
 }
 
 export class GeminiProvider implements ILlmProvider {
@@ -95,14 +113,21 @@ export class GeminiProvider implements ILlmProvider {
       };
     }
 
-    let model = await resolveWorkingModel(apiKey, process.env.GEMINI_MODEL);
+    const startTime = Date.now();
+    const timeoutMs = request.timeoutMs || 20000;
+    const model = await resolveWorkingModel(apiKey, process.env.GEMINI_MODEL);
 
     // Convert messages to Gemini contents format
     const contents: any[] = [];
     for (const msg of request.messages) {
       if (msg.role === 'system') continue; // Handled in system_instruction
 
-      if (msg.role === 'function' && msg.name) {
+      if (msg.rawParts && Array.isArray(msg.rawParts) && msg.rawParts.length > 0) {
+        contents.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: msg.rawParts,
+        });
+      } else if (msg.role === 'function' && msg.name) {
         let functionResponseData: any;
         try {
           functionResponseData = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
@@ -110,7 +135,7 @@ export class GeminiProvider implements ILlmProvider {
           functionResponseData = { output: msg.content };
         }
         contents.push({
-          role: 'function',
+          role: 'user', // Gemini REST v1beta requires user role for function responses
           parts: [
             {
               functionResponse: {
@@ -121,6 +146,17 @@ export class GeminiProvider implements ILlmProvider {
               },
             },
           ],
+        });
+      } else if (msg.functionCalls && msg.functionCalls.length > 0) {
+        contents.push({
+          role: 'model',
+          parts: msg.functionCalls.map((fc) => ({
+            functionCall: {
+              name: fc.name,
+              args: fc.arguments,
+              ...(fc.id ? { id: fc.id } : {}),
+            },
+          })),
         });
       } else if (msg.functionCall) {
         contents.push({
@@ -137,7 +173,7 @@ export class GeminiProvider implements ILlmProvider {
       } else {
         contents.push({
           role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }],
+          parts: [{ text: msg.content || '' }],
         });
       }
     }
@@ -170,40 +206,38 @@ export class GeminiProvider implements ILlmProvider {
       payload.tools = tools;
     }
 
-    if (request.temperature !== undefined) {
-      payload.generationConfig = {
-        temperature: request.temperature,
-        maxOutputTokens: request.maxTokens || 1024,
-      };
-    }
+    payload.generationConfig = {
+      temperature: request.temperature !== undefined ? request.temperature : 0.2,
+      maxOutputTokens: request.maxTokens || 1024,
+    };
 
-    const candidateModels = [
+    const candidateModels = Array.from(new Set([
       model,
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-8b',
-      'gemini-1.5-pro',
-    ];
-    const uniqueModels = Array.from(new Set(candidateModels));
+      'gemini-3-flash-preview',
+      'gemini-3.5-flash',
+      'gemini-flash-latest',
+    ]));
 
     let lastError = '';
 
-    for (const currentModel of uniqueModels) {
+    for (const currentModel of candidateModels) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent`;
         const response = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(timeoutMs),
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          lastError = `HTTP ${response.status} (${currentModel}): ${errorText}`;
-          console.warn(`Gemini try failed for ${currentModel}:`, lastError);
-          if (response.status === 503 || response.status === 429 || response.status === 404) {
+          lastError = `HTTP ${response.status} (${currentModel}): ${errorText.slice(0, 200)}`;
+          console.warn(`Gemini attempt failed for ${currentModel}: ${lastError}`);
+          if (response.status === 503) {
             continue;
           }
           break;
@@ -216,23 +250,30 @@ export class GeminiProvider implements ILlmProvider {
         const parts = candidate?.content?.parts || [];
 
         let textContent = '';
-        let functionCall: { name: string; arguments: Record<string, any> } | undefined;
+        const functionCalls: Array<{ name: string; arguments: Record<string, any>; id?: string }> = [];
 
         for (const part of parts) {
           if (part.text) {
             textContent += part.text;
           }
           if (part.functionCall) {
-            functionCall = {
+            functionCalls.push({
               name: part.functionCall.name,
               arguments: part.functionCall.args || {},
-            };
+              id: part.functionCall.id,
+            });
           }
         }
 
+        const latencyMs = Date.now() - startTime;
+
         return {
           content: textContent,
-          functionCall,
+          functionCall: functionCalls[0],
+          functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
+          rawParts: parts,
+          model: currentModel,
+          latencyMs,
           usage: {
             promptTokens: data.usageMetadata?.promptTokenCount || 0,
             completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
@@ -241,7 +282,7 @@ export class GeminiProvider implements ILlmProvider {
         };
       } catch (err: any) {
         lastError = `Exception (${currentModel}): ${err?.message || String(err)}`;
-        console.warn(`Gemini attempt error for ${currentModel}:`, lastError);
+        console.warn(`Gemini attempt error for ${currentModel}: ${lastError}`);
         continue;
       }
     }
@@ -250,6 +291,7 @@ export class GeminiProvider implements ILlmProvider {
       content: '',
       isFallback: true,
       error: `Gemini API failed across models: ${lastError}`,
+      latencyMs: Date.now() - startTime,
     };
   }
 }

@@ -6,6 +6,12 @@ export interface LlmMessage {
     name: string;
     arguments: Record<string, any>;
   };
+  functionCalls?: Array<{
+    name: string;
+    arguments: Record<string, any>;
+    id?: string;
+  }>;
+  rawParts?: any[];
 }
 
 export interface LlmToolDefinition {
@@ -29,6 +35,7 @@ export interface LlmRequest {
   tools?: LlmToolDefinition[];
   temperature?: number;
   maxTokens?: number;
+  timeoutMs?: number;
 }
 
 export interface LlmResponse {
@@ -37,11 +44,19 @@ export interface LlmResponse {
     name: string;
     arguments: Record<string, any>;
   };
+  functionCalls?: Array<{
+    name: string;
+    arguments: Record<string, any>;
+    id?: string;
+  }>;
+  rawParts?: any[];
   usage?: {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
   };
+  model?: string;
+  latencyMs?: number;
   isFallback?: boolean;
   error?: string;
 }
