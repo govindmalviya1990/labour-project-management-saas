@@ -281,7 +281,7 @@ export function AssistantDrawer({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>260+ Questions &amp; Prompts</span>
+            <span>2,000+ Questions &amp; Prompts</span>
             {patternStats?.learnedPatternsCount ? (
               <span className="text-[9px] bg-emerald-500/30 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/40 font-mono">
                 +{patternStats.learnedPatternsCount} Learned
@@ -313,7 +313,7 @@ export function AssistantDrawer({
               <div>
                 <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                   <BookOpen className="w-3.5 h-3.5 text-amber-400" />
-                  <span>AI Prompt Library (260+ Patterns)</span>
+                  <span>AI Prompt Library (2,000+ Hinglish Patterns)</span>
                 </h3>
                 <p className="text-[10px] text-slate-400">
                   Kisi bhi question par click karein. AI har sawal ka hisaab batayega.
@@ -358,7 +358,7 @@ export function AssistantDrawer({
                     : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
                 }`}
               >
-                All ({patternStats?.totalPatterns || 264})
+                All ({patternStats?.totalPatterns || 2000})
               </button>
               {categoriesList.map((cat) => (
                 <button
