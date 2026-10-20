@@ -16,6 +16,10 @@ import {
   Mic,
   MicOff,
   Languages,
+  Search,
+  BookOpen,
+  TrendingUp,
+  ChevronRight,
 } from 'lucide-react';
 import { AssistantAvatar } from './AssistantAvatar';
 import { ConfirmationCard } from './ConfirmationCard';
@@ -74,8 +78,46 @@ export function AssistantDrawer({
   const [isLoading, setIsLoading] = useState(false);
   const [assistantMode, setAssistantMode] = useState<'GEMINI' | 'SIMPLE'>('SIMPLE');
 
+  // Question Patterns Bank & Continuous Learning State
+  const [showPromptLibrary, setShowPromptLibrary] = useState(false);
+  const [patternStats, setPatternStats] = useState<{
+    totalPatterns: number;
+    preSeededPatterns: number;
+    learnedPatternsCount: number;
+    totalQueries: number;
+  } | null>(null);
+  const [categoriesList, setCategoriesList] = useState<Array<{ id: string; label: string; icon: string }>>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [patternSearchQuery, setPatternSearchQuery] = useState('');
+  const [patternsList, setPatternsList] = useState<any[]>([]);
+  const [isLoadingPatterns, setIsLoadingPatterns] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const fetchPatterns = (cat?: string, search?: string) => {
+    setIsLoadingPatterns(true);
+    const params = new URLSearchParams();
+    if (cat && cat !== 'ALL') params.set('category', cat);
+    if (search && search.trim()) params.set('q', search.trim());
+    params.set('limit', '50');
+
+    fetch(`/api/assistant/patterns?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          if (data.stats) setPatternStats(data.stats);
+          if (data.categories) setCategoriesList(data.categories);
+          if (data.patterns) setPatternsList(data.patterns);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingPatterns(false));
+  };
+
+  useEffect(() => {
+    fetchPatterns();
+  }, []);
 
   const {
     isSupported: isSpeechSupported,
@@ -223,13 +265,38 @@ export function AssistantDrawer({
           </button>
         </div>
 
-        {/* Quick Chips Bar */}
-        <div className="p-2.5 border-b border-slate-800/80 bg-slate-950/40 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        {/* Quick Chips & Prompt Library Bar */}
+        <div className="p-2 border-b border-slate-800/80 bg-slate-950/60 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !showPromptLibrary;
+              setShowPromptLibrary(next);
+              if (next) fetchPatterns(selectedCategory, patternSearchQuery);
+            }}
+            className={`text-[11px] font-bold px-3 py-1.5 rounded-full transition-all shrink-0 flex items-center gap-1.5 active:scale-95 ${
+              showPromptLibrary
+                ? 'bg-amber-500 text-slate-950 border border-amber-400 shadow-md'
+                : 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 hover:border-amber-400'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>260+ Questions &amp; Prompts</span>
+            {patternStats?.learnedPatternsCount ? (
+              <span className="text-[9px] bg-emerald-500/30 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-500/40 font-mono">
+                +{patternStats.learnedPatternsCount} Learned
+              </span>
+            ) : null}
+          </button>
+
           {QUICK_CHIPS.map((chip) => (
             <button
               key={chip.label}
               type="button"
-              onClick={() => handleSend(chip.query)}
+              onClick={() => {
+                setShowPromptLibrary(false);
+                handleSend(chip.query);
+              }}
               disabled={isLoading}
               className="text-[11px] font-medium px-2.5 py-1.5 rounded-full bg-slate-800 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 border border-slate-700/60 whitespace-nowrap transition-colors shrink-0 active:scale-95 disabled:opacity-50"
             >
@@ -238,7 +305,132 @@ export function AssistantDrawer({
           ))}
         </div>
 
-        {/* Messages Scroll Area */}
+        {/* Conditional View: Messages Stream OR Prompt Library Explorer */}
+        {showPromptLibrary ? (
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-3 bg-slate-950/80">
+            {/* Explorer Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+              <div>
+                <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                  <span>AI Prompt Library (260+ Patterns)</span>
+                </h3>
+                <p className="text-[10px] text-slate-400">
+                  Kisi bhi question par click karein. AI har sawal ka hisaab batayega.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPromptLibrary(false)}
+                className="text-[11px] font-medium text-amber-400 hover:underline px-2 py-1 rounded bg-slate-900 border border-slate-800"
+              >
+                Back to Chat
+              </button>
+            </div>
+
+            {/* Search Box inside Library */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={patternSearchQuery}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPatternSearchQuery(val);
+                  fetchPatterns(selectedCategory, val);
+                }}
+                placeholder="Search across questions (Hinglish, ગુજરાતી, Hindi)..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-700/80 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {/* Category Pills */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory('ALL');
+                  fetchPatterns('ALL', patternSearchQuery);
+                }}
+                className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-all shrink-0 ${
+                  selectedCategory === 'ALL'
+                    ? 'bg-amber-500 text-slate-950 shadow-xs'
+                    : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                All ({patternStats?.totalPatterns || 264})
+              </button>
+              {categoriesList.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    fetchPatterns(cat.id, patternSearchQuery);
+                  }}
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-all shrink-0 flex items-center gap-1 ${
+                    selectedCategory === cat.id
+                      ? 'bg-amber-500 text-slate-950 shadow-xs'
+                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label.split('&')[0].trim()}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Pattern Cards List */}
+            {isLoadingPatterns ? (
+              <div className="py-8 flex flex-col items-center justify-center text-slate-500 gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
+                <span className="text-xs">Patterns load ho rahe hain...</span>
+              </div>
+            ) : patternsList.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-xs bg-slate-900/40 rounded-xl p-4 border border-dashed border-slate-800">
+                Koi matching pattern nahi mila. Par aap neeche input me poochh sakte hain, assistant automatically seekh lega!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {patternsList.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setShowPromptLibrary(false);
+                      handleSend(p.question);
+                    }}
+                    className="w-full text-left p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800/80 hover:border-amber-500/40 transition-all group flex items-start justify-between gap-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 border border-slate-700/60">
+                          {p.category}
+                        </span>
+                        {p.isLearned && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <TrendingUp className="w-2.5 h-2.5" />
+                            Auto-Learned ({p.frequency}x)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-slate-200 group-hover:text-amber-300 leading-snug">
+                        {p.question}
+                      </p>
+                      {p.variations && p.variations.length > 0 && (
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5 font-sans">
+                          {p.variations[0]}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-amber-400 shrink-0 mt-1 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+        /* Messages Scroll Area */
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) => (
             <div
@@ -371,6 +563,7 @@ export function AssistantDrawer({
 
           <div ref={messagesEndRef} />
         </div>
+        )}
 
         {/* Footer Input Box & Voice Controls */}
         <div className="p-3 border-t border-slate-800 bg-slate-950/95 backdrop-blur-md">

@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "updatedAt": "2026-10-20T16:00:30.574Z",
+  "queryStats": {
+    "totalQueries": 2,
+    "successfulQueries": 2,
+    "failedQueries": 0,
+    "learnedPatternsCount": 1
+  },
+  "patterns": [
+    {
+      "id": "learned_1792512030064_c1k5f",
+      "rawQuery": "Dr Fixit site consumption report 1792512030064",
+      "normalizedQuery": "dr fixit site consumption report 1792512030064",
+      "intent": "getMaterialStock",
+      "category": "MATERIALS_STOCK",
+      "source": "GEMINI",
+      "toolsCalled": [
+        "getMaterialStock"
+      ],
+      "tokens": [
+        "dr",
+        "fixit",
+        "site",
+        "consumption",
+        "report",
+        "1792512030064"
+      ],
+      "frequency": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "confidence": 0.95,
+      "language": "hinglish",
+      "firstAskedAt": "2026-10-20T16:00:30.064Z",
+      "lastAskedAt": "2026-10-20T16:00:30.066Z"
+    }
+  ]
+}

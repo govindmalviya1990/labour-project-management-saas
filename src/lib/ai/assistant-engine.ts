@@ -4,6 +4,7 @@ import { ALL_ASSISTANT_TOOL_DEFINITIONS, executeTool } from '@/lib/ai/tools';
 import { matchRuleBased } from '@/lib/ai/rule-based';
 import { ToolExecutionContext, LlmMessage } from '@/lib/ai/types';
 import { formatINR } from '@/lib/calculations';
+import { learningEngine } from '@/lib/ai/learning-engine';
 
 export function formatToolDataToAnswer(toolName: string, data: any, query: string): string {
   if (!data) return 'Aapki query ka koi data nahi mila.';
@@ -342,6 +343,13 @@ export async function handleAssistantMessage(
   if (isTier0ExactPattern(trimmedMessage)) {
     const ruleResult = await matchRuleBased(trimmedMessage, ctx);
     if (ruleResult.matched) {
+      learningEngine.recordQuery({
+        rawQuery: trimmedMessage,
+        intent: 'rule_exact',
+        source: 'RULE',
+        success: true,
+        userRole: ctx.userRole,
+      });
       const latencyMs = Date.now() - reqStartTime;
       console.log(`[ASSISTANT] source=RULE model=none tools=none iterations=0 latency=${latencyMs}ms error=none`);
       return {
@@ -360,6 +368,32 @@ export async function handleAssistantMessage(
   // ---------------------------------------------------------
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
+    // Check if learning engine / pattern bank can resolve query with live data
+    const patternMatch = learningEngine.findBestMatch(trimmedMessage, 0.60);
+    if (patternMatch) {
+      const resolved = await learningEngine.resolveDirectPattern(patternMatch, ctx, trimmedMessage);
+      if (resolved) {
+        learningEngine.recordQuery({
+          rawQuery: trimmedMessage,
+          intent: patternMatch.intent,
+          category: patternMatch.category,
+          source: 'DATA_ENGINE',
+          toolsCalled: resolved.toolCalled ? [resolved.toolCalled] : undefined,
+          success: true,
+          userRole: ctx.userRole,
+        });
+        const latencyMs = Date.now() - reqStartTime;
+        return {
+          answer: resolved.answer,
+          card: resolved.card,
+          source: 'DATA_ENGINE',
+          toolCalled: resolved.toolCalled,
+          toolsCalled: resolved.toolCalled ? [resolved.toolCalled] : undefined,
+          latencyMs,
+        };
+      }
+    }
+
     const latencyMs = Date.now() - reqStartTime;
     console.log(`[ASSISTANT] source=SIMPLE_MODE model=none tools=none iterations=0 latency=${latencyMs}ms error=NO_API_KEY`);
     return {
@@ -443,6 +477,15 @@ CRITICAL RULES:
         executedTools.push({ name: draftCall.name, args: draftCall.arguments, output: draftOutput });
         finalAnswer = draftOutput.message || 'Draft taiyaar hai. Kripya verify karke Save karein.';
         finalCard = draftOutput.card;
+
+        learningEngine.recordQuery({
+          rawQuery: trimmedMessage,
+          intent: draftCall.name,
+          source: 'GEMINI',
+          toolsCalled: [draftCall.name],
+          success: true,
+          userRole: ctx.userRole,
+        });
 
         const latencyMs = Date.now() - reqStartTime;
         console.log(`[ASSISTANT] source=GEMINI model=${chosenModel || 'gemini'} tools=${draftCall.name} iterations=${iteration} latency=${latencyMs}ms error=none`);
@@ -528,6 +571,15 @@ CRITICAL RULES:
   const toolsCalledList = executedTools.map((t) => t.name);
 
   if (finalAnswer) {
+    learningEngine.recordQuery({
+      rawQuery: trimmedMessage,
+      intent: toolsCalledList[0] || 'conversational',
+      source: 'GEMINI',
+      toolsCalled: toolsCalledList,
+      success: true,
+      userRole: ctx.userRole,
+    });
+
     console.log(`[ASSISTANT] source=GEMINI model=${chosenModel || 'gemini'} tools=${toolsCalledList.join(',') || 'none'} iterations=${totalIterations} latency=${latencyMs}ms error=none`);
     return {
       answer: finalAnswer,
@@ -544,6 +596,15 @@ CRITICAL RULES:
 
   // Fallback to formatted tool data if tools ran but LLM summary failed
   if (executedTools.length > 0) {
+    learningEngine.recordQuery({
+      rawQuery: trimmedMessage,
+      intent: executedTools[0].name,
+      source: 'DATA_ENGINE',
+      toolsCalled: toolsCalledList,
+      success: true,
+      userRole: ctx.userRole,
+    });
+
     const directAnswer = formatToolDataToAnswer(executedTools[0].name, executedTools[0].output, trimmedMessage);
     const answer = `${directAnswer}\n\n*(Note: AI summary abhi uplabdh nahi thi, direct system data prastut kiya gaya hai.)*`;
     console.log(`[ASSISTANT] source=DATA_ENGINE model=${chosenModel || 'none'} tools=${toolsCalledList.join(',')} iterations=${totalIterations} latency=${latencyMs}ms error=${errorCode || 'SUMMARY_FAILED'}`);
@@ -558,6 +619,31 @@ CRITICAL RULES:
       model: chosenModel,
       iterations: totalIterations,
     };
+  }
+
+  // Fallback to pattern bank & learned patterns before falling back to static menu
+  const patternMatch = learningEngine.findBestMatch(trimmedMessage, 0.60);
+  if (patternMatch) {
+    const resolved = await learningEngine.resolveDirectPattern(patternMatch, ctx, trimmedMessage);
+    if (resolved) {
+      learningEngine.recordQuery({
+        rawQuery: trimmedMessage,
+        intent: patternMatch.intent,
+        category: patternMatch.category,
+        source: 'DATA_ENGINE',
+        toolsCalled: resolved.toolCalled ? [resolved.toolCalled] : undefined,
+        success: true,
+        userRole: ctx.userRole,
+      });
+      return {
+        answer: `${resolved.answer}\n\n*(Note: AI assistant direct database mode se reply kar raha hai.)*`,
+        card: resolved.card,
+        toolsCalled: resolved.toolCalled ? [resolved.toolCalled] : undefined,
+        toolCalled: resolved.toolCalled,
+        source: 'DATA_ENGINE',
+        latencyMs: Date.now() - reqStartTime,
+      };
+    }
   }
 
   // Final fallback when Gemini failed and no tools ran
