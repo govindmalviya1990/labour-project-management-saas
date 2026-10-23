@@ -1767,13 +1767,22 @@ export function PartnerHisaabSection({
               </optgroup>
             </select>
 
+            <Link
+              href="/hisaab/send-money"
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-sm flex items-center gap-1.5 transition-colors"
+              title="Open full page multi-site folder sheet"
+            >
+              <Send className="w-3.5 h-3.5" />
+              Multi-Site Sheet
+            </Link>
+
             <Button
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 shadow-sm"
               onClick={() => openSendMoneyModal()}
             >
               <Send className="w-3.5 h-3.5 mr-1.5" />
-              Send Money
+              Quick Modal
             </Button>
           </div>
         </div>

@@ -19,6 +19,7 @@
 
 # Database journals
 *.db-journal
+*.backup*
 
 
 # Environment variables

@@ -1,11 +1,11 @@
 {
   "version": "1.0",
-  "updatedAt": "2026-10-23T12:45:36.991Z",
+  "updatedAt": "2026-10-23T15:08:50.859Z",
   "queryStats": {
-    "totalQueries": 2,
-    "successfulQueries": 2,
+    "totalQueries": 4,
+    "successfulQueries": 4,
     "failedQueries": 0,
-    "learnedPatternsCount": 1
+    "learnedPatternsCount": 2
   },
   "patterns": [
     {
@@ -33,6 +33,32 @@
       "language": "hinglish",
       "firstAskedAt": "2026-10-23T12:45:36.474Z",
       "lastAskedAt": "2026-10-23T12:45:36.476Z"
+    },
+    {
+      "id": "learned_1792768130353_b15h3",
+      "rawQuery": "Dr Fixit site consumption report 1792768130352",
+      "normalizedQuery": "dr fixit site consumption report 1792768130352",
+      "intent": "getMaterialStock",
+      "category": "MATERIALS_STOCK",
+      "source": "GEMINI",
+      "toolsCalled": [
+        "getMaterialStock"
+      ],
+      "tokens": [
+        "dr",
+        "fixit",
+        "site",
+        "consumption",
+        "report",
+        "1792768130352"
+      ],
+      "frequency": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "confidence": 0.95,
+      "language": "hinglish",
+      "firstAskedAt": "2026-10-23T15:08:50.353Z",
+      "lastAskedAt": "2026-10-23T15:08:50.355Z"
     }
   ]
 }

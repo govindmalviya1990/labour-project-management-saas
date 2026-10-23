@@ -108,6 +108,7 @@ export function Sidebar({
           children: [
             { title: 'Payment Received', href: '/hisaab' },
             { title: 'Partner Hisaab', href: '/hisaab/partners' },
+            { title: 'Send Money', href: '/hisaab/send-money' },
           ],
         },
         {
@@ -166,6 +167,7 @@ export function Sidebar({
           children: [
             { title: 'Payment Received', href: '/hisaab' },
             { title: 'Partner Hisaab', href: '/hisaab/partners' },
+            { title: 'Send Money', href: '/hisaab/send-money' },
           ],
         },
         {
@@ -228,6 +230,7 @@ export function Sidebar({
           children: [
             { title: 'Payment Received', href: '/hisaab' },
             { title: 'Partner Hisaab', href: '/hisaab/partners' },
+            { title: 'Send Money', href: '/hisaab/send-money' },
           ],
         },
         {
@@ -297,6 +300,7 @@ export function Sidebar({
         children: [
           { title: 'Payment Received', href: '/hisaab' },
           { title: 'Partner Hisaab', href: '/hisaab/partners' },
+          { title: 'Send Money', href: '/hisaab/send-money' },
         ],
       },
       {
