@@ -207,7 +207,38 @@ export async function POST(req: Request) {
         }
       }
 
-      // 4b. Execute each payment sequentially inside the transaction
+      // 4b. Auto-persist any custom worker payment categories to purposeOption if they don't exist yet
+      for (const item of items) {
+        try {
+          const trimmedCat = item.category?.trim();
+          if (trimmedCat && trimmedCat.length >= 2 && trimmedCat.length <= 50) {
+            const catExists = await tx.purposeOption.findFirst({
+              where: {
+                organizationId: orgId,
+                type: 'TRANSFER',
+                name: { equals: trimmedCat, mode: 'insensitive' },
+                deletedAt: null,
+              },
+            });
+            if (!catExists) {
+              await tx.purposeOption.create({
+                data: {
+                  organizationId: orgId,
+                  type: 'TRANSFER',
+                  name: trimmedCat,
+                  isSystem: false,
+                  isActive: true,
+                  createdById: session.userId,
+                },
+              });
+            }
+          }
+        } catch (e) {
+          // Non-fatal
+        }
+      }
+
+      // 4c. Execute each payment sequentially inside the transaction
       const results = [];
       for (const item of items) {
         const worker = workersMap.get(item.workerId)!;

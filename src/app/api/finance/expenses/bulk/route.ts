@@ -203,7 +203,38 @@ export async function POST(req: Request) {
           }
         }
 
-        // 4b. Execute each expense item sequentially inside the transaction
+        // 4b. Auto-persist any custom categories to purposeOption if they don't exist yet
+        for (const item of items) {
+          try {
+            const trimmedCat = item.category?.trim();
+            if (trimmedCat && trimmedCat.length >= 2 && trimmedCat.length <= 50) {
+              const catExists = await tx.purposeOption.findFirst({
+                where: {
+                  organizationId: orgId,
+                  type: 'EXPENSE',
+                  name: { equals: trimmedCat, mode: 'insensitive' },
+                  deletedAt: null,
+                },
+              });
+              if (!catExists) {
+                await tx.purposeOption.create({
+                  data: {
+                    organizationId: orgId,
+                    type: 'EXPENSE',
+                    name: trimmedCat,
+                    isSystem: false,
+                    isActive: true,
+                    createdById: session.userId,
+                  },
+                });
+              }
+            }
+          } catch (e) {
+            // Non-fatal if purpose creation fails or collides
+          }
+        }
+
+        // 4c. Execute each expense item sequentially inside the transaction
         const results = [];
         const now = new Date();
         const canUndoUntil = new Date(now.getTime() + 48 * 60 * 60 * 1000);

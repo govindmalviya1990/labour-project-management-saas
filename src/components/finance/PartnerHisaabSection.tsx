@@ -34,6 +34,7 @@ import {
   History,
   Lock,
   Truck,
+  Loader2,
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/Button';
@@ -183,6 +184,15 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   'Logistics & Transport',
   'Labour Wages / Kharcha',
   'Miscellaneous',
+];
+
+const DEFAULT_WORKER_REASONS = [
+  'Salary / Wages',
+  'Labour Advance',
+  'Worker Food & Tea (Kharcha)',
+  'Worker Travel / Petrol',
+  'Worker Emergency / Medical',
+  'Worker Grocery',
 ];
 
 interface ExpenseDonutChartProps {
@@ -507,6 +517,12 @@ export function PartnerHisaabSection({
   const [expenseAmountInput, setExpenseAmountInput] = useState('');
   const [expenseDescriptionInput, setExpenseDescriptionInput] = useState('');
   const [expenseVendorInput, setExpenseVendorInput] = useState('');
+
+  // Custom Category & Custom Reason Saving State
+  const [isSavingCustomCategory, setIsSavingCustomCategory] = useState(false);
+  const [customCategoryError, setCustomCategoryError] = useState('');
+  const [isSavingCustomWorkerReason, setIsSavingCustomWorkerReason] = useState(false);
+  const [customWorkerReasonError, setCustomWorkerReasonError] = useState('');
 
   // Role & Show Deleted Filter State
   const [userRole, setUserRole] = useState<string>('');
@@ -870,6 +886,14 @@ export function PartnerHisaabSection({
     return Array.from(new Set([...DEFAULT_EXPENSE_CATEGORIES, ...customCats]));
   }, [purposeOptions]);
 
+  // Computed worker payment reasons from system presets + custom DB purposeOptions
+  const availableWorkerReasons = useMemo(() => {
+    const customReasons = purposeOptions
+      .filter((p) => p.type === 'TRANSFER' || p.type === 'EXPENSE')
+      .map((p) => p.name);
+    return Array.from(new Set([...DEFAULT_WORKER_REASONS, ...customReasons]));
+  }, [purposeOptions]);
+
   // Computed source account available balance
   const sourceAvailableBalance = useMemo(() => {
     if (sendMoneyForm.sourceType === 'PARTNER') {
@@ -1009,13 +1033,105 @@ export function PartnerHisaabSection({
 
   const isQueueBalanceExceeded = totalQueueAmount > sourceAvailableBalance;
 
-  const handleAddWorkerToQueue = () => {
+  const handleSaveCustomWorkerReason = async () => {
+    const trimmed = sendMoneyForm.customWorkerReason.trim();
+    setCustomWorkerReasonError('');
+
+    if (!trimmed) {
+      setCustomWorkerReasonError('Please enter a reason name.');
+      return;
+    }
+    if (trimmed.length < 2 || trimmed.length > 50) {
+      setCustomWorkerReasonError('Reason name must be between 2 and 50 characters.');
+      return;
+    }
+
+    const existing = availableWorkerReasons.find(
+      (c) => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        workerReasonSelect: existing,
+        customWorkerReason: '',
+      }));
+      setCustomWorkerReasonError('');
+      return;
+    }
+
+    setIsSavingCustomWorkerReason(true);
+    try {
+      const res = await fetch('/api/reasons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          type: 'TRANSFER',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error && data.error.includes('already exists')) {
+          setSendMoneyForm((prev) => ({
+            ...prev,
+            workerReasonSelect: trimmed,
+            customWorkerReason: '',
+          }));
+          setCustomWorkerReasonError('');
+          return;
+        }
+        throw new Error(data.error || 'Failed to save custom reason');
+      }
+
+      const created = data.reason || { id: `custom_${Date.now()}`, name: trimmed, type: 'TRANSFER' };
+      setPurposeOptions((prev) => [...prev, created]);
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        workerReasonSelect: created.name,
+        customWorkerReason: '',
+      }));
+      setCustomWorkerReasonError('');
+    } catch (err: any) {
+      setCustomWorkerReasonError(err.message || 'Error saving reason');
+    } finally {
+      setIsSavingCustomWorkerReason(false);
+    }
+  };
+
+  const handleAddWorkerToQueue = async () => {
     setQueueError('');
 
-    const finalCategory =
-      sendMoneyForm.workerReasonSelect === '__CUSTOM__'
-        ? sendMoneyForm.customWorkerReason.trim()
-        : sendMoneyForm.workerReasonSelect;
+    let finalCategory = sendMoneyForm.workerReasonSelect;
+    if (sendMoneyForm.workerReasonSelect === '__CUSTOM__') {
+      const trimmed = sendMoneyForm.customWorkerReason.trim();
+      if (!trimmed) {
+        setQueueError('Please enter a custom category name.');
+        return;
+      }
+      finalCategory = trimmed;
+      // Auto-persist in background
+      try {
+        const res = await fetch('/api/reasons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmed, type: 'TRANSFER' }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reason) {
+            setPurposeOptions((prev) => [...prev, data.reason]);
+          }
+        }
+      } catch (e) {
+        // non-blocking
+      }
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        workerReasonSelect: trimmed,
+        customWorkerReason: '',
+      }));
+    }
 
     if (!finalCategory) {
       setQueueError('Please enter a custom category name.');
@@ -1073,6 +1189,72 @@ export function PartnerHisaabSection({
     setWorkerPaymentQueue((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleSaveCustomExpenseCategory = async () => {
+    const trimmed = sendMoneyForm.customCategoryName.trim();
+    setCustomCategoryError('');
+
+    if (!trimmed) {
+      setCustomCategoryError('Please enter a category name.');
+      return;
+    }
+    if (trimmed.length < 2 || trimmed.length > 50) {
+      setCustomCategoryError('Category name must be between 2 and 50 characters.');
+      return;
+    }
+
+    const existing = availableExpenseCategories.find(
+      (c) => c.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existing) {
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        expenseCategorySelect: existing,
+        customCategoryName: '',
+      }));
+      setCustomCategoryError('');
+      return;
+    }
+
+    setIsSavingCustomCategory(true);
+    try {
+      const res = await fetch('/api/reasons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          type: 'EXPENSE',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error && data.error.includes('already exists')) {
+          setSendMoneyForm((prev) => ({
+            ...prev,
+            expenseCategorySelect: trimmed,
+            customCategoryName: '',
+          }));
+          setCustomCategoryError('');
+          return;
+        }
+        throw new Error(data.error || 'Failed to save custom category');
+      }
+
+      const created = data.reason || { id: `custom_${Date.now()}`, name: trimmed, type: 'EXPENSE' };
+      setPurposeOptions((prev) => [...prev, created]);
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        expenseCategorySelect: created.name,
+        customCategoryName: '',
+      }));
+      setCustomCategoryError('');
+    } catch (err: any) {
+      setCustomCategoryError(err.message || 'Error saving category');
+    } finally {
+      setIsSavingCustomCategory(false);
+    }
+  };
+
   // Bulk Expense Queue Computations & Helpers
   const expenseQueueGroupedByCategory = useMemo(() => {
     const groups: Record<string, { items: ExpenseQueueItem[]; subtotal: number }> = {};
@@ -1092,13 +1274,39 @@ export function PartnerHisaabSection({
 
   const isExpenseQueueBalanceExceeded = totalExpenseQueueAmount > sourceAvailableBalance;
 
-  const handleAddExpenseToQueue = () => {
+  const handleAddExpenseToQueue = async () => {
     setExpenseQueueError('');
 
-    const finalCategory =
-      sendMoneyForm.expenseCategorySelect === '__CUSTOM__'
-        ? sendMoneyForm.customCategoryName.trim()
-        : sendMoneyForm.expenseCategorySelect;
+    let finalCategory = sendMoneyForm.expenseCategorySelect;
+    if (sendMoneyForm.expenseCategorySelect === '__CUSTOM__') {
+      const trimmed = sendMoneyForm.customCategoryName.trim();
+      if (!trimmed) {
+        setExpenseQueueError('Please enter a valid expense category name.');
+        return;
+      }
+      finalCategory = trimmed;
+      // Auto-persist in background
+      try {
+        const res = await fetch('/api/reasons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: trimmed, type: 'EXPENSE' }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reason) {
+            setPurposeOptions((prev) => [...prev, data.reason]);
+          }
+        }
+      } catch (e) {
+        // non-blocking
+      }
+      setSendMoneyForm((prev) => ({
+        ...prev,
+        expenseCategorySelect: trimmed,
+        customCategoryName: '',
+      }));
+    }
 
     if (!finalCategory) {
       setExpenseQueueError('Please enter a valid expense category.');
@@ -3516,31 +3724,97 @@ export function PartnerHisaabSection({
                   </label>
                   <select
                     value={sendMoneyForm.workerReasonSelect}
-                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, workerReasonSelect: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSendMoneyForm((prev) => ({ ...prev, workerReasonSelect: val }));
+                      if (val === '__CUSTOM__') {
+                        setCustomWorkerReasonError('');
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="Salary / Wages">Salary / Wages</option>
-                    <option value="Labour Advance">Labour Advance</option>
-                    <option value="Worker Food & Tea (Kharcha)">Worker Food &amp; Tea (Kharcha)</option>
-                    <option value="Worker Travel / Petrol">Worker Travel / Petrol</option>
-                    <option value="Worker Emergency / Medical">Worker Emergency / Medical</option>
-                    <option value="Worker Grocery">Worker Grocery</option>
-                    <option value="__CUSTOM__">+ Add Custom Reason / Category...</option>
+                    {availableWorkerReasons.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                    <option value="__CUSTOM__" className="font-bold text-emerald-600 dark:text-emerald-400">
+                      + Add Custom Reason / Category...
+                    </option>
                   </select>
                 </div>
 
                 {sendMoneyForm.workerReasonSelect === '__CUSTOM__' && (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      Custom Category Name:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Festival Bonus, Overtime Kharcha"
-                      value={sendMoneyForm.customWorkerReason}
-                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, customWorkerReason: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
+                  <div className="p-3 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5" />
+                        New Worker Payment Reason
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSendMoneyForm((prev) => ({
+                            ...prev,
+                            workerReasonSelect: availableWorkerReasons[0] || 'Salary / Wages',
+                            customWorkerReason: '',
+                          }));
+                          setCustomWorkerReasonError('');
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="e.g. Festival Bonus, Overtime Kharcha"
+                        value={sendMoneyForm.customWorkerReason}
+                        onChange={(e) => {
+                          setSendMoneyForm((prev) => ({ ...prev, customWorkerReason: e.target.value }));
+                          if (customWorkerReasonError) setCustomWorkerReasonError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveCustomWorkerReason();
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingCustomWorkerReason || !sendMoneyForm.customWorkerReason.trim()}
+                        onClick={handleSaveCustomWorkerReason}
+                        className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 shadow-sm"
+                      >
+                        {isSavingCustomWorkerReason ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add & Select</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {customWorkerReasonError && (
+                      <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {customWorkerReasonError}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Press <strong>Enter</strong> or click <strong>Add &amp; Select</strong> to save permanently for future entries.
+                    </p>
                   </div>
                 )}
 
@@ -3931,7 +4205,13 @@ export function PartnerHisaabSection({
                   </label>
                   <select
                     value={sendMoneyForm.expenseCategorySelect}
-                    onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, expenseCategorySelect: e.target.value }))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSendMoneyForm((prev) => ({ ...prev, expenseCategorySelect: val }));
+                      if (val === '__CUSTOM__') {
+                        setCustomCategoryError('');
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
                     {availableExpenseCategories.map((c) => (
@@ -3939,22 +4219,83 @@ export function PartnerHisaabSection({
                         {c}
                       </option>
                     ))}
-                    <option value="__CUSTOM__">+ Add Custom Category...</option>
+                    <option value="__CUSTOM__" className="font-bold text-amber-600 dark:text-amber-400">
+                      + Add Custom Category...
+                    </option>
                   </select>
                 </div>
 
                 {sendMoneyForm.expenseCategorySelect === '__CUSTOM__' && (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">
-                      Custom Category Name:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Generator Fuel, Client Lunch, Hardware"
-                      value={sendMoneyForm.customCategoryName}
-                      onChange={(e) => setSendMoneyForm((prev) => ({ ...prev, customCategoryName: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    />
+                  <div className="p-3 rounded-xl bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5" />
+                        New Custom Category
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSendMoneyForm((prev) => ({
+                            ...prev,
+                            expenseCategorySelect: availableExpenseCategories[0] || 'Site Materials / Hardware',
+                            customCategoryName: '',
+                          }));
+                          setCustomCategoryError('');
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="e.g. Generator Fuel, Client Lunch, Hardware"
+                        value={sendMoneyForm.customCategoryName}
+                        onChange={(e) => {
+                          setSendMoneyForm((prev) => ({ ...prev, customCategoryName: e.target.value }));
+                          if (customCategoryError) setCustomCategoryError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveCustomExpenseCategory();
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingCustomCategory || !sendMoneyForm.customCategoryName.trim()}
+                        onClick={handleSaveCustomExpenseCategory}
+                        className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shrink-0 shadow-sm"
+                      >
+                        {isSavingCustomCategory ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add & Select</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {customCategoryError && (
+                      <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {customCategoryError}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Press <strong>Enter</strong> or click <strong>Add &amp; Select</strong> to save permanently for future entries.
+                    </p>
                   </div>
                 )}
 
